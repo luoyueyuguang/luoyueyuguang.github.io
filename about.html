@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关于我 - luoyue's Blog</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .content {
+            padding: 40px 30px;
+            line-height: 1.6;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 500;
+            opacity: 0.9;
+            transition: opacity 0.3s ease;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+        }
+
+        .back-link .arrow {
+            margin-right: 8px;
+        }
+
+        .markdown-content {
+            color: #333;
+        }
+
+        .markdown-content h1 {
+            font-size: 2rem;
+            margin: 30px 0 15px 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            margin: 25px 0 10px 0;
+            color: #333;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.2rem;
+            margin: 20px 0 8px 0;
+            color: #444;
+        }
+
+        .markdown-content p {
+            margin-bottom: 15px;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+
+        .markdown-content li {
+            margin-bottom: 5px;
+        }
+
+        .markdown-content code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+
+        .markdown-content pre {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+            color: #333;
+        }
+
+        .markdown-content a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #667eea;
+            padding-left: 20px;
+            margin: 20px 0;
+            color: #666;
+            font-style: italic;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .markdown-content th, .markdown-content td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .markdown-content th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .error-state {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+        }
+
+        .error-state h3 {
+            color: #dc3545;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .content {
+                padding: 25px 20px;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="./index.html" class="back-link">
+                <span class="arrow">←</span>
+                返回首页
+            </a>
+            <h1>关于我</h1>
+        </div>
+
+        <div class="content">
+            <div id="readmeContent" class="markdown-content">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadReadme() {
+            try {
+                const response = await fetch('./README.md');
+                if (!response.ok) {
+                    throw new Error('README.md 文件不存在');
+                }
+                
+                const markdownContent = await response.text();
+                const htmlContent = marked.parse(markdownContent);
+                
+                document.getElementById('readmeContent').innerHTML = htmlContent;
+            } catch (error) {
+                console.error('加载 README 失败:', error);
+                document.getElementById('readmeContent').innerHTML = `
+                    <div class="error-state">
+                        <h3>README.md 不存在</h3>
+                        <p>该项目的 README.md 文件尚未创建。</p>
+                        <p>请联系网站管理员或稍后再试。</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 页面加载完成后立即加载 README
+        document.addEventListener('DOMContentLoaded', loadReadme);
+    </script>
+</body>
+</html>
