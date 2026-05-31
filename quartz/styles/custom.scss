@@ -1,0 +1,71 @@
+@use "./base.scss";
+
+body {
+  letter-spacing: 0;
+}
+
+.page-title {
+  font-size: 1.45rem;
+}
+
+.page-title a {
+  color: var(--dark);
+  font-weight: 700;
+}
+
+.page > #quartz-body .sidebar {
+  padding-top: 5rem;
+}
+
+.page > #quartz-body .page-header {
+  margin-top: 5rem;
+}
+
+.article-title {
+  font-size: 2.1rem;
+}
+
+article {
+  font-size: 1.02rem;
+}
+
+a.internal,
+a.internal.tag-link {
+  background-color: transparent;
+  border-bottom: 1px solid var(--lightgray);
+  border-radius: 0;
+  padding: 0;
+}
+
+a.internal:hover,
+a.internal.tag-link:hover {
+  border-bottom-color: var(--dark);
+}
+
+pre,
+code {
+  border-radius: 3px;
+}
+
+blockquote {
+  border-left-color: var(--dark);
+}
+
+.search > .search-button {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+}
+
+footer {
+  opacity: 0.8;
+}
+
+@media (max-width: 800px) {
+  .page > #quartz-body .sidebar.left {
+    padding-top: 1.5rem;
+  }
+
+  .page > #quartz-body .page-header {
+    margin-top: 1.5rem;
+  }
+}
