@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="460" viewBox="0 0 1000 460" role="img" aria-labelledby="title desc">
+  <title id="title">Structured random projection</title>
+  <desc id="desc">A diagram comparing dense Gaussian projection with structured random projection using sign flips and Hadamard butterfly transforms.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="460" rx="18" fill="#fbfbfc"/>
+  <rect x="28" y="28" width="944" height="404" rx="14" fill="#fff" stroke="#d9d9e3"/>
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="500" y="68" text-anchor="middle" font-size="26" font-weight="700">结构化随机投影：干掉 dense S 的 O(d²)</text>
+    <text x="500" y="96" text-anchor="middle" font-size="15" fill="#555">用随机正负号翻转 + Hadamard 蝴蝶变换近似随机投影，减少热路径开销</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="75" y="145" width="350" height="220" rx="12" fill="#fff4e8" stroke="#e7ad70"/>
+    <text x="250" y="182" text-anchor="middle" font-size="21" font-weight="700" fill="#4a2a06">直接 dense Gaussian</text>
+    <text x="250" y="213" text-anchor="middle" font-size="15" fill="#604019">u = S y</text>
+    <g transform="translate(128 238)">
+      <rect x="0" y="0" width="82" height="82" fill="#fffaf5" stroke="#e7ad70"/>
+      <g stroke="#e7ad70">
+        <line x1="20.5" y1="0" x2="20.5" y2="82"/>
+        <line x1="41" y1="0" x2="41" y2="82"/>
+        <line x1="61.5" y1="0" x2="61.5" y2="82"/>
+        <line x1="0" y1="20.5" x2="82" y2="20.5"/>
+        <line x1="0" y1="41" x2="82" y2="41"/>
+        <line x1="0" y1="61.5" x2="82" y2="61.5"/>
+      </g>
+      <text x="41" y="110" text-anchor="middle" font-size="13" fill="#604019">d x d 随机矩阵</text>
+      <rect x="160" y="6" width="36" height="70" fill="#eef6ff" stroke="#8fb9e8"/>
+      <text x="178" y="100" text-anchor="middle" font-size="13" fill="#345">y</text>
+      <path d="M96 41 H150" stroke="#444" stroke-width="2" marker-end="url(#arrow)" fill="none"/>
+    </g>
+    <text x="250" y="342" text-anchor="middle" font-size="16" fill="#604019">计算量：O(d²)，热路径通常太贵</text>
+
+    <rect x="575" y="145" width="350" height="220" rx="12" fill="#eff9f0" stroke="#80b88b"/>
+    <text x="750" y="182" text-anchor="middle" font-size="21" font-weight="700" fill="#193a22">结构化投影</text>
+    <text x="750" y="213" text-anchor="middle" font-size="15" fill="#365c3c">u = D₁ H D₂ H D₃ y</text>
+    <g transform="translate(610 246)">
+      <rect x="0" y="0" width="42" height="48" rx="6" fill="#f0faf1" stroke="#80b88b"/>
+      <text x="21" y="30" text-anchor="middle" font-size="16" fill="#1f6f35">±</text>
+      <rect x="70" y="0" width="56" height="48" rx="6" fill="#f0faf1" stroke="#80b88b"/>
+      <text x="98" y="30" text-anchor="middle" font-size="16" fill="#1f6f35">H</text>
+      <rect x="154" y="0" width="42" height="48" rx="6" fill="#f0faf1" stroke="#80b88b"/>
+      <text x="175" y="30" text-anchor="middle" font-size="16" fill="#1f6f35">±</text>
+      <rect x="224" y="0" width="56" height="48" rx="6" fill="#f0faf1" stroke="#80b88b"/>
+      <text x="252" y="30" text-anchor="middle" font-size="16" fill="#1f6f35">H</text>
+      <g stroke="#444" stroke-width="2" fill="none" marker-end="url(#arrow)">
+        <path d="M42 24 H62"/>
+        <path d="M126 24 H146"/>
+        <path d="M196 24 H216"/>
+      </g>
+    </g>
+    <g transform="translate(680 318)" stroke="#80b88b" stroke-width="2" fill="none">
+      <path d="M0 0 C25 -28 55 -28 80 0"/>
+      <path d="M0 0 C25 28 55 28 80 0"/>
+      <path d="M98 0 C123 -28 153 -28 178 0"/>
+      <path d="M98 0 C123 28 153 28 178 0"/>
+    </g>
+    <text x="750" y="342" text-anchor="middle" font-size="16" fill="#365c3c">计算量：O(d log d)，更适合融合 kernel</text>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="14" fill="#555">
+    <text x="500" y="412" text-anchor="middle">H 表示 Hadamard/FWHT 蝴蝶变换，D 表示随机正负号对角矩阵。</text>
+  </g>
+</svg>

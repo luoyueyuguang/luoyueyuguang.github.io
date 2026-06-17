@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500" viewBox="0 0 1000 500" role="img" aria-labelledby="title desc">
+  <title id="title">Fused dequantization and attention scoring</title>
+  <desc id="desc">A diagram showing query vectors streaming through packed quantized keys, decoding codebook entries on the fly and accumulating dot products.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="500" rx="18" fill="#fbfbfc"/>
+  <rect x="28" y="28" width="944" height="444" rx="14" fill="#fff" stroke="#d9d9e3"/>
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="500" y="68" text-anchor="middle" font-size="26" font-weight="700">融合读取：边解码 packed K，边计算 q·K</text>
+    <text x="500" y="96" text-anchor="middle" font-size="15" fill="#555">避免先把所有 K 解压回 float16 大矩阵，再做 attention</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="70" y="150" width="170" height="230" rx="12" fill="#eef6ff" stroke="#8fb9e8"/>
+    <text x="155" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#15314f">Query q</text>
+    <text x="155" y="212" text-anchor="middle" font-size="15" fill="#345">当前 token</text>
+    <g transform="translate(105 240)">
+      <rect x="0" y="0" width="100" height="30" fill="#d8ebff" stroke="#8fb9e8"/>
+      <rect x="0" y="30" width="100" height="30" fill="#eaf5ff" stroke="#8fb9e8"/>
+      <rect x="0" y="60" width="100" height="30" fill="#d8ebff" stroke="#8fb9e8"/>
+      <rect x="0" y="90" width="100" height="30" fill="#eaf5ff" stroke="#8fb9e8"/>
+      <text x="50" y="20" text-anchor="middle" font-size="13" fill="#345">q0..q31</text>
+      <text x="50" y="50" text-anchor="middle" font-size="13" fill="#345">q32..q63</text>
+      <text x="50" y="80" text-anchor="middle" font-size="13" fill="#345">...</text>
+      <text x="50" y="110" text-anchor="middle" font-size="13" fill="#345">q96..q127</text>
+    </g>
+
+    <rect x="310" y="150" width="230" height="230" rx="12" fill="#f7f7f7" stroke="#bfc3cc"/>
+    <text x="425" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#222">packed K cache</text>
+    <text x="425" y="212" text-anchor="middle" font-size="15" fill="#555">历史 token 的压缩 Key</text>
+    <g transform="translate(340 245)">
+      <rect x="0" y="0" width="170" height="32" rx="6" fill="#e9e9ef" stroke="#bfc3cc"/>
+      <text x="85" y="22" text-anchor="middle" font-size="13" fill="#333">token 0 packed words</text>
+      <rect x="0" y="44" width="170" height="32" rx="6" fill="#f2f2f6" stroke="#bfc3cc"/>
+      <text x="85" y="66" text-anchor="middle" font-size="13" fill="#333">token 1 packed words</text>
+      <rect x="0" y="88" width="170" height="32" rx="6" fill="#e9e9ef" stroke="#bfc3cc"/>
+      <text x="85" y="110" text-anchor="middle" font-size="13" fill="#333">...</text>
+    </g>
+
+    <rect x="610" y="150" width="170" height="230" rx="12" fill="#fff4e8" stroke="#e7ad70"/>
+    <text x="695" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#4a2a06">on-the-fly</text>
+    <text x="695" y="212" text-anchor="middle" font-size="15" fill="#604019">unpack + lookup</text>
+    <g transform="translate(640 250)">
+      <rect x="0" y="0" width="110" height="38" rx="6" fill="#fffaf5" stroke="#e7ad70"/>
+      <text x="55" y="24" text-anchor="middle" font-size="13" fill="#604019">idx -> c_idx</text>
+      <rect x="0" y="54" width="110" height="38" rx="6" fill="#fffaf5" stroke="#e7ad70"/>
+      <text x="55" y="78" text-anchor="middle" font-size="13" fill="#604019">acc += q*c</text>
+    </g>
+
+    <rect x="840" y="150" width="100" height="230" rx="12" fill="#eff9f0" stroke="#80b88b"/>
+    <text x="890" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#193a22">scores</text>
+    <text x="890" y="212" text-anchor="middle" font-size="15" fill="#365c3c">q·K</text>
+    <text x="890" y="270" text-anchor="middle" font-size="18" fill="#1f6f35">s0</text>
+    <text x="890" y="305" text-anchor="middle" font-size="18" fill="#1f6f35">s1</text>
+    <text x="890" y="340" text-anchor="middle" font-size="18" fill="#1f6f35">...</text>
+  </g>
+
+  <g stroke="#444" stroke-width="2.4" fill="none" marker-end="url(#arrow)">
+    <path d="M240 265 H300"/>
+    <path d="M540 265 H600"/>
+    <path d="M780 265 H830"/>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="14" fill="#555">
+    <text x="500" y="430" text-anchor="middle">真正省带宽的关键：packed cache 从 HBM 读出来后，尽量在寄存器里解码并直接参与累加。</text>
+  </g>
+</svg>

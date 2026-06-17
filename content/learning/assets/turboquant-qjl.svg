@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430" role="img" aria-labelledby="title desc">
+  <title id="title">QJL residual correction intuition</title>
+  <desc id="desc">An original vector is approximated by a main code, leaves a residual, and the residual is compressed into plus and minus signs as a sketch.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"/>
+    </marker>
+  </defs>
+  <rect width="980" height="430" rx="18" fill="#fbfbfc"/>
+  <rect x="30" y="30" width="920" height="370" rx="14" fill="#fff" stroke="#d9d9e3"/>
+
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="490" y="68" text-anchor="middle" font-size="26" font-weight="700">QJL：给“没压好的部分”留一张极小便签</text>
+    <text x="490" y="96" text-anchor="middle" font-size="15" fill="#555">主量化负责大轮廓，QJL 用少量正负号帮助修正点积误差</text>
+  </g>
+
+  <g font-family="Arial, sans-serif" text-anchor="middle">
+    <rect x="78" y="152" width="190" height="112" rx="12" fill="#eef6ff" stroke="#8fb9e8"/>
+    <text x="173" y="188" font-size="20" font-weight="700" fill="#15314f">原始向量</text>
+    <text x="173" y="218" font-size="15" fill="#345">像一张高清照片</text>
+    <text x="173" y="243" font-size="15" fill="#345">信息最多，也最占空间</text>
+
+    <rect x="386" y="130" width="220" height="86" rx="12" fill="#fff4e8" stroke="#e7ad70"/>
+    <text x="496" y="163" font-size="20" font-weight="700" fill="#4a2a06">主量化结果</text>
+    <text x="496" y="192" font-size="15" fill="#604019">便宜、很小、保留大轮廓</text>
+
+    <rect x="386" y="260" width="220" height="86" rx="12" fill="#fce8e8" stroke="#dd8787"/>
+    <text x="496" y="293" font-size="20" font-weight="700" fill="#611b1b">残差</text>
+    <text x="496" y="322" font-size="15" fill="#6b3333">原始向量 - 主量化近似</text>
+
+    <rect x="724" y="196" width="176" height="116" rx="12" fill="#eff9f0" stroke="#80b88b"/>
+    <text x="812" y="230" font-size="20" font-weight="700" fill="#193a22">QJL 草图</text>
+    <text x="812" y="261" font-size="28" font-weight="700" fill="#1f6f35">+ - + + - -</text>
+    <text x="812" y="290" font-size="15" fill="#365c3c">只存符号，也能帮忙估计</text>
+  </g>
+
+  <g stroke="#444" stroke-width="2.4" fill="none" marker-end="url(#arrow)">
+    <path d="M268 190 C315 162 339 160 376 164"/>
+    <path d="M268 226 C314 272 339 296 376 301"/>
+    <path d="M606 303 C664 303 669 256 714 254"/>
+  </g>
+
+  <g font-family="Arial, sans-serif" fill="#444">
+    <text x="490" y="375" text-anchor="middle" font-size="14">直觉类比：压缩图片先保存低清图，再保存一点边缘修正；TurboQuant 保存的是能修正相似度计算的“误差草图”。</text>
+  </g>
+</svg>

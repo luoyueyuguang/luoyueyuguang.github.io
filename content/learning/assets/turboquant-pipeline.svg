@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">TurboQuant overall pipeline</title>
+  <desc id="desc">A simple flow chart showing full precision vectors converted into a compact code and a residual sketch, then reconstructed for approximate similarity computation.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#444"/>
+    </marker>
+    <linearGradient id="blue" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#d7efff"/>
+      <stop offset="100%" stop-color="#eef8ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#dff6e5"/>
+      <stop offset="100%" stop-color="#f4fbf6"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffe4c7"/>
+      <stop offset="100%" stop-color="#fff7ef"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#eadfff"/>
+      <stop offset="100%" stop-color="#f8f4ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="980" height="420" rx="18" fill="#fbfbfc"/>
+  <rect x="28" y="28" width="924" height="364" rx="14" fill="#fff" stroke="#d9d9e3"/>
+
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="490" y="66" font-size="26" text-anchor="middle" font-weight="700">TurboQuant: 把大向量变成很小的近似表示</text>
+    <text x="490" y="94" font-size="15" text-anchor="middle" fill="#555">主线是先做一个便宜的压缩，再用很小的“补丁”修正误差</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="66" y="150" width="170" height="116" rx="12" fill="url(#blue)" stroke="#78a9d7"/>
+    <text x="151" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#123047">原始向量</text>
+    <text x="151" y="215" text-anchor="middle" font-size="15" fill="#345">很多小数</text>
+    <text x="151" y="240" text-anchor="middle" font-size="15" fill="#345">精确但占内存</text>
+
+    <rect x="292" y="150" width="170" height="116" rx="12" fill="url(#green)" stroke="#76b686"/>
+    <text x="377" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#193a22">随机旋转</text>
+    <text x="377" y="215" text-anchor="middle" font-size="15" fill="#364">把尖峰摊平</text>
+    <text x="377" y="240" text-anchor="middle" font-size="15" fill="#364">让量化更稳</text>
+
+    <rect x="518" y="132" width="170" height="100" rx="12" fill="url(#orange)" stroke="#df9a4a"/>
+    <text x="603" y="166" text-anchor="middle" font-size="20" font-weight="700" fill="#4a2a06">主要量化</text>
+    <text x="603" y="197" text-anchor="middle" font-size="15" fill="#5b3d18">少量 bit 存大部分信息</text>
+
+    <rect x="518" y="252" width="170" height="92" rx="12" fill="url(#purple)" stroke="#9b84d9"/>
+    <text x="603" y="286" text-anchor="middle" font-size="20" font-weight="700" fill="#312057">QJL 补丁</text>
+    <text x="603" y="317" text-anchor="middle" font-size="15" fill="#46356c">给误差做极小草图</text>
+
+    <rect x="746" y="150" width="170" height="116" rx="12" fill="#f7f7f7" stroke="#b7b7bf"/>
+    <text x="831" y="184" text-anchor="middle" font-size="20" font-weight="700" fill="#222">近似计算</text>
+    <text x="831" y="215" text-anchor="middle" font-size="15" fill="#444">不完全还原原图</text>
+    <text x="831" y="240" text-anchor="middle" font-size="15" fill="#444">只求答案足够接近</text>
+  </g>
+
+  <g stroke="#444" stroke-width="2.4" fill="none" marker-end="url(#arrow)">
+    <path d="M236 208 H286"/>
+    <path d="M462 208 H507"/>
+    <path d="M688 182 H738"/>
+    <path d="M688 298 C720 298 722 242 746 226"/>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="13" fill="#555">
+    <text x="492" y="367" text-anchor="middle">记住这句话：压缩一定会丢信息，TurboQuant 的目标是让丢掉的信息对最终答案影响尽量小。</text>
+  </g>
+</svg>

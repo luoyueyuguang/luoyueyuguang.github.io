@@ -21,11 +21,11 @@ Coauthor with codex 5.5
 
 论文的核心目标是：在百万 token 级别长上下文里，保留 softmax attention 的表达能力，同时把注意力计算从“看全部上下文”变成“看少量动态选中的上下文块”。
 
-![MSA 整体流程](assets/msa-overview.svg)
+![MSA 整体流程](/learning/assets/msa-overview.svg)
 
 原论文也给了一张总览图，左边是 Index Branch，右边是 Main Branch。博客里的示意图是为了新手理解重新画的；下面这张是论文原图：
 
-![MiniMax Sparse Attention 原论文架构图](assets/msa-paper-architecture.png)
+![MiniMax Sparse Attention 原论文架构图](/learning/assets/msa-paper-architecture.png)
 
 > 图源：MiniMax Sparse Attention 论文 Figure 1，原始图片来自 <https://arxiv.org/html/2606.13392v2>。
 
@@ -171,7 +171,7 @@ O_i = \sum_{j \le i} \alpha_{i,j} V_j
 2. softmax 把相关性分数变成比例。
 3. 模型按比例读取对应 value。
 
-![完整注意力需要看所有历史 token](assets/msa-full-attention.svg)
+![完整注意力需要看所有历史 token](/learning/assets/msa-full-attention.svg)
 
 完整 attention 的好处是信息最充分。坏处是太贵：上下文越长，每个 token 要看的历史位置越多。
 
@@ -194,7 +194,7 @@ G = H_q / H_{kv} = 64 / 4 = 16
 
 也就是 16 个 query head 共享同一个 KV head。论文里把这叫一个 **GQA group**。
 
-![GQA 把多个 query head 分到同一个 KV group](assets/msa-gqa.svg)
+![GQA 把多个 query head 分到同一个 KV group](/learning/assets/msa-gqa.svg)
 
 GQA 的意义是减少 KV cache 和 KV 读写。对长上下文推理来说，KV cache 非常大，减少 KV head 数量很有价值。
 
@@ -278,7 +278,7 @@ kB_k = 16 \times 128 = 2048
 
 这就是 MSA 的计算量能随着长上下文拉开差距的原因。
 
-![MSA 按 KV block 选择，而不是逐 token 选择](assets/msa-block-selection.svg)
+![MSA 按 KV block 选择，而不是逐 token 选择](/learning/assets/msa-block-selection.svg)
 
 按块选择有一个权衡：
 
@@ -329,7 +329,7 @@ K^{idx} \in \mathbb{R}^{N \times 1 \times d_{idx}}
 
 这样 Index Branch 可以做到“每个 GQA group 单独选块”，但仍然保持轻量。
 
-![Index Branch 和 Main Branch 的分工](assets/msa-two-branches.svg)
+![Index Branch 和 Main Branch 的分工](/learning/assets/msa-two-branches.svg)
 
 ## 7. Index Branch 怎么给 block 打分
 
@@ -507,7 +507,7 @@ P^{idx,(r)}_{i,\cdot}
 - `P_idx` 是 Index Branch 的分布，作为 student。
 - `stopgrad(P)` 表示不要让 KL loss 更新 teacher，只更新 student。
 
-![KL loss 让索引分支学习主分支关注模式](assets/msa-kl-training.svg)
+![KL loss 让索引分支学习主分支关注模式](/learning/assets/msa-kl-training.svg)
 
 ## 12. 为什么要 stop-gradient
 
@@ -605,7 +605,7 @@ kB_k = 2048
 
 full attention 的主分支要看近百万历史 token，而 MSA 的 Main Branch 只看约 2048 个 token。随着 `N` 越大，这个差距越大。
 
-![GQA 和 MSA 的计算量增长方式](assets/msa-complexity.svg)
+![GQA 和 MSA 的计算量增长方式](/learning/assets/msa-complexity.svg)
 
 当然，这不是说实际速度能达到百万除以 2048 那么夸张。因为 MSA 还要做索引、Top-K、query gather、反向索引、load balancing 等额外工作。论文也强调：实际 wall-clock speedup 会小于理论 FLOPs reduction。
 
@@ -690,7 +690,7 @@ softmax(score) A > softmax(score) B
 6. 最后用 `k` 轮 warp shuffle，把 32 个 lane 的局部 TopK 合并成整行 TopK。
 7. shared memory 布局让每个 lane 尽量固定落在自己的 bank，避免 bank conflict。
 
-![MSA TopK kernel 示意](assets/msa-topk-kernel.svg)
+![MSA TopK kernel 示意](/learning/assets/msa-topk-kernel.svg)
 
 这个设计针对的是“小 k、大量行”的场景。通用排序或通用 TopK 可能更灵活，但会为很多 MSA 不需要的情况付开销。MSA 只要 unsorted top-k indices，也就是只要“哪 16 个块最大”，不要求它们内部排好序。
 
@@ -777,7 +777,7 @@ for each KV block:
 
 这样做的核心好处是：同一个 K/V block 可以被一批 query 复用。
 
-![KV-outer kernel 把选择同一 KV block 的 query 聚起来](assets/msa-kv-outer.svg)
+![KV-outer kernel 把选择同一 KV block 的 query 聚起来](/learning/assets/msa-kv-outer.svg)
 
 论文对 KV-outer 的算术强度估算是：
 
@@ -995,7 +995,7 @@ O[i,h]
 
 combine kernel 再按全局权重把它们合成真正的 attention 输出。
 
-![MSA two-phase forward 和 LSE 合并](assets/msa-two-phase-forward.svg)
+![MSA two-phase forward 和 LSE 合并](/learning/assets/msa-two-phase-forward.svg)
 
 论文还提到两个 kernel 之间用 Programmatic Dependent Launch 来隐藏 kernel launch latency。可以简单理解成：第二个 combine kernel 依赖第一个 attention kernel 的结果，但调度上尽量减少“等 kernel 启动”的额外开销。
 
@@ -1904,11 +1904,11 @@ combine.py:
 
 这也是 MSA 相比普通 sliding window 的价值：它不是只按位置规则选，而是根据内容动态选。
 
-![MSA 学到的稀疏模式示意](assets/msa-patterns.svg)
+![MSA 学到的稀疏模式示意](/learning/assets/msa-patterns.svg)
 
 论文附录里的真实可视化如下。可以看到不同 GQA group 的远距离条带确实不一样，而本地对角线和开头 sink column 比较稳定：
 
-![MiniMax Sparse Attention 原论文稀疏选择可视化](assets/msa-paper-patterns-layer1.png)
+![MiniMax Sparse Attention 原论文稀疏选择可视化](/learning/assets/msa-paper-patterns-layer1.png)
 
 > 图源：MiniMax Sparse Attention 论文 Figure 5(a)，原始图片来自 <https://arxiv.org/html/2606.13392v2>。
 
@@ -1959,7 +1959,7 @@ combine.py:
 
 论文原图里的效率对比如下：
 
-![MiniMax Sparse Attention 原论文效率图](assets/msa-paper-efficiency.png)
+![MiniMax Sparse Attention 原论文效率图](/learning/assets/msa-paper-efficiency.png)
 
 > 图源：MiniMax Sparse Attention 论文 Figure 4，原始图片来自 <https://arxiv.org/html/2606.13392v2>。
 

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="420" viewBox="0 0 1000 420" role="img" aria-labelledby="title desc">
+  <title id="title">2-bit packing for quantized indices</title>
+  <desc id="desc">A diagram showing sixteen 2-bit quantized indices packed into one 32-bit word.</desc>
+  <rect width="1000" height="420" rx="18" fill="#fbfbfc"/>
+  <rect x="28" y="28" width="944" height="364" rx="14" fill="#fff" stroke="#d9d9e3"/>
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="500" y="68" text-anchor="middle" font-size="26" font-weight="700">2-bit 打包：16 个通道编号塞进 1 个 uint32</text>
+    <text x="500" y="96" text-anchor="middle" font-size="15" fill="#555">每个通道只需要 0、1、2、3 四种 codebook 编号</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <text x="120" y="150" font-size="18" font-weight="700" fill="#222">量化编号</text>
+    <g transform="translate(210 128)">
+      <rect x="0" y="0" width="40" height="42" rx="6" fill="#eef6ff" stroke="#8fb9e8"/>
+      <rect x="48" y="0" width="40" height="42" rx="6" fill="#fff4e8" stroke="#e7ad70"/>
+      <rect x="96" y="0" width="40" height="42" rx="6" fill="#eff9f0" stroke="#80b88b"/>
+      <rect x="144" y="0" width="40" height="42" rx="6" fill="#f2eefe" stroke="#a993df"/>
+      <rect x="192" y="0" width="40" height="42" rx="6" fill="#eef6ff" stroke="#8fb9e8"/>
+      <rect x="240" y="0" width="40" height="42" rx="6" fill="#fff4e8" stroke="#e7ad70"/>
+      <rect x="288" y="0" width="40" height="42" rx="6" fill="#eff9f0" stroke="#80b88b"/>
+      <rect x="336" y="0" width="40" height="42" rx="6" fill="#f2eefe" stroke="#a993df"/>
+      <rect x="384" y="0" width="40" height="42" rx="6" fill="#eef6ff" stroke="#8fb9e8"/>
+      <rect x="432" y="0" width="40" height="42" rx="6" fill="#fff4e8" stroke="#e7ad70"/>
+      <rect x="480" y="0" width="40" height="42" rx="6" fill="#eff9f0" stroke="#80b88b"/>
+      <rect x="528" y="0" width="40" height="42" rx="6" fill="#f2eefe" stroke="#a993df"/>
+      <rect x="576" y="0" width="40" height="42" rx="6" fill="#eef6ff" stroke="#8fb9e8"/>
+      <rect x="624" y="0" width="40" height="42" rx="6" fill="#fff4e8" stroke="#e7ad70"/>
+      <rect x="672" y="0" width="40" height="42" rx="6" fill="#eff9f0" stroke="#80b88b"/>
+      <rect x="720" y="0" width="40" height="42" rx="6" fill="#f2eefe" stroke="#a993df"/>
+      <text x="20" y="27" text-anchor="middle" font-size="15" fill="#222">2</text>
+      <text x="68" y="27" text-anchor="middle" font-size="15" fill="#222">0</text>
+      <text x="116" y="27" text-anchor="middle" font-size="15" fill="#222">3</text>
+      <text x="164" y="27" text-anchor="middle" font-size="15" fill="#222">1</text>
+      <text x="212" y="27" text-anchor="middle" font-size="15" fill="#222">...</text>
+      <text x="740" y="27" text-anchor="middle" font-size="15" fill="#222">1</text>
+    </g>
+
+    <text x="120" y="263" font-size="18" font-weight="700" fill="#222">uint32 word</text>
+    <g transform="translate(210 236)">
+      <rect x="0" y="0" width="760" height="54" rx="8" fill="#f7f7f7" stroke="#bfc3cc"/>
+      <g font-size="12" fill="#333">
+        <text x="24" y="34" text-anchor="middle">bits 1:0</text>
+        <text x="72" y="34" text-anchor="middle">3:2</text>
+        <text x="120" y="34" text-anchor="middle">5:4</text>
+        <text x="168" y="34" text-anchor="middle">7:6</text>
+        <text x="216" y="34" text-anchor="middle">...</text>
+        <text x="648" y="34" text-anchor="middle">29:28</text>
+        <text x="720" y="34" text-anchor="middle">31:30</text>
+      </g>
+      <g stroke="#c7c7d1">
+        <line x1="48" y1="0" x2="48" y2="54"/>
+        <line x1="96" y1="0" x2="96" y2="54"/>
+        <line x1="144" y1="0" x2="144" y2="54"/>
+        <line x1="192" y1="0" x2="192" y2="54"/>
+        <line x1="240" y1="0" x2="240" y2="54"/>
+        <line x1="624" y1="0" x2="624" y2="54"/>
+        <line x1="672" y1="0" x2="672" y2="54"/>
+      </g>
+    </g>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="14" fill="#555">
+    <text x="500" y="350" text-anchor="middle">读取第 j 个通道：word = packed[j / 16]，shift = 2 * (j % 16)，idx = (word >> shift) &amp; 3。</text>
+  </g>
+</svg>

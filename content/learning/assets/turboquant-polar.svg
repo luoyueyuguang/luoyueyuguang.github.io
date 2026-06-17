@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="520" viewBox="0 0 980 520" role="img" aria-labelledby="title desc">
+  <title id="title">PolarQuant intuition</title>
+  <desc id="desc">A two-dimensional vector is decomposed into length and direction, then represented by nearby direction buckets.</desc>
+  <rect width="980" height="520" rx="18" fill="#fbfbfc"/>
+  <rect x="30" y="30" width="920" height="460" rx="14" fill="#fff" stroke="#d9d9e3"/>
+
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="490" y="68" text-anchor="middle" font-size="26" font-weight="700">把向量看成“长度 + 方向”</text>
+    <text x="490" y="96" text-anchor="middle" font-size="15" fill="#555">普通坐标问“横着多少、竖着多少”，极坐标问“往哪个方向、走多远”</text>
+  </g>
+
+  <g transform="translate(255 295)">
+    <circle cx="0" cy="0" r="165" fill="#f7fafc" stroke="#d7dce5"/>
+    <circle cx="0" cy="0" r="110" fill="none" stroke="#e1e5ec" stroke-dasharray="5 7"/>
+    <circle cx="0" cy="0" r="55" fill="none" stroke="#e1e5ec" stroke-dasharray="5 7"/>
+    <line x1="-185" y1="0" x2="185" y2="0" stroke="#989eaa"/>
+    <line x1="0" y1="185" x2="0" y2="-185" stroke="#989eaa"/>
+    <g stroke="#b8c0cf" stroke-width="1.4">
+      <line x1="0" y1="0" x2="116.7" y2="-116.7"/>
+      <line x1="0" y1="0" x2="165" y2="0"/>
+      <line x1="0" y1="0" x2="116.7" y2="116.7"/>
+      <line x1="0" y1="0" x2="0" y2="-165"/>
+      <line x1="0" y1="0" x2="-116.7" y2="-116.7"/>
+      <line x1="0" y1="0" x2="-165" y2="0"/>
+      <line x1="0" y1="0" x2="-116.7" y2="116.7"/>
+      <line x1="0" y1="0" x2="0" y2="165"/>
+    </g>
+    <path d="M0 0 L121 -88" stroke="#2563eb" stroke-width="5" marker-end="url(#arrowBlue)" fill="none"/>
+    <path d="M0 0 L117 -117" stroke="#e67e22" stroke-width="4" marker-end="url(#arrowOrange)" fill="none" stroke-dasharray="7 6"/>
+    <path d="M52 -38 A64 64 0 0 0 45 -45" fill="none" stroke="#333" stroke-width="2"/>
+    <text x="88" y="-68" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#2563eb">真实方向</text>
+    <text x="92" y="-128" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#b45309">最近的桶</text>
+    <text x="15" y="-23" font-family="Arial, sans-serif" font-size="14" fill="#333">角度误差</text>
+  </g>
+
+  <defs>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#e67e22"/>
+    </marker>
+  </defs>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="545" y="150" width="330" height="86" rx="12" fill="#eef6ff" stroke="#8fb9e8"/>
+    <text x="710" y="183" text-anchor="middle" font-size="20" font-weight="700" fill="#15314f">第一步：记长度</text>
+    <text x="710" y="211" text-anchor="middle" font-size="15" fill="#345">这个向量大概有多强、多长</text>
+
+    <rect x="545" y="260" width="330" height="86" rx="12" fill="#fff4e8" stroke="#e7ad70"/>
+    <text x="710" y="293" text-anchor="middle" font-size="20" font-weight="700" fill="#4a2a06">第二步：记方向桶</text>
+    <text x="710" y="321" text-anchor="middle" font-size="15" fill="#604019">不用存精确角度，只存最接近的格子编号</text>
+
+    <rect x="545" y="370" width="330" height="66" rx="12" fill="#f7f7f7" stroke="#c7c7d1"/>
+    <text x="710" y="397" text-anchor="middle" font-size="18" font-weight="700" fill="#222">代价</text>
+    <text x="710" y="424" text-anchor="middle" font-size="15" fill="#444">方向会被掰到最近的桶，所以会有误差</text>
+  </g>
+</svg>
