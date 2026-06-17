@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="390" viewBox="0 0 920 390" role="img" aria-labelledby="title desc">
+  <title id="title">KL training for MSA indexer</title>
+  <desc id="desc">The main branch attention distribution is used as a stopped-gradient teacher for the index branch through KL loss.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+    <marker id="redArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <rect width="920" height="390" rx="22" fill="#f8fafc"/>
+  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">KL Loss：让 Index Branch 学会像 Main Branch 一样关注</text>
+  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">teacher 分布 stop-gradient，只作为监督信号，不反向改主干</text>
+
+  <g transform="translate(80 120)">
+    <rect x="0" y="0" width="220" height="120" rx="16" fill="#ffffff" stroke="#bbf7d0" stroke-width="2"/>
+    <text x="110" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#047857">Main Branch</text>
+    <text x="110" y="64" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">标准 attention 分布</text>
+    <g transform="translate(43 82)">
+      <rect x="0" y="0" width="22" height="26" fill="#bbf7d0"/>
+      <rect x="30" y="-12" width="22" height="38" fill="#34d399"/>
+      <rect x="60" y="-4" width="22" height="30" fill="#86efac"/>
+      <rect x="90" y="-22" width="22" height="48" fill="#10b981"/>
+      <rect x="120" y="6" width="22" height="20" fill="#dcfce7"/>
+    </g>
+  </g>
+
+  <g transform="translate(620 120)">
+    <rect x="0" y="0" width="220" height="120" rx="16" fill="#ffffff" stroke="#c7d2fe" stroke-width="2"/>
+    <text x="110" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#4f46e5">Index Branch</text>
+    <text x="110" y="64" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">索引分支分布</text>
+    <g transform="translate(43 82)">
+      <rect x="0" y="6" width="22" height="20" fill="#ddd6fe"/>
+      <rect x="30" y="-5" width="22" height="31" fill="#a78bfa"/>
+      <rect x="60" y="2" width="22" height="24" fill="#c4b5fd"/>
+      <rect x="90" y="-16" width="22" height="42" fill="#8b5cf6"/>
+      <rect x="120" y="10" width="22" height="16" fill="#ede9fe"/>
+    </g>
+  </g>
+
+  <g transform="translate(365 135)">
+    <rect x="0" y="0" width="190" height="92" rx="16" fill="#ffffff" stroke="#fecaca" stroke-width="2"/>
+    <text x="95" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#dc2626">KL Loss</text>
+    <text x="95" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">D_KL(teacher || student)</text>
+  </g>
+
+  <line x1="302" y1="180" x2="358" y2="180" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="557" y1="180" x2="613" y2="180" stroke="#dc2626" stroke-width="3" marker-end="url(#redArrow)"/>
+
+  <g transform="translate(120 285)">
+    <rect x="0" y="0" width="680" height="52" rx="14" fill="#fff7ed" stroke="#fed7aa"/>
+    <text x="24" y="32" font-family="Arial, sans-serif" font-size="15" fill="#9a3412">stop-gradient 的含义：teacher 只提供标准答案；KL 梯度只推动 Index Branch 学会选块，不去扭曲 Main Branch 或 backbone。</text>
+  </g>
+</svg>

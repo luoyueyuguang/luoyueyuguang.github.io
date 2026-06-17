@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" role="img" aria-labelledby="title desc">
+  <title id="title">Full attention cost</title>
+  <desc id="desc">A triangular causal attention matrix shows that each query attends to all previous keys, causing quadratic growth.</desc>
+  <defs>
+    <linearGradient id="purple" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="900" height="360" rx="22" fill="#f8fafc"/>
+  <text x="450" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">完整 Causal Attention：每个 Query 都回看所有历史</text>
+  <text x="450" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">上下文长度 N 增大时，比较对数按 N² 增长</text>
+
+  <g transform="translate(70 115)">
+    <text x="0" y="-18" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">Attention Matrix</text>
+    <g>
+      <rect x="0" y="0" width="20" height="20" fill="#7c3aed"/>
+      <rect x="0" y="24" width="20" height="20" fill="#8b5cf6"/>
+      <rect x="24" y="24" width="20" height="20" fill="#7c3aed"/>
+      <rect x="0" y="48" width="20" height="20" fill="#a78bfa"/>
+      <rect x="24" y="48" width="20" height="20" fill="#8b5cf6"/>
+      <rect x="48" y="48" width="20" height="20" fill="#7c3aed"/>
+      <rect x="0" y="72" width="20" height="20" fill="#c4b5fd"/>
+      <rect x="24" y="72" width="20" height="20" fill="#a78bfa"/>
+      <rect x="48" y="72" width="20" height="20" fill="#8b5cf6"/>
+      <rect x="72" y="72" width="20" height="20" fill="#7c3aed"/>
+      <rect x="0" y="96" width="20" height="20" fill="#ddd6fe"/>
+      <rect x="24" y="96" width="20" height="20" fill="#c4b5fd"/>
+      <rect x="48" y="96" width="20" height="20" fill="#a78bfa"/>
+      <rect x="72" y="96" width="20" height="20" fill="#8b5cf6"/>
+      <rect x="96" y="96" width="20" height="20" fill="#7c3aed"/>
+      <rect x="0" y="120" width="20" height="20" fill="#ede9fe"/>
+      <rect x="24" y="120" width="20" height="20" fill="#ddd6fe"/>
+      <rect x="48" y="120" width="20" height="20" fill="#c4b5fd"/>
+      <rect x="72" y="120" width="20" height="20" fill="#a78bfa"/>
+      <rect x="96" y="120" width="20" height="20" fill="#8b5cf6"/>
+      <rect x="120" y="120" width="20" height="20" fill="#7c3aed"/>
+    </g>
+    <text x="70" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">下三角 = 只能看过去</text>
+  </g>
+
+  <g transform="translate(285 105)">
+    <rect x="0" y="0" width="560" height="185" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="38" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">当前位置 i 的计算过程</text>
+    <text x="28" y="76" font-family="Arial, sans-serif" font-size="15" fill="#334155">1. 当前 Query Q_i 和所有历史 Key K_j 做点积</text>
+    <text x="28" y="108" font-family="Arial, sans-serif" font-size="15" fill="#334155">2. 对所有分数做 softmax，得到注意力权重 alpha_i,j</text>
+    <text x="28" y="140" font-family="Arial, sans-serif" font-size="15" fill="#334155">3. 用权重加权求和所有历史 Value V_j</text>
+    <line x1="350" y1="56" x2="505" y2="56" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="428" y="46" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">N 越大越贵</text>
+  </g>
+
+  <g transform="translate(330 310)">
+    <rect x="0" y="0" width="240" height="34" rx="17" fill="url(#purple)"/>
+    <text x="120" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">成本约为 O(N²)</text>
+  </g>
+</svg>

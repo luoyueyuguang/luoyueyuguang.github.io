@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360" role="img" aria-labelledby="title desc">
+  <title id="title">Grouped Query Attention</title>
+  <desc id="desc">Multiple query heads are grouped under fewer key-value heads. MSA selects blocks independently for each GQA group.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="900" height="360" rx="22" fill="#f8fafc"/>
+  <text x="450" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">GQA：多个 Query Heads 共享较少的 KV Heads</text>
+  <text x="450" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">MSA 的稀疏选择是在每个 GQA group 内独立完成的</text>
+
+  <g transform="translate(80 115)">
+    <text x="0" y="-18" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">Query Heads</text>
+    <g fill="#dbeafe" stroke="#60a5fa">
+      <rect x="0" y="0" width="58" height="32" rx="8"/>
+      <rect x="0" y="42" width="58" height="32" rx="8"/>
+      <rect x="0" y="84" width="58" height="32" rx="8"/>
+      <rect x="0" y="126" width="58" height="32" rx="8"/>
+      <rect x="0" y="186" width="58" height="32" rx="8"/>
+    </g>
+    <text x="29" y="21" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1d4ed8">Q1</text>
+    <text x="29" y="63" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1d4ed8">Q2</text>
+    <text x="29" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1d4ed8">Q3</text>
+    <text x="29" y="147" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1d4ed8">Q4</text>
+    <text x="29" y="207" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1d4ed8">...</text>
+  </g>
+
+  <g transform="translate(320 110)">
+    <rect x="0" y="0" width="210" height="85" rx="14" fill="#ffffff" stroke="#c7d2fe" stroke-width="2"/>
+    <text x="105" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#3730a3">GQA Group 1</text>
+    <text x="105" y="58" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">多个 Q heads 共用 KV1</text>
+    <rect x="0" y="120" width="210" height="85" rx="14" fill="#ffffff" stroke="#bbf7d0" stroke-width="2"/>
+    <text x="105" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#047857">GQA Group 2</text>
+    <text x="105" y="178" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">多个 Q heads 共用 KV2</text>
+  </g>
+
+  <g transform="translate(700 120)">
+    <text x="0" y="-22" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">KV Heads</text>
+    <rect x="0" y="0" width="88" height="50" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="2"/>
+    <text x="44" y="31" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#5b21b6">K/V 1</text>
+    <rect x="0" y="130" width="88" height="50" rx="10" fill="#dcfce7" stroke="#22c55e" stroke-width="2"/>
+    <text x="44" y="161" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#166534">K/V 2</text>
+  </g>
+
+  <line x1="150" y1="131" x2="310" y2="130" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="150" y1="173" x2="310" y2="144" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="150" y1="215" x2="310" y2="159" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="150" y1="257" x2="310" y2="250" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="532" y1="153" x2="690" y2="146" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="532" y1="273" x2="690" y2="276" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <text x="450" y="328" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#334155">例：64 个 query heads、4 个 KV heads 时，每个 KV head 服务 16 个 query heads。</text>
+</svg>

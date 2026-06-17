@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="430" viewBox="0 0 920 430" role="img" aria-labelledby="title desc">
+  <title id="title">MSA overall workflow</title>
+  <desc id="desc">A query token uses a lightweight index branch to score key-value blocks, selects top-k blocks, then the main branch performs normal attention only on selected blocks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f7f8ff"/>
+      <stop offset="100%" stop-color="#eef4ff"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#667eea"/>
+      <stop offset="100%" stop-color="#764ba2"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1f2937" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="920" height="430" rx="22" fill="url(#bg)"/>
+  <text x="460" y="46" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#111827">MiniMax Sparse Attention: 先索引，再精读</text>
+  <text x="460" y="76" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#475569">Index Branch 负责快速选块，Main Branch 只对选中的 KV blocks 做标准 softmax attention</text>
+
+  <g filter="url(#shadow)">
+    <rect x="46" y="130" width="150" height="90" rx="14" fill="#ffffff"/>
+    <text x="121" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#111827">当前 Query</text>
+    <text x="121" y="188" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">我现在要找什么？</text>
+  </g>
+
+  <line x1="198" y1="175" x2="275" y2="175" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="280" y="110" width="180" height="130" rx="14" fill="#ffffff"/>
+    <rect x="280" y="110" width="180" height="34" rx="14" fill="url(#purple)"/>
+    <text x="370" y="133" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">Index Branch</text>
+    <text x="370" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">轻量 Q_idx / K_idx</text>
+    <text x="370" y="196" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">给 KV blocks 打分</text>
+    <text x="370" y="222" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">选 Top-K blocks</text>
+  </g>
+
+  <line x1="462" y1="175" x2="535" y2="175" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="540" y="96" width="180" height="158" rx="14" fill="#ffffff"/>
+    <text x="630" y="127" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">KV Cache Blocks</text>
+    <g transform="translate(563 150)">
+      <rect x="0" y="0" width="44" height="28" rx="6" fill="#c7d2fe"/>
+      <rect x="50" y="0" width="44" height="28" rx="6" fill="#e2e8f0"/>
+      <rect x="100" y="0" width="44" height="28" rx="6" fill="#c7d2fe"/>
+      <rect x="0" y="38" width="44" height="28" rx="6" fill="#e2e8f0"/>
+      <rect x="50" y="38" width="44" height="28" rx="6" fill="#c7d2fe"/>
+      <rect x="100" y="38" width="44" height="28" rx="6" fill="#e2e8f0"/>
+      <text x="22" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#3730a3">1</text>
+      <text x="72" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">2</text>
+      <text x="122" y="19" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#3730a3">3</text>
+      <text x="22" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">4</text>
+      <text x="72" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#3730a3">5</text>
+      <text x="122" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">...</text>
+    </g>
+    <text x="630" y="232" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">紫色 = 被选中</text>
+  </g>
+
+  <line x1="720" y1="175" x2="787" y2="175" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="792" y="110" width="90" height="130" rx="14" fill="#ffffff"/>
+    <rect x="792" y="110" width="90" height="34" rx="14" fill="#10b981"/>
+    <text x="837" y="133" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff">Main</text>
+    <text x="837" y="168" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#334155">标准</text>
+    <text x="837" y="190" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#334155">Softmax</text>
+    <text x="837" y="212" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#334155">Attention</text>
+  </g>
+
+  <g transform="translate(70 310)">
+    <rect x="0" y="0" width="780" height="58" rx="12" fill="#ffffff" stroke="#dbe4ff"/>
+    <text x="28" y="36" font-family="Arial, sans-serif" font-size="16" fill="#111827">核心变化：</text>
+    <text x="118" y="36" font-family="Arial, sans-serif" font-size="16" fill="#334155">Full Attention 看全部历史；MSA 每个 query/group 只看 Top-K blocks，例如 16 x 128 = 2048 tokens。</text>
+  </g>
+</svg>

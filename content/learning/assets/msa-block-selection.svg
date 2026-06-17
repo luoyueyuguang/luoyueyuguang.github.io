@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="380" viewBox="0 0 920 380" role="img" aria-labelledby="title desc">
+  <title id="title">MSA block selection</title>
+  <desc id="desc">The context is split into key-value blocks. The index branch scores blocks and selects top-k blocks plus the local block.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="920" height="380" rx="22" fill="#f8fafc"/>
+  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">按块选择：把长上下文切成连续 KV blocks</text>
+  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">论文主设置：B_k = 128，k = 16，所以主分支每次最多读 2048 个 token</text>
+
+  <g transform="translate(55 130)">
+    <text x="0" y="-22" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">1M tokens context</text>
+    <g>
+      <rect x="0" y="0" width="80" height="54" rx="10" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+      <rect x="90" y="0" width="80" height="54" rx="10" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="180" y="0" width="80" height="54" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+      <rect x="270" y="0" width="80" height="54" rx="10" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="360" y="0" width="80" height="54" rx="10" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+      <rect x="450" y="0" width="80" height="54" rx="10" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="540" y="0" width="80" height="54" rx="10" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+      <rect x="630" y="0" width="80" height="54" rx="10" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+      <rect x="720" y="0" width="80" height="54" rx="10" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+    </g>
+    <text x="40" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#3730a3">Block 1</text>
+    <text x="130" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Block 2</text>
+    <text x="220" y="25" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e">Local</text>
+    <text x="220" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e">Block</text>
+    <text x="310" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Block 4</text>
+    <text x="400" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#3730a3">Block 5</text>
+    <text x="490" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">...</text>
+    <text x="580" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#3730a3">Top</text>
+    <text x="670" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">...</text>
+    <text x="760" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Block B</text>
+  </g>
+
+  <g transform="translate(130 240)">
+    <rect x="0" y="0" width="660" height="70" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="28" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">选择结果</text>
+    <text x="120" y="30" font-family="Arial, sans-serif" font-size="15" fill="#334155">Top-K blocks + 当前 query 所在 local block</text>
+    <text x="28" y="55" font-family="Arial, sans-serif" font-size="14" fill="#64748b">蓝色 block 是 indexer 根据内容选出来的；黄色 block 是强制保留的附近上下文。</text>
+  </g>
+
+  <line x1="460" y1="188" x2="460" y2="235" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+</svg>

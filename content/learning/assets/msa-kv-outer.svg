@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="410" viewBox="0 0 920 410" role="img" aria-labelledby="title desc">
+  <title id="title">KV outer sparse attention kernel</title>
+  <desc id="desc">Instead of iterating each query and loading different blocks, MSA groups queries that selected the same KV block to improve reuse.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L10 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="920" height="410" rx="22" fill="#f8fafc"/>
+  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">KV-outer Kernel：按 KV block 聚合选择它的 queries</text>
+  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">目标是复用 K/V block，并把多个 query 拼成更适合 tensor core 的矩阵形状</text>
+
+  <g transform="translate(70 115)">
+    <rect x="0" y="0" width="260" height="205" rx="16" fill="#ffffff" stroke="#e2e8f0"/>
+    <text x="130" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#111827">Q-outer 直觉</text>
+    <text x="24" y="68" font-family="Arial, sans-serif" font-size="14" fill="#334155">for each query:</text>
+    <text x="44" y="98" font-family="Arial, sans-serif" font-size="14" fill="#334155">load selected KV blocks</text>
+    <text x="44" y="128" font-family="Arial, sans-serif" font-size="14" fill="#334155">compute attention</text>
+    <rect x="24" y="150" width="210" height="34" rx="8" fill="#fee2e2"/>
+    <text x="129" y="172" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#991b1b">K/V 可能被重复、零散加载</text>
+  </g>
+
+  <line x1="346" y1="218" x2="430" y2="218" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g transform="translate(450 115)">
+    <rect x="0" y="0" width="390" height="205" rx="16" fill="#ffffff" stroke="#bbf7d0" stroke-width="2"/>
+    <text x="195" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#047857">KV-outer：论文采用的方向</text>
+    <g transform="translate(34 60)">
+      <rect x="0" y="0" width="100" height="44" rx="10" fill="#dcfce7" stroke="#22c55e"/>
+      <text x="50" y="28" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#166534">KV Block b</text>
+      <line x1="110" y1="22" x2="165" y2="22" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+      <rect x="175" y="-15" width="48" height="28" rx="7" fill="#dbeafe"/>
+      <rect x="230" y="-15" width="48" height="28" rx="7" fill="#dbeafe"/>
+      <rect x="285" y="-15" width="48" height="28" rx="7" fill="#dbeafe"/>
+      <rect x="175" y="22" width="48" height="28" rx="7" fill="#dbeafe"/>
+      <rect x="230" y="22" width="48" height="28" rx="7" fill="#dbeafe"/>
+      <text x="199" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">Q7</text>
+      <text x="254" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">Q9</text>
+      <text x="309" y="4" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">Q12</text>
+      <text x="199" y="41" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">Q18</text>
+      <text x="254" y="41" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">...</text>
+    </g>
+    <text x="34" y="150" font-family="Arial, sans-serif" font-size="14" fill="#334155">同一个 KV block 只加载一次或少量几次，服务一批选择它的 query。</text>
+    <text x="34" y="178" font-family="Arial, sans-serif" font-size="14" fill="#334155">热门 block 被切成 chunks，partial outputs 再用 LSE 合并。</text>
+  </g>
+
+  <text x="460" y="370" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">这部分属于 kernel co-design：没有合适的执行路径，理论 sparse FLOPs 不一定能变成真实加速。</text>
+</svg>
