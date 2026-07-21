@@ -1,10 +1,3 @@
----
-title: MiniMax Sparse Attention
-date: 2026-06-14
-tags:
-  - learning
----
-
 Coauthor with codex 5.5
 
 这篇文章讲 MiniMax Sparse Attention，也就是论文里简称的 **MSA**。
@@ -139,10 +132,10 @@ Coauthor with codex 5.5
 
 用公式写就是：
 
-\[
+$$
 \text{score}_{i,j} =
 \frac{Q_i K_j^T}{\sqrt{d_h}}
-\]
+$$
 
 这里：
 
@@ -153,17 +146,17 @@ Coauthor with codex 5.5
 
 算完所有分数后，模型会做 softmax：
 
-\[
+$$
 \alpha_{i,j} =
 \frac{\exp(\text{score}_{i,j})}
 {\sum_{u \le i}\exp(\text{score}_{i,u})}
-\]
+$$
 
 然后按权重加权 value：
 
-\[
+$$
 O_i = \sum_{j \le i} \alpha_{i,j} V_j
-\]
+$$
 
 通俗地说：
 
@@ -188,9 +181,9 @@ MSA 建在 **GQA** 上，所以先解释 GQA。
 
 那么每个 KV head 服务：
 
-\[
+$$
 G = H_q / H_{kv} = 64 / 4 = 16
-\]
+$$
 
 也就是 16 个 query head 共享同一个 KV head。论文里把这叫一个 **GQA group**。
 
@@ -216,13 +209,13 @@ GQA 的意义是减少 KV cache 和 KV 读写。对长上下文推理来说，KV
 
 论文把稀疏 attention 拆成两个阶段：
 
-\[
+$$
 \mathcal{I}_i = \mathrm{Index}_{\phi}(q_i, K_{\le i})
-\]
+$$
 
-\[
+$$
 o_i = \mathrm{Attn}(q_i, K[\mathcal{I}_i], V[\mathcal{I}_i])
-\]
+$$
 
 翻译成人话：
 
@@ -266,9 +259,9 @@ k = 16
 
 也就是每个 query、每个 GQA group 选择 16 个 KV block。最多阅读：
 
-\[
+$$
 kB_k = 16 \times 128 = 2048
-\]
+$$
 
 个 token。
 
@@ -296,13 +289,13 @@ MSA 每层 attention 有两个逻辑分支：
 
 注意：Index Branch 不是另一个完整 attention。它很轻，论文说它只在标准 GQA 上额外加入两个投影矩阵：
 
-\[
+$$
 Q^{idx} = X W_q^{idx}
-\]
+$$
 
-\[
+$$
 K^{idx} = X W_k^{idx}
-\]
+$$
 
 其中：
 
@@ -313,13 +306,13 @@ K^{idx} = X W_k^{idx}
 
 MSA 的 Index Branch 有两个重要形状设计：
 
-\[
+$$
 Q^{idx} \in \mathbb{R}^{N \times H_{kv} \times d_{idx}}
-\]
+$$
 
-\[
+$$
 K^{idx} \in \mathbb{R}^{N \times 1 \times d_{idx}}
-\]
+$$
 
 翻译一下：
 
@@ -335,28 +328,28 @@ K^{idx} \in \mathbb{R}^{N \times 1 \times d_{idx}}
 
 对当前 query token `i` 和 GQA group `r`，Index Branch 先算 token 级别分数：
 
-\[
+$$
 S^{idx,(r)}_{i,j}
 =
 \frac{(Q^{idx})^{(r)}_i (K^{idx})^T_j}{\sqrt{d_{idx}}}
-\]
+$$
 
 这里 `j` 是历史 token 位置，并且要满足 causal mask：
 
-\[
+$$
 j \le i
-\]
+$$
 
 也就是当前位置不能偷看未来。
 
 然后它把 token 分数聚合到 block 分数。MSA 用的是 **max pooling**：
 
-\[
+$$
 M^{idx,(r)}_{i,b}
 =
 \max_{j \in \mathcal{B}_b, j \le i}
 S^{idx,(r)}_{i,j}
-\]
+$$
 
 意思是：
 
@@ -369,10 +362,10 @@ S^{idx,(r)}_{i,j}
 
 最后做 Top-K：
 
-\[
+$$
 \mathcal{I}^{(r)}_i =
 \mathrm{TopK}(M^{idx,(r)}_{i,\cdot}, k)
-\]
+$$
 
 得到当前 query、当前 GQA group 要看的 `k` 个 block。
 
@@ -401,14 +394,14 @@ MSA 容易被误解成“近似 attention”。更准确地说：
 
 对某个 query head `h`，如果它属于 GQA group `r`，Main Branch 做：
 
-\[
+$$
 O^{(h)}_i =
 \mathrm{softmax}
 \left(
 \frac{Q^{(h)}_i (K^{(r)}[\mathcal{I}^{(r)}_i])^T}{\sqrt{d_h}}
 \right)
 V^{(r)}[\mathcal{I}^{(r)}_i]
-\]
+$$
 
 这个公式看起来长，其实意思很简单：
 
@@ -426,15 +419,15 @@ V^{(r)}[\mathcal{I}^{(r)}_i]
 
 如果：
 
-\[
+$$
 s_i \le s_j
-\]
+$$
 
 那么：
 
-\[
+$$
 \mathrm{softmax}(s)_i \le \mathrm{softmax}(s)_j
-\]
+$$
 
 也就是说，原始分数最大的那些位置，softmax 后仍然最大。
 
@@ -487,7 +480,7 @@ KL loss 可以理解成“分布对齐损失”。
 
 公式写成：
 
-\[
+$$
 \mathcal{L}_{KL}
 =
 \frac{1}{NH_{kv}}
@@ -499,7 +492,7 @@ D_{KL}
 \parallel
 P^{idx,(r)}_{i,\cdot}
 )
-\]
+$$
 
 这里：
 
@@ -524,13 +517,13 @@ P^{idx,(r)}_{i,\cdot}
 
 所以 MSA 把 KL loss 限制成局部监督：
 
-\[
+$$
 Q^{idx} = \mathrm{stopgrad}(X) W_q^{idx}
-\]
+$$
 
-\[
+$$
 K^{idx} = \mathrm{stopgrad}(X) W_k^{idx}
-\]
+$$
 
 这样 KL loss 更新的主要是：
 
@@ -565,21 +558,21 @@ MSA 用两阶段训练：
 
 普通 GQA 的 attention FLOPs 大致是：
 
-\[
+$$
 F_{GQA}(N) = 2H_q d_h N^2
-\]
+$$
 
 这里核心是 `N^2`。
 
 MSA 的 FLOPs 分成两部分：
 
-\[
+$$
 F_{MSA}(N)
 =
 \underbrace{H_{kv}d_{idx}N^2}_{Index\ Branch}
 +
 \underbrace{4H_qd_hNkB_k}_{Main\ Branch}
-\]
+$$
 
 第一项还是 `N^2`，但很轻，因为：
 
@@ -588,9 +581,9 @@ F_{MSA}(N)
 
 第二项是主 attention 分支，它不再是 `N^2`，而是：
 
-\[
+$$
 N \times kB_k
-\]
+$$
 
 当 `kB_k << N` 时，节省会很明显。
 
@@ -741,17 +734,17 @@ for each query:
 
 对 Q-outer 来说，MSA sparse attention 的 FLOPs 约为：
 
-\[
+$$
 \mathrm{FLOPs}
 =
 4H_qNd_hkB_k
-\]
+$$
 
 但 K/V 会按 query 选中的 blocks 反复读取，论文估算 Q-outer 的算术强度大约是：
 
-\[
+$$
 \mathrm{FLOPs}/\mathrm{IO} \approx G
-\]
+$$
 
 这里 `G = H_q / H_kv`，也就是一个 KV head 对应多少个 query heads。论文主设置是：
 
@@ -781,17 +774,17 @@ for each KV block:
 
 论文对 KV-outer 的算术强度估算是：
 
-\[
+$$
 \mathrm{FLOPs}/\mathrm{IO}
 \approx
 \frac{2}{3}B_k
-\]
+$$
 
 代入 `B_k=128`：
 
-\[
+$$
 \frac{2}{3}B_k \approx 85
-\]
+$$
 
 这比 Q-outer 的 `G=16` 高很多。直觉上就是：每次把一个 128-token 的 KV block 搬上来，尽量让更多 query 使用它，而不是搬上来只服务一个 query。
 
@@ -907,9 +900,9 @@ KV-outer 的新问题是负载不均。
 
 做法是：调度阶段先看每个 KV tile 收到了多少 query。如果某个 tile 太热门，就沿着 query 维度切成多个 chunks。论文里提到每个 chunk 最多大约：
 
-\[
+$$
 \sim 2kB_k
-\]
+$$
 
 在主设置里：
 
@@ -964,27 +957,27 @@ block B logits: [1, 0]
 
 然后 combine kernel 对同一个 query/head 的多个 slots 做稳定合并：
 
-\[
+$$
 a = \max_s \mathrm{LSE}_s
-\]
+$$
 
-\[
+$$
 \mathrm{LSE}[i,h]
 =
 a + \log \sum_s \exp(\mathrm{LSE}_s - a)
-\]
+$$
 
-\[
+$$
 w_s
 =
 \exp(\mathrm{LSE}_s - \mathrm{LSE}[i,h])
-\]
+$$
 
-\[
+$$
 O[i,h]
 =
 \sum_s w_s O_{buf}[s,i,h]
-\]
+$$
 
 通俗说，每个 block 先报告：
 

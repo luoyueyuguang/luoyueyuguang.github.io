@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="520" viewBox="0 0 980 520" role="img" aria-labelledby="title desc">
+  <title id="title">GDN paper H100 throughput figure redrawn</title>
+  <desc id="desc">A line chart redrawn from Figure 3 of the paper showing training throughput of 1.3B models on a single H100 GPU.</desc>
+  <rect width="980" height="520" rx="18" fill="#fbfbfc"/>
+  <rect x="28" y="28" width="924" height="444" rx="14" fill="#fff" stroke="#d9d9e3"/>
+  <g font-family="Arial, sans-serif" fill="#171717">
+    <text x="490" y="68" text-anchor="middle" font-size="25" font-weight="700">GDN 原论文 Figure 3：1.3B 模型 H100 训练吞吐</text>
+    <text x="490" y="94" text-anchor="middle" font-size="14" fill="#555">单位：Kt/s，横轴保持 tokens per batch 近似相同：2K×16 到 16K×2</text>
+  </g>
+  <g transform="translate(110 125)" font-family="Arial, sans-serif">
+    <rect x="0" y="0" width="690" height="285" fill="#fff" stroke="#ccd"/>
+    <g stroke="#e9e9f2">
+      <line x1="0" y1="262" x2="690" y2="262"/>
+      <line x1="0" y1="224" x2="690" y2="224"/>
+      <line x1="0" y1="187" x2="690" y2="187"/>
+      <line x1="0" y1="149" x2="690" y2="149"/>
+      <line x1="0" y1="112" x2="690" y2="112"/>
+      <line x1="0" y1="75" x2="690" y2="75"/>
+      <line x1="0" y1="37" x2="690" y2="37"/>
+    </g>
+    <g font-size="12" fill="#555">
+      <text x="-12" y="266" text-anchor="end">25</text>
+      <text x="-12" y="228" text-anchor="end">30</text>
+      <text x="-12" y="191" text-anchor="end">35</text>
+      <text x="-12" y="153" text-anchor="end">40</text>
+      <text x="-12" y="116" text-anchor="end">45</text>
+      <text x="-12" y="79" text-anchor="end">50</text>
+      <text x="-12" y="41" text-anchor="end">55</text>
+      <text x="-12" y="4" text-anchor="end">60</text>
+      <text x="0" y="315" text-anchor="middle">2K×16</text>
+      <text x="230" y="315" text-anchor="middle">4K×8</text>
+      <text x="460" y="315" text-anchor="middle">8K×4</text>
+      <text x="690" y="315" text-anchor="middle">16K×2</text>
+    </g>
+    <text x="-70" y="142" transform="rotate(-90 -70 142)" text-anchor="middle" font-size="13" fill="#333">Thousands token / sec</text>
+    <text x="345" y="350" text-anchor="middle" font-size="13" fill="#333">Sequence length × batch size</text>
+
+    <polyline points="0,37 230,93 460,166 690,251" fill="none" stroke="#3265d8" stroke-width="3"/>
+    <polyline points="0,105 230,108 460,108 690,111" fill="none" stroke="#9b6ac8" stroke-width="3"/>
+    <polyline points="0,104 230,107 460,106 690,105" fill="none" stroke="#5c7232" stroke-width="3"/>
+    <polyline points="0,163 230,164 460,166 690,168" fill="none" stroke="#e28a22" stroke-width="3"/>
+    <polyline points="0,89 230,88 460,88 690,89" fill="none" stroke="#d84848" stroke-width="3"/>
+    <polyline points="0,40 230,49 460,56 690,56" fill="none" stroke="#76b900" stroke-width="3"/>
+    <polyline points="0,112 230,119 460,124 690,128" fill="none" stroke="#888" stroke-width="3"/>
+    <polyline points="0,75 230,78 460,80 690,83" fill="none" stroke="#20a45a" stroke-width="3"/>
+
+    <g fill="#fff" stroke-width="2">
+      <circle cx="0" cy="37" r="4" stroke="#3265d8"/><circle cx="230" cy="93" r="4" stroke="#3265d8"/><circle cx="460" cy="166" r="4" stroke="#3265d8"/><circle cx="690" cy="251" r="4" stroke="#3265d8"/>
+      <rect x="-4" y="101" width="8" height="8" stroke="#9b6ac8"/><rect x="226" y="104" width="8" height="8" stroke="#9b6ac8"/><rect x="456" y="104" width="8" height="8" stroke="#9b6ac8"/><rect x="686" y="107" width="8" height="8" stroke="#9b6ac8"/>
+      <polygon points="0,98 -5,110 5,110" stroke="#5c7232"/><polygon points="230,101 225,113 235,113" stroke="#5c7232"/><polygon points="460,100 455,112 465,112" stroke="#5c7232"/><polygon points="690,99 685,111 695,111" stroke="#5c7232"/>
+    </g>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="12" fill="#333">
+    <line x1="825" y1="145" x2="855" y2="145" stroke="#3265d8" stroke-width="3"/><text x="863" y="149">Transformer++</text>
+    <line x1="825" y1="170" x2="855" y2="170" stroke="#9b6ac8" stroke-width="3"/><text x="863" y="174">DeltaNet</text>
+    <line x1="825" y1="195" x2="855" y2="195" stroke="#5c7232" stroke-width="3"/><text x="863" y="199">Gated DeltaNet</text>
+    <line x1="825" y1="220" x2="855" y2="220" stroke="#e28a22" stroke-width="3"/><text x="863" y="224">Mamba1</text>
+    <line x1="825" y1="245" x2="855" y2="245" stroke="#d84848" stroke-width="3"/><text x="863" y="249">Mamba2</text>
+    <line x1="825" y1="270" x2="855" y2="270" stroke="#76b900" stroke-width="3"/><text x="863" y="274">Gated DN-H1</text>
+    <line x1="825" y1="295" x2="855" y2="295" stroke="#888" stroke-width="3"/><text x="863" y="299">Samba</text>
+    <line x1="825" y1="320" x2="855" y2="320" stroke="#20a45a" stroke-width="3"/><text x="863" y="324">Gated DN-H2</text>
+  </g>
+  <text x="490" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#666">
+    Source: redrawn from Figure 3 and pgfplots coordinates in arXiv:2412.06464.
+  </text>
+</svg>

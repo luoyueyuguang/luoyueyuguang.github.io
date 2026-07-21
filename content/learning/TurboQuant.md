@@ -1,9 +1,3 @@
----
-title: TurboQuant算法
-date: 2026-06-11
-tags:
-  - learning
----
 Coauthor with codex 5.5
 
 这篇文章按三个层次来讲 TurboQuant：
@@ -37,9 +31,9 @@ Coauthor with codex 5.5
 
 数学上写成：
 
-\[
+$$
 \mathbf{x} = [x_1, x_2, \ldots, x_d]
-\]
+$$
 
 这里：
 
@@ -145,10 +139,10 @@ A · B = 2 * 4 + 3 * 5 = 23
 
 一般写成：
 
-\[
+$$
 \langle \mathbf{x}, \mathbf{y} \rangle
 = x_1y_1 + x_2y_2 + \cdots + x_dy_d
-\]
+$$
 
 大模型注意力里就大量用到类似计算。当前 Query 会和历史 Key 做点积，模型靠这个分数判断“前文哪个位置更重要”。
 
@@ -166,22 +160,22 @@ A · B = 2 * 4 + 3 * 5 = 23
 
 假设原始向量是：
 
-\[
+$$
 \mathbf{x}
-\]
+$$
 
 压缩再解压后的近似向量是：
 
-\[
+$$
 \tilde{\mathbf{x}}
-\]
+$$
 
 第一个目标叫 **MSE**，也就是重建误差：
 
-\[
+$$
 D_{\text{mse}} =
 \mathbb{E}\left[\|\mathbf{x} - \tilde{\mathbf{x}}\|_2^2\right]
-\]
+$$
 
 普通解释：
 
@@ -191,7 +185,7 @@ D_{\text{mse}} =
 
 第二个目标叫 **inner-product error**，也就是内积误差：
 
-\[
+$$
 D_{\text{prod}} =
 \mathbb{E}\left[
 \left|
@@ -200,7 +194,7 @@ D_{\text{prod}} =
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
 \right|^2
 \right]
-\]
+$$
 
 普通解释：
 
@@ -217,9 +211,9 @@ D_{\text{prod}} =
 
 论文里经常假设：
 
-\[
+$$
 \|\mathbf{x}\|_2 = 1
-\]
+$$
 
 这句话意思是：向量长度等于 1。
 
@@ -231,9 +225,9 @@ x = [3, 4]
 
 它的长度是：
 
-\[
+$$
 \sqrt{3^2 + 4^2} = 5
-\]
+$$
 
 归一化后变成：
 
@@ -271,33 +265,33 @@ TurboQuant 的第一步就是：先把向量随机旋转，让信息不要集中
 
 随机旋转用一个矩阵表示，记作：
 
-\[
+$$
 \mathbf{\Pi}
-\]
+$$
 
 旋转后的向量是：
 
-\[
+$$
 \mathbf{z} = \mathbf{\Pi}\mathbf{x}
-\]
+$$
 
 这里的 `Π` 是正交矩阵。你可以把它理解成高维空间里的“旋转操作”。
 
 正交矩阵最重要的性质是：
 
-\[
+$$
 \|\mathbf{\Pi}\mathbf{x}\|_2 = \|\mathbf{x}\|_2
-\]
+$$
 
 也就是说，旋转不会改变长度。
 
 它也不会改变两个向量的点积：
 
-\[
+$$
 \langle \mathbf{\Pi}\mathbf{x}, \mathbf{\Pi}\mathbf{y} \rangle
 =
 \langle \mathbf{x}, \mathbf{y} \rangle
-\]
+$$
 
 所以随机旋转不会凭空破坏几何关系。它只是换了一个观察角度。
 
@@ -305,13 +299,13 @@ TurboQuant 的第一步就是：先把向量随机旋转，让信息不要集中
 
 因为对任何固定的单位向量 `x`，乘上随机旋转后，`Πx` 会像“单位球面上随机取到的一个点”。论文用到的事实是：它的每个坐标服从下面这个分布：
 
-\[
+$$
 f_X(t) =
 \frac{\Gamma(d/2)}
 {\sqrt{\pi}\Gamma((d-1)/2)}
 (1 - t^2)^{(d-3)/2},
 \quad t \in [-1, 1]
-\]
+$$
 
 这个公式看起来吓人，但它只说一件事：
 
@@ -319,9 +313,9 @@ f_X(t) =
 
 写成近似就是：
 
-\[
+$$
 (\mathbf{\Pi}\mathbf{x})_j \approx \mathcal{N}(0, 1/d)
-\]
+$$
 
 普通解释：
 
@@ -338,9 +332,9 @@ TurboQuant 的 MSE 版本目标是：
 
 它叫：
 
-\[
+$$
 Q_{\text{mse}}
-\]
+$$
 
 流程：
 
@@ -357,31 +351,31 @@ Q_{\text{mse}}
 
 如果 bit-width 是 `b`，每个坐标有：
 
-\[
+$$
 2^b
-\]
+$$
 
 个可选中心。
 
 例如 `b=2`，每个坐标可以选 4 个中心。论文给出的高维近似中心是：
 
-\[
+$$
 \left\{
 -\frac{1.51}{\sqrt d},
 -\frac{0.453}{\sqrt d},
 \frac{0.453}{\sqrt d},
 \frac{1.51}{\sqrt d}
 \right\}
-\]
+$$
 
 `b=1` 时，只有两个中心：
 
-\[
+$$
 \left\{
 -\sqrt{\frac{2}{\pi d}},
 \sqrt{\frac{2}{\pi d}}
 \right\}
-\]
+$$
 
 ![PolarQuant直觉](/learning/assets/turboquant-polar.svg)
 
@@ -395,28 +389,28 @@ Q_{\text{mse}}
 
 假设中心是：
 
-\[
+$$
 c_1, c_2, \ldots, c_{2^b}
-\]
+$$
 
 每个真实值 `t` 会被分到最近的中心。
 
 中心之间的边界是相邻中心的中点：
 
-\[
+$$
 \frac{c_i + c_{i+1}}{2}
-\]
+$$
 
 所以最优 codebook 的目标是：
 
-\[
+$$
 \mathcal{C}(f_X, b)
 =
 \min_{c_1,\ldots,c_{2^b}}
 \sum_i
 \int_{\text{第 i 个区间}}
 |t - c_i|^2 f_X(t)\,dt
-\]
+$$
 
 普通解释：
 
@@ -434,35 +428,35 @@ c_1, c_2, \ldots, c_{2^b}
 
 解码后：
 
-\[
+$$
 \tilde{\mathbf{x}} = \mathbf{\Pi}^\top \tilde{\mathbf{z}}
-\]
+$$
 
 因为旋转不改变长度：
 
-\[
+$$
 \|\mathbf{x} - \tilde{\mathbf{x}}\|_2
 =
 \|\mathbf{\Pi}\mathbf{x} - \tilde{\mathbf{z}}\|_2
 =
 \|\mathbf{z} - \tilde{\mathbf{z}}\|_2
-\]
+$$
 
 平方后：
 
-\[
+$$
 \|\mathbf{z} - \tilde{\mathbf{z}}\|_2^2
 =
 \sum_{j=1}^{d}(z_j - \tilde z_j)^2
-\]
+$$
 
 每个坐标的分布一样，所以期望误差一样：
 
-\[
+$$
 D_{\text{mse}}
 =
 d \cdot \mathcal{C}(f_X,b)
-\]
+$$
 
 这一步很关键。它说明：高维向量量化被随机旋转后，可以拆成很多个一维量化问题。
 
@@ -470,11 +464,11 @@ d \cdot \mathcal{C}(f_X,b)
 
 论文证明的上界是：
 
-\[
+$$
 D_{\text{mse}}
 \le
 \frac{\sqrt{3}\pi}{2}\cdot \frac{1}{4^b}
-\]
+$$
 
 这里最重要的是 `1/4^b`。
 
@@ -610,48 +604,48 @@ class TurboQuantMSE:
 
 假设真实点积是：
 
-\[
+$$
 \langle \mathbf{y}, \mathbf{x} \rangle
-\]
+$$
 
 压缩后估计的是：
 
-\[
+$$
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
-\]
+$$
 
 如果多次随机量化后，平均值等于真实值，就叫无偏：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
 \right]
 =
 \langle \mathbf{y}, \mathbf{x} \rangle
-\]
+$$
 
 如果平均值总是偏小或偏大，就叫有偏。
 
 论文举了 `b=1` 的例子。高维下，MSE 最优的两个中心是：
 
-\[
+$$
 \pm \sqrt{\frac{2}{\pi d}}
-\]
+$$
 
 于是：
 
-\[
+$$
 Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 =
 \sqrt{\frac{2}{\pi d}}\,
 \mathbf{\Pi}^\top
 \operatorname{sign}(\mathbf{\Pi}\mathbf{x})
-\]
+$$
 
 此时它的内积期望大约是：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
@@ -659,7 +653,7 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 =
 \frac{2}{\pi}
 \langle \mathbf{y}, \mathbf{x} \rangle
-\]
+$$
 
 `2/pi ≈ 0.637`。
 
@@ -679,15 +673,15 @@ QJL 全称是 Quantized Johnson-Lindenstrauss。
 
 给定一个向量 `u`，QJL 先生成一个随机矩阵：
 
-\[
+$$
 \mathbf{S}_{ij} \sim \mathcal{N}(0, 1)
-\]
+$$
 
 然后只存：
 
-\[
+$$
 \operatorname{sign}(\mathbf{S}\mathbf{u})
-\]
+$$
 
 也就是每个投影结果是正还是负。
 
@@ -700,36 +694,36 @@ QJL 全称是 Quantized Johnson-Lindenstrauss。
 
 QJL 的反量化是：
 
-\[
+$$
 Q_{\text{qjl}}^{-1}(\mathbf{s})
 =
 \frac{\sqrt{\pi/2}}{d}
 \mathbf{S}^\top \mathbf{s}
-\]
+$$
 
 如果 `u` 是单位向量，则 QJL 有两个关键性质：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, Q_{\text{qjl}}^{-1}(Q_{\text{qjl}}(\mathbf{u})) \rangle
 \right]
 =
 \langle \mathbf{y}, \mathbf{u} \rangle
-\]
+$$
 
 这就是无偏。
 
 它的方差上界是：
 
-\[
+$$
 \operatorname{Var}
 \left(
 \langle \mathbf{y}, Q_{\text{qjl}}^{-1}(Q_{\text{qjl}}(\mathbf{u})) \rangle
 \right)
 \le
 \frac{\pi}{2d}\|\mathbf{y}\|_2^2
-\]
+$$
 
 普通解释：
 
@@ -740,13 +734,13 @@ Q_{\text{qjl}}^{-1}(\mathbf{s})
 
 再强调一次：上面这个无偏公式的前提是 `u` 是单位向量。对于非单位向量 `v`，要先写成：
 
-\[
+$$
 \mathbf{v} = \gamma \mathbf{u},
 \quad
 \gamma = \|\mathbf{v}\|_2,
 \quad
 \|\mathbf{u}\|_2 = 1
-\]
+$$
 
 然后对 `u` 做 QJL，并在反量化时乘回 `\gamma`。如果直接忘掉这个范数缩放，就不能把 QJL 理解成“任意向量都能直接还原”的方法。
 
@@ -763,21 +757,21 @@ Q_{\text{qjl}}^{-1}(\mathbf{s})
 
 先做 MSE 主量化：
 
-\[
+$$
 \tilde{\mathbf{x}}_{\text{mse}}
 =
 Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
-\]
+$$
 
 残差是：
 
-\[
+$$
 \mathbf{r}
 =
 \mathbf{x}
 -
 \tilde{\mathbf{x}}_{\text{mse}}
-\]
+$$
 
 也就是：
 
@@ -787,39 +781,39 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 
 然后对残差做 QJL：
 
-\[
+$$
 \operatorname{sign}(\mathbf{S}\mathbf{r})
-\]
+$$
 
 还要额外保存残差长度：
 
-\[
+$$
 \gamma = \|\mathbf{r}\|_2
-\]
+$$
 
 这一步就是在处理“残差不是单位向量”的问题。严格地说，我们是把残差写成：
 
-\[
+$$
 \mathbf{r} = \gamma \mathbf{u},
 \quad
 \mathbf{u} = \mathbf{r} / \gamma
-\]
+$$
 
 因为 `\gamma > 0` 时：
 
-\[
+$$
 \operatorname{sign}(\mathbf{S}\mathbf{r})
 =
 \operatorname{sign}(\gamma\mathbf{S}\mathbf{u})
 =
 \operatorname{sign}(\mathbf{S}\mathbf{u})
-\]
+$$
 
 所以符号草图可以照常存，但解码时必须乘回 `\gamma`。如果 `\gamma = 0`，说明残差本来就是零，QJL 项也应该是零。
 
 最终解码：
 
-\[
+$$
 \tilde{\mathbf{x}}
 =
 \tilde{\mathbf{x}}_{\text{mse}}
@@ -828,7 +822,7 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 \gamma
 \mathbf{S}^\top
 \operatorname{sign}(\mathbf{S}\mathbf{r})
-\]
+$$
 
 这就是论文里的 `TurboQuant_prod`。
 
@@ -840,44 +834,44 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 
 我们想证明：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
 \right]
 =
 \langle \mathbf{y}, \mathbf{x} \rangle
-\]
+$$
 
 先把最终估计拆成两部分：
 
-\[
+$$
 \tilde{\mathbf{x}}
 =
 \tilde{\mathbf{x}}_{\text{mse}}
 +
 \tilde{\mathbf{x}}_{\text{qjl}}
-\]
+$$
 
 所以：
 
-\[
+$$
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
 =
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{mse}} \rangle
 +
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{qjl}} \rangle
-\]
+$$
 
 严格地说，QJL 的无偏性先作用在单位残差方向：
 
-\[
+$$
 \mathbf{u} = \mathbf{r}/\gamma
-\]
+$$
 
 反量化时乘回 `\gamma`，于是：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \gamma Q_{\text{qjl}}^{-1}(Q_{\text{qjl}}(\mathbf{u})) \rangle
@@ -888,13 +882,13 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 \gamma \langle \mathbf{y}, \mathbf{u} \rangle
 =
 \langle \mathbf{y}, \mathbf{r} \rangle
-\]
+$$
 
 这正是 `TurboQuant_prod` 里保存并乘回残差长度 `\gamma = \|\mathbf{r}\|_2` 的原因。少了这个缩放，残差非单位向量会破坏无偏性。
 
 因此我们可以写：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{qjl}} \rangle
@@ -903,11 +897,11 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 \right]
 =
 \langle \mathbf{y}, \mathbf{r} \rangle
-\]
+$$
 
 把它代回去：
 
-\[
+$$
 \mathbb{E}
 \left[
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
@@ -918,27 +912,27 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{mse}} \rangle
 +
 \langle \mathbf{y}, \mathbf{r} \rangle
-\]
+$$
 
 而残差定义是：
 
-\[
+$$
 \mathbf{r}
 =
 \mathbf{x}
 -
 \tilde{\mathbf{x}}_{\text{mse}}
-\]
+$$
 
 所以：
 
-\[
+$$
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{mse}} \rangle
 +
 \langle \mathbf{y}, \mathbf{x} - \tilde{\mathbf{x}}_{\text{mse}} \rangle
 =
 \langle \mathbf{y}, \mathbf{x} \rangle
-\]
+$$
 
 这就是无偏。
 
@@ -950,49 +944,49 @@ Q_{\text{mse}}^{-1}(Q_{\text{mse}}(\mathbf{x}))
 
 QJL 的方差上界告诉我们：
 
-\[
+$$
 \text{残差修正造成的内积方差}
 \le
 \frac{\pi}{2d}
 \|\mathbf{r}\|_2^2
 \|\mathbf{y}\|_2^2
-\]
+$$
 
 这里最重要的是：
 
-\[
+$$
 \|\mathbf{r}\|_2^2
-\]
+$$
 
 残差越小，QJL 修正越稳。
 
 而 `TurboQuant_mse` 正好负责让残差尽量小：
 
-\[
+$$
 \mathbb{E}\|\mathbf{r}\|_2^2
 =
 D_{\text{mse}}
-\]
+$$
 
 所以：
 
-\[
+$$
 D_{\text{prod}}
 \le
 \frac{\pi}{2d}
 \|\mathbf{y}\|_2^2
 D_{\text{mse}}(b-1)
-\]
+$$
 
 再把 MSE 上界代进去，得到论文里的内积误差上界：
 
-\[
+$$
 D_{\text{prod}}
 \le
 \frac{\sqrt{3}\pi^2\|\mathbf{y}\|_2^2}{d}
 \cdot
 \frac{1}{4^b}
-\]
+$$
 
 这就是 TurboQuant 的组合逻辑：
 
@@ -1332,11 +1326,11 @@ __global__ void quant_mse_2bit_kernel(
 
 这段 kernel 对应前面的数学：
 
-\[
+$$
 \text{idx}_j
 =
 \arg\min_k (z_j - c_k)^2
-\]
+$$
 
 因为这里是一维标量，比较 `|z_j - c_k|` 和比较 `(z_j - c_k)^2` 会选出同一个最近中心；代码里写平方误差，是为了和前面的 MSE 准则在概念上保持一致。
 
@@ -1378,11 +1372,11 @@ __global__ void quant_mse_2bit_kernel(
 
 还有一个细节：如果 Key 存的是旋转后的 `z = Πk` 的量化结果，那么 Query 也要旋转：
 
-\[
+$$
 \langle \mathbf{q}, \mathbf{k} \rangle
 =
 \langle \mathbf{\Pi}\mathbf{q}, \mathbf{\Pi}\mathbf{k} \rangle
-\]
+$$
 
 所以融合打分 kernel 里应该用旋转后的 query：
 
@@ -1450,27 +1444,27 @@ __global__ void score_packed_keys_2bit_kernel(
 
 这个 kernel 做的是：
 
-\[
+$$
 \langle \mathbf{q}_{rot}, \tilde{\mathbf{z}} \rangle
-\]
+$$
 
 因为：
 
-\[
+$$
 \tilde{\mathbf{k}}
 =
 \mathbf{\Pi}^{T}\tilde{\mathbf{z}}
-\]
+$$
 
 所以：
 
-\[
+$$
 \langle \mathbf{q}, \tilde{\mathbf{k}} \rangle
 =
 \langle \mathbf{q}, \mathbf{\Pi}^{T}\tilde{\mathbf{z}} \rangle
 =
 \langle \mathbf{\Pi}\mathbf{q}, \tilde{\mathbf{z}} \rangle
-\]
+$$
 
 这就是为什么我们不用真的先算出 `k_hat = Π^T z_hat`。只要把 query 旋转到同一个坐标系，直接和 `z_hat` 做点积就行。
 
@@ -1480,36 +1474,36 @@ __global__ void score_packed_keys_2bit_kernel(
 
 `TurboQuant_prod` 的最终估计是：
 
-\[
+$$
 \tilde{\mathbf{x}}
 =
 \tilde{\mathbf{x}}_{\text{mse}}
 +
 \tilde{\mathbf{x}}_{\text{qjl}}
-\]
+$$
 
 所以点积也可以拆开：
 
-\[
+$$
 \langle \mathbf{y}, \tilde{\mathbf{x}} \rangle
 =
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{mse}} \rangle
 +
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{qjl}} \rangle
-\]
+$$
 
 MSE 主量化部分可以用上一节的 packed idx 查 codebook 来算。
 
 QJL 残差部分根据公式是：
 
-\[
+$$
 \tilde{\mathbf{x}}_{\text{qjl}}
 =
 \frac{\sqrt{\pi/2}}{d}
 \gamma
 \mathbf{S}^{T}
 \mathbf{s}
-\]
+$$
 
 其中：
 
@@ -1518,21 +1512,21 @@ QJL 残差部分根据公式是：
 
 如果直接按公式算点积：
 
-\[
+$$
 \langle \mathbf{y}, \tilde{\mathbf{x}}_{\text{qjl}} \rangle
 =
 \frac{\sqrt{\pi/2}}{d}
 \gamma
 \langle \mathbf{y}, \mathbf{S}^{T}\mathbf{s} \rangle
-\]
+$$
 
 利用内积转置关系：
 
-\[
+$$
 \langle \mathbf{y}, \mathbf{S}^{T}\mathbf{s} \rangle
 =
 \langle \mathbf{S}\mathbf{y}, \mathbf{s} \rangle
-\]
+$$
 
 这说明工程上可以这样做：
 
@@ -1601,11 +1595,11 @@ __global__ void add_qjl_scores_kernel(
 
 这段代码对应的是：
 
-\[
+$$
 \frac{\sqrt{\pi/2}}{d}
 \gamma
 \langle \mathbf{S}\mathbf{y}, \mathbf{s} \rangle
-\]
+$$
 
 不过也要诚实说：如果 `S` 是普通 dense Gaussian 矩阵，提前算 `Sy` 本身也要 `O(d^2)`，这在热路径里很贵。生产实现需要考虑：
 
@@ -1620,11 +1614,11 @@ __global__ void add_qjl_scores_kernel(
 
 一个典型形式可以写成：
 
-\[
+$$
 \mathbf{S}
 \approx
 \mathbf{D}_1\mathbf{H}\mathbf{D}_2\mathbf{H}\mathbf{D}_3
-\]
+$$
 
 这里：
 
@@ -1725,11 +1719,11 @@ packed cache
 
 Transformer 注意力的简化形式是：
 
-\[
+$$
 \text{Attn}(\mathbf{q}, \mathbf{K}, \mathbf{V})
 =
 \text{softmax}(\mathbf{q}\mathbf{K}^\top)\mathbf{V}
-\]
+$$
 
 不用怕这个公式。它分两步：
 
@@ -1774,38 +1768,38 @@ TurboQuant 的意义在于：
 
 简单说：任何量化算法，只要每个坐标只给 `b` bit，都不可能无限好。对于单位球上的最坏情况输入，MSE 至少有：
 
-\[
+$$
 D_{\text{mse}}
 \ge
 \frac{1}{4^b}
-\]
+$$
 
 内积误差也至少有：
 
-\[
+$$
 D_{\text{prod}}
 \ge
 \frac{\|\mathbf{y}\|_2^2}{d}
 \cdot
 \frac{1}{4^b}
-\]
+$$
 
 TurboQuant_mse 的上界是：
 
-\[
+$$
 D_{\text{mse}}
 \le
 \frac{\sqrt{3}\pi}{2}
 \cdot
 \frac{1}{4^b}
-\]
+$$
 
 常数：
 
-\[
+$$
 \frac{\sqrt{3}\pi}{2}
 \approx 2.7
-\]
+$$
 
 也就是说，它和理论下界只差一个常数倍，而不是差一个数量级。
 
@@ -1835,9 +1829,9 @@ D_{\text{mse}}
 
 第十步，解码时返回：
 
-\[
+$$
 \tilde x_{\text{mse}} + \tilde x_{\text{qjl}}
-\]
+$$
 
 这样得到的 `TurboQuant_prod` 对内积是无偏的，误差也接近理论最优。
 

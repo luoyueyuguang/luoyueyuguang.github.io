@@ -14,8 +14,7 @@ interface Options {
 const defaultOptions: Options = {
   title: "最新文章",
   include: (file) => {
-    const slug = file.slug ?? ""
-    return slug.includes("/") && !slug.endsWith("/index")
+    return file.frontmatter?.article === true
   },
 }
 
@@ -35,7 +34,17 @@ export default ((userOpts?: Partial<Options>) => {
 
     return (
       <section class="home-recent-notes">
-        <h2>{opts.title}</h2>
+        <div class="home-recent-header">
+          <h2>{opts.title}</h2>
+          <nav aria-label="文章浏览入口">
+            <a class="internal" href={resolveRelative(fileData.slug!, "series/index" as FullSlug)}>
+              文章系列
+            </a>
+            <a class="internal" href={resolveRelative(fileData.slug!, "articles" as FullSlug)}>
+              全部文章与标签 →
+            </a>
+          </nav>
+        </div>
         <ul class="section-ul">
           {limitedPages.map((page) => {
             const title = page.frontmatter?.title
@@ -79,6 +88,37 @@ export default ((userOpts?: Partial<Options>) => {
     )
   }
 
-  HomeRecentNotes.css = style
+  HomeRecentNotes.css =
+    style +
+    `
+.home-recent-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-recent-header > h2 {
+  margin-bottom: 0;
+}
+
+.home-recent-header > nav {
+  display: flex;
+  gap: 1rem;
+}
+
+@media (max-width: 800px) {
+  .home-recent-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .home-recent-header > nav {
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+  }
+}
+`
   return HomeRecentNotes
 }) satisfies QuartzComponentConstructor

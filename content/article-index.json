@@ -1,0 +1,42 @@
+{
+  "series": {
+    "flash-attention": {
+      "title": "Flash Attention",
+      "description": "从算法原理到 GPU 实现，系统整理 Flash Attention 的关键技术。"
+    }
+  },
+  "articles": {
+    "learning/GDN": {
+      "title": "Gated DeltaNet",
+      "date": "2026-06-20",
+      "tags": ["learning", "linear-attention", "sequence-models"]
+    },
+    "learning/MSA": {
+      "title": "MiniMax Sparse Attention",
+      "date": "2026-06-14",
+      "tags": ["learning", "sparse-attention", "long-context"]
+    },
+    "learning/TurboQuant": {
+      "title": "TurboQuant 算法",
+      "date": "2026-06-11",
+      "tags": ["learning", "quantization", "inference"]
+    },
+    "learning/flash-attention": {
+      "title": "Flash Attention",
+      "date": "2026-02-09",
+      "tags": ["learning", "attention", "cuda"],
+      "series": "flash-attention",
+      "seriesOrder": 1
+    },
+    "learning/roofline": {
+      "title": "Roofline 模型",
+      "date": "2026-01-24",
+      "tags": ["learning", "performance", "gpu"]
+    },
+    "pitfalls/cuda13onFedora": {
+      "title": "CUDA 13 on Fedora",
+      "date": "2026-01-21",
+      "tags": ["pitfalls", "cuda", "fedora"]
+    }
+  }
+}

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="360" viewBox="0 0 980 360" role="img" aria-labelledby="title desc">
+  <title id="title">从 RNN 到 GDN 的演化路线</title>
+  <desc id="desc">展示 RNN、Attention、Linear Attention、DeltaNet、Gated DeltaNet 的关系。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .box{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:12}
+      .accent{fill:#e0f2fe;stroke:#0284c7;stroke-width:2;rx:12}
+      .gdn{fill:#dcfce7;stroke:#16a34a;stroke-width:2;rx:12}
+      .title{font:700 20px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .text{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .small{font:13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .arrow{stroke:#334155;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="980" height="360" fill="#ffffff"/>
+  <text x="40" y="42" class="title">GDN 可以从 RNN 一步步理解</text>
+  <text x="40" y="70" class="text">核心问题一直没变：模型如何把过去的信息压进一个可读写的记忆里？</text>
+
+  <rect x="40" y="120" width="150" height="125" class="box"/>
+  <text x="65" y="155" class="title">RNN</text>
+  <text x="65" y="185" class="text">一个向量状态</text>
+  <text x="65" y="211" class="small">h_t = f(x_t, h_{t-1})</text>
+  <text x="65" y="235" class="small">省内存，但容易遗忘</text>
+
+  <path d="M200 182 H255" class="arrow"/>
+  <rect x="265" y="120" width="155" height="125" class="box"/>
+  <text x="290" y="155" class="title">Attention</text>
+  <text x="290" y="185" class="text">保存全部 KV</text>
+  <text x="290" y="211" class="small">按 query 精确读取</text>
+  <text x="290" y="235" class="small">能力强，但 KV cache 增长</text>
+
+  <path d="M430 182 H485" class="arrow"/>
+  <rect x="495" y="120" width="170" height="125" class="accent"/>
+  <text x="520" y="155" class="title">Linear Attention</text>
+  <text x="520" y="185" class="text">矩阵状态 S</text>
+  <text x="520" y="211" class="small">S_t = S_{t-1}+k_t v_t^T</text>
+  <text x="520" y="235" class="small">线性复杂度</text>
+
+  <path d="M675 182 H730" class="arrow"/>
+  <rect x="740" y="82" width="190" height="96" class="accent"/>
+  <text x="765" y="116" class="title">DeltaNet</text>
+  <text x="765" y="145" class="text">先读旧答案</text>
+  <text x="765" y="168" class="small">再写入残差 v - read</text>
+
+  <path d="M835 183 V220" class="arrow"/>
+  <rect x="740" y="230" width="190" height="96" class="gdn"/>
+  <text x="765" y="264" class="title">Gated DeltaNet</text>
+  <text x="765" y="293" class="text">加门控遗忘</text>
+  <text x="765" y="316" class="small">快速擦除 + 精准更新</text>
+</svg>

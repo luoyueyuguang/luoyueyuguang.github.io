@@ -2,3 +2,5 @@ public
 node_modules
 .quartz-cache
 AGENTS.md
+# Markdown articles contain LaTeX underscores that Prettier can reinterpret as emphasis.
+content/**/*.md

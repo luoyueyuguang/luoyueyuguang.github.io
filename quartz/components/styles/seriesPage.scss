@@ -1,0 +1,88 @@
+@use "../../styles/variables.scss" as *;
+
+.series-count,
+.series-card-meta,
+.series-article-list .meta {
+  opacity: 0.65;
+}
+
+.series-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.series-card {
+  border: 1px solid var(--lightgray);
+  border-radius: 8px;
+  padding: 1rem;
+
+  & > h2 {
+    margin: 0;
+    font-size: 1.25rem;
+
+    & > a {
+      background: transparent;
+    }
+  }
+
+  & > p {
+    margin-bottom: 0;
+  }
+}
+
+.series-description {
+  font-size: 1.05rem;
+}
+
+.series-article-list {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+
+  & > li {
+    display: grid;
+    grid-template-columns: fit-content(7rem) minmax(12rem, 1fr) minmax(10rem, auto);
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid var(--lightgray);
+    padding: 1rem 0;
+  }
+
+  & h2 {
+    margin: 0;
+    font-size: 1.15rem;
+
+    & > a {
+      background: transparent;
+    }
+  }
+
+  & .meta {
+    margin: 0.2rem 0 0;
+  }
+
+  & > li > .tags {
+    justify-content: flex-end;
+    margin: 0;
+  }
+}
+
+.series-order {
+  border: 1px solid var(--lightgray);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  white-space: nowrap;
+}
+
+@media all and ($mobile) {
+  .series-article-list > li {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+
+    & > .tags {
+      justify-content: flex-start;
+    }
+  }
+}

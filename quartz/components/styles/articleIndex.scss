@@ -1,0 +1,148 @@
+@use "../../styles/variables.scss" as *;
+
+.article-index {
+  margin-top: 1.5rem;
+}
+
+.article-index-controls {
+  border: 1px solid var(--lightgray);
+  border-radius: 8px;
+  padding: 1rem;
+
+  & > label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: $semiBoldWeight;
+  }
+
+  & > input {
+    width: 100%;
+    border: 1px solid var(--lightgray);
+    border-radius: 6px;
+    background: var(--light);
+    color: var(--darkgray);
+    font: inherit;
+    padding: 0.65rem 0.75rem;
+
+    &:focus {
+      border-color: var(--gray);
+      outline: 2px solid var(--highlight);
+      outline-offset: 2px;
+    }
+  }
+}
+
+.article-tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+
+  & > button {
+    border: 1px solid var(--lightgray);
+    border-radius: 999px;
+    background: var(--light);
+    color: var(--darkgray);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.9rem;
+    padding: 0.3rem 0.65rem;
+    transition:
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+
+    & > span {
+      margin-left: 0.2rem;
+      opacity: 0.6;
+    }
+
+    &:hover {
+      border-color: var(--gray);
+    }
+
+    &.active {
+      border-color: var(--darkgray);
+      background: var(--highlight);
+    }
+  }
+}
+
+.article-index-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.9rem;
+
+  & > p {
+    margin: 0;
+    opacity: 0.7;
+  }
+}
+
+.article-index-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.article-index-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--lightgray);
+  padding: 1rem 0;
+
+  &[hidden] {
+    display: none;
+  }
+
+  & .article-index-main {
+    min-width: 0;
+  }
+
+  & h2 {
+    margin: 0;
+    font-size: 1.15rem;
+
+    & > a {
+      background: transparent;
+    }
+  }
+
+  & .meta {
+    margin: 0.25rem 0 0;
+    opacity: 0.6;
+  }
+
+  & .article-series-reference {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+  }
+
+  & > .tags {
+    justify-content: flex-end;
+    margin: 0;
+  }
+}
+
+.article-index-empty {
+  border: 1px dashed var(--lightgray);
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+@media all and ($mobile) {
+  .article-index-summary,
+  .article-index-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .article-index-item > .tags {
+    justify-content: flex-start;
+  }
+}

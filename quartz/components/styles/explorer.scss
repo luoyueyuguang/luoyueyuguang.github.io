@@ -162,6 +162,21 @@ li:has(> .folder-outer:not(.open)) > .folder-container > svg {
   color: var(--tertiary);
 }
 
+.folder-container.series-folder {
+  & .series-badge {
+    border: 1px solid var(--lightgray);
+    border-radius: 999px;
+    color: var(--darkgray);
+    font-family: var(--bodyFont);
+    font-size: 0.68rem;
+    font-weight: $normalWeight;
+    line-height: 1;
+    margin-left: 0.4rem;
+    opacity: 0.65;
+    padding: 0.15rem 0.35rem;
+  }
+}
+
 .no-background::after {
   background: none !important;
 }

@@ -7,6 +7,7 @@ import {
   simplifySlug,
   SimpleSlug,
   FilePath,
+  FullSlug,
 } from "../util/path"
 
 type OrderEntries = "sort" | "filter" | "map"
@@ -47,13 +48,24 @@ export class FileNode {
   displayName: string
   file: QuartzPluginData | null
   depth: number
+  isSeries: boolean
+  linkSlug?: FullSlug
 
-  constructor(slugSegment: string, displayName?: string, file?: QuartzPluginData, depth?: number) {
+  constructor(
+    slugSegment: string,
+    displayName?: string,
+    file?: QuartzPluginData,
+    depth?: number,
+    isSeries?: boolean,
+    linkSlug?: FullSlug,
+  ) {
     this.children = []
     this.name = slugSegment
     this.displayName = displayName ?? file?.frontmatter?.title ?? slugSegment
     this.file = file ? clone(file) : null
     this.depth = depth ?? 0
+    this.isSeries = isSeries ?? false
+    this.linkSlug = linkSlug
   }
 
   private insert(fileData: DataWrapper) {
@@ -169,7 +181,9 @@ export function ExplorerNode({ node, opts, fullPath, fileData }: ExplorerNodePro
 
   // Calculate current folderPath
   const folderPath = node.name !== "" ? joinSegments(fullPath ?? "", node.name) : ""
-  const href = resolveRelative(fileData.slug!, folderPath as SimpleSlug) + "/"
+  const href = node.linkSlug
+    ? resolveRelative(fileData.slug!, node.linkSlug)
+    : resolveRelative(fileData.slug!, folderPath as SimpleSlug) + "/"
 
   return (
     <>
@@ -185,7 +199,7 @@ export function ExplorerNode({ node, opts, fullPath, fileData }: ExplorerNodePro
           {node.name !== "" && (
             // Node with entire folder
             // Render svg button + folder name, then children
-            <div class="folder-container">
+            <div class={`folder-container${node.isSeries ? " series-folder" : ""}`}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="12"
@@ -209,6 +223,7 @@ export function ExplorerNode({ node, opts, fullPath, fileData }: ExplorerNodePro
                 ) : (
                   <button class="folder-button">
                     <span class="folder-title">{node.displayName}</span>
+                    {node.isSeries && <span class="series-badge">系列</span>}
                   </button>
                 )}
               </div>

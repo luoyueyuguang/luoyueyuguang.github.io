@@ -1,10 +1,3 @@
----
-title: CUDA 13 on Fedora
-date: 2026-01-21
-tags:
-  - pitfalls
----
-
 在Fedora43上使用cuda13时,遇到
 
 ```bash

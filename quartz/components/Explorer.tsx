@@ -7,6 +7,7 @@ import { ExplorerNode, FileNode, Options } from "./ExplorerNode"
 import { QuartzPluginData } from "../plugins/vfile"
 import { classNames } from "../util/lang"
 import { i18n } from "../i18n"
+import { FullSlug } from "../util/path"
 
 // Options interface defined in `ExplorerNode` to avoid circular dependency
 const defaultOptions = {
@@ -17,6 +18,12 @@ const defaultOptions = {
     return node
   },
   sortFn: (a, b) => {
+    const aSeries = a.file?.frontmatter?.series
+    const bSeries = b.file?.frontmatter?.series
+    if (aSeries && aSeries === bSeries) {
+      return (a.file?.frontmatter?.seriesOrder ?? 0) - (b.file?.frontmatter?.seriesOrder ?? 0)
+    }
+
     // Sort order: folders first, then files. Sort folders and files alphabetically
     if ((!a.file && !b.file) || (a.file && b.file)) {
       // numeric: true: Whether numeric collation should be used, such that "1" < "2" < "10"
@@ -37,6 +44,45 @@ const defaultOptions = {
   order: ["filter", "map", "sort"],
 } satisfies Options
 
+function groupSeriesArticles(node: FileNode) {
+  for (const child of node.children) {
+    if (!child.file) groupSeriesArticles(child)
+  }
+
+  const groups = new Map<string, FileNode[]>()
+  const ungrouped: FileNode[] = []
+  for (const child of node.children) {
+    const series = child.file?.frontmatter?.series
+    if (!series) {
+      ungrouped.push(child)
+      continue
+    }
+
+    const articles = groups.get(series) ?? []
+    articles.push(child)
+    groups.set(series, articles)
+  }
+
+  for (const [series, articles] of groups) {
+    const firstArticle = articles[0]
+    const seriesNode = new FileNode(
+      `@series-${series}`,
+      firstArticle.file?.frontmatter?.seriesTitle ?? series,
+      undefined,
+      node.depth + 1,
+      true,
+      `series/${series}` as FullSlug,
+    )
+    seriesNode.children = articles
+    for (const article of articles) {
+      article.depth = seriesNode.depth + 1
+    }
+    ungrouped.push(seriesNode)
+  }
+
+  node.children = ungrouped
+}
+
 export default ((userOpts?: Partial<Options>) => {
   // Parse config
   const opts: Options = { ...defaultOptions, ...userOpts }
@@ -50,6 +96,7 @@ export default ((userOpts?: Partial<Options>) => {
     // Construct tree from allFiles
     fileTree = new FileNode("")
     allFiles.forEach((file) => fileTree.add(file))
+    groupSeriesArticles(fileTree)
 
     // Execute all functions (sort, filter, map) that were provided (if none were provided, only default "sort" is applied)
     if (opts.order) {

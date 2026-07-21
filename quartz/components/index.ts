@@ -1,5 +1,6 @@
 import Content from "./pages/Content"
 import TagContent from "./pages/TagContent"
+import SeriesContent from "./pages/SeriesContent"
 import FolderContent from "./pages/FolderContent"
 import NotFound from "./pages/404"
 import ArticleTitle from "./ArticleTitle"
@@ -19,6 +20,8 @@ import DesktopOnly from "./DesktopOnly"
 import MobileOnly from "./MobileOnly"
 import RecentNotes from "./RecentNotes"
 import HomeRecentNotes from "./HomeRecentNotes"
+import ArticleIndex from "./ArticleIndex"
+import SeriesNavigation from "./SeriesNavigation"
 import Breadcrumbs from "./Breadcrumbs"
 import Comments from "./Comments"
 
@@ -26,6 +29,7 @@ export {
   ArticleTitle,
   Content,
   TagContent,
+  SeriesContent,
   FolderContent,
   Darkmode,
   Head,
@@ -43,6 +47,8 @@ export {
   MobileOnly,
   RecentNotes,
   HomeRecentNotes,
+  ArticleIndex,
+  SeriesNavigation,
   NotFound,
   Breadcrumbs,
   Comments,

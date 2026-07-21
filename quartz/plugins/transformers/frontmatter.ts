@@ -93,6 +93,13 @@ declare module "vfile" {
         lang: string
         enableToc: string
         cssclasses: string[]
+        article: boolean
+        articleIndex: boolean
+        autoRecent: boolean
+        series: string
+        seriesTitle: string
+        seriesDescription: string
+        seriesOrder: number
       }>
   }
 }

@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430" role="img" aria-labelledby="title desc">
+  <title id="title">Gated DeltaNet 的遗忘门和 delta 写入</title>
+  <desc id="desc">GDN 更新由遗忘门、读旧值、残差写入三部分组成。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .box{fill:#f8fafc;stroke:#334155;stroke-width:2;rx:12}
+      .gate{fill:#fce7f3;stroke:#db2777;stroke-width:2;rx:12}
+      .state{fill:#dcfce7;stroke:#16a34a;stroke-width:2;rx:12}
+      .write{fill:#fef3c7;stroke:#d97706;stroke-width:2;rx:12}
+      .title{font:700 20px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .text{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .small{font:13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .arrow{stroke:#334155;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+      .dashed{stroke:#64748b;stroke-width:2;fill:none;stroke-dasharray:7 6;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="980" height="430" fill="#ffffff"/>
+  <text x="40" y="48" class="title">Gated DeltaNet = 门控遗忘 + Delta 修正写入</text>
+  <text x="40" y="78" class="text">门控负责“该忘多少”，delta rule 负责“该怎么精准改写”。</text>
+
+  <rect x="60" y="165" width="135" height="84" class="state"/>
+  <text x="86" y="201" class="text">旧状态</text>
+  <text x="82" y="226" class="small">S_{t-1}</text>
+
+  <rect x="250" y="105" width="145" height="80" class="gate"/>
+  <text x="286" y="140" class="text">遗忘门</text>
+  <text x="282" y="164" class="small">alpha_t</text>
+
+  <rect x="250" y="245" width="145" height="80" class="box"/>
+  <text x="284" y="280" class="text">当前输入</text>
+  <text x="278" y="304" class="small">k_t, v_t, q_t</text>
+
+  <path d="M205 205 H240" class="arrow"/>
+  <path d="M205 205 C230 125 235 120 242 145" class="dashed"/>
+  <path d="M400 145 H470" class="arrow"/>
+  <path d="M400 285 H470" class="arrow"/>
+
+  <rect x="485" y="100" width="165" height="95" class="state"/>
+  <text x="518" y="136" class="text">先衰减旧记忆</text>
+  <text x="515" y="162" class="small">S' = alpha_t S_{t-1}</text>
+
+  <rect x="485" y="240" width="165" height="95" class="write"/>
+  <text x="520" y="276" class="text">再写入残差</text>
+  <text x="507" y="302" class="small">+ beta_t (v - S'k) k^T</text>
+
+  <path d="M660 148 C725 150 725 250 660 285" class="arrow"/>
+  <path d="M660 285 H730" class="arrow"/>
+
+  <rect x="745" y="185" width="165" height="95" class="state"/>
+  <text x="784" y="221" class="text">新状态</text>
+  <text x="780" y="247" class="small">S_t</text>
+  <text x="780" y="269" class="small">固定大小记忆</text>
+</svg>

@@ -1,0 +1,60 @@
+@use "../../styles/variables.scss" as *;
+
+.series-navigation {
+  border: 1px solid var(--lightgray);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.series-navigation-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+
+  & h2,
+  & p {
+    margin: 0;
+  }
+
+  & h2 {
+    font-size: 1.25rem;
+  }
+
+  & > p,
+  & .series-navigation-label {
+    opacity: 0.65;
+  }
+}
+
+.series-navigation-label {
+  font-size: 0.9rem;
+}
+
+.series-navigation-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  border-top: 1px solid var(--lightgray);
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+
+  & > div:last-child {
+    text-align: right;
+  }
+}
+
+@media all and ($mobile) {
+  .series-navigation-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .series-navigation-links {
+    grid-template-columns: 1fr;
+
+    & > div:last-child {
+      text-align: left;
+    }
+  }
+}

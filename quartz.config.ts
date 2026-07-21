@@ -1,5 +1,6 @@
 import { QuartzConfig } from "./quartz/cfg"
 import * as Plugin from "./quartz/plugins"
+import articleIndex from "./content/article-index.json"
 
 /**
  * Quartz 4.0 Configuration
@@ -53,6 +54,7 @@ const config: QuartzConfig = {
   plugins: {
     transformers: [
       Plugin.FrontMatter(),
+      Plugin.ArticleMetadata({ index: articleIndex }),
       Plugin.CreatedModifiedDate({
         priority: ["frontmatter", "filesystem"],
       }),
@@ -77,6 +79,7 @@ const config: QuartzConfig = {
       Plugin.ContentPage(),
       Plugin.FolderPage(),
       Plugin.TagPage(),
+      Plugin.SeriesPage({ series: articleIndex.series }),
       Plugin.ContentIndex({
         enableSiteMap: true,
         enableRSS: true,

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">Attention 和循环状态的区别</title>
+  <desc id="desc">左边 Transformer 保存全部 KV cache，右边 GDN 维护固定大小的矩阵状态。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .panel{fill:#f8fafc;stroke:#cbd5e1;stroke-width:2;rx:12}
+      .token{fill:#dbeafe;stroke:#2563eb;stroke-width:1.5;rx:8}
+      .state{fill:#dcfce7;stroke:#16a34a;stroke-width:2;rx:10}
+      .query{fill:#fee2e2;stroke:#dc2626;stroke-width:2;rx:10}
+      .title{font:700 20px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .text{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .small{font:13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .arrow{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .soft{stroke:#94a3b8;stroke-width:1.5;fill:none}
+    </style>
+  </defs>
+  <rect width="980" height="420" fill="#ffffff"/>
+  <rect x="35" y="45" width="430" height="330" class="panel"/>
+  <rect x="515" y="45" width="430" height="330" class="panel"/>
+  <text x="65" y="85" class="title">Transformer attention</text>
+  <text x="545" y="85" class="title">GDN / 线性循环状态</text>
+  <text x="65" y="115" class="text">每个历史 token 留下一份 K/V，长度越长 cache 越大。</text>
+  <text x="545" y="115" class="text">历史被压进固定大小的矩阵状态，decode 内存不随 N 增长。</text>
+
+  <g transform="translate(65,165)">
+    <rect x="0" y="0" width="54" height="46" class="token"/><text x="16" y="29" class="small">KV1</text>
+    <rect x="64" y="0" width="54" height="46" class="token"/><text x="80" y="29" class="small">KV2</text>
+    <rect x="128" y="0" width="54" height="46" class="token"/><text x="144" y="29" class="small">KV3</text>
+    <text x="196" y="29" class="small">...</text>
+    <rect x="240" y="0" width="54" height="46" class="token"/><text x="253" y="29" class="small">KVN</text>
+    <rect x="130" y="112" width="70" height="52" class="query"/><text x="151" y="144" class="small">q_t</text>
+    <path d="M165 112 C120 76 52 56 27 46" class="soft"/>
+    <path d="M165 112 C150 75 91 58 91 46" class="soft"/>
+    <path d="M165 112 C176 75 155 58 155 46" class="soft"/>
+    <path d="M165 112 C215 75 267 58 267 46" class="soft"/>
+    <text x="20" y="220" class="small">读取成本随上下文长度增长</text>
+  </g>
+
+  <g transform="translate(545,155)">
+    <rect x="0" y="15" width="76" height="50" class="token"/><text x="23" y="46" class="small">x_t</text>
+    <path d="M85 40 H145" class="arrow"/>
+    <rect x="155" y="0" width="150" height="84" class="state"/>
+    <text x="190" y="35" class="text">状态矩阵 S</text>
+    <text x="183" y="60" class="small">key -> value map</text>
+    <path d="M230 90 V128" class="arrow"/>
+    <rect x="190" y="140" width="80" height="52" class="query"/><text x="212" y="172" class="small">q_t</text>
+    <path d="M275 166 H330" class="arrow"/>
+    <text x="338" y="172" class="text">o_t</text>
+    <path d="M315 41 C365 58 365 185 330 210 C283 242 160 232 126 189" class="soft"/>
+    <text x="20" y="245" class="small">每步只更新和读取固定大小状态</text>
+  </g>
+</svg>
