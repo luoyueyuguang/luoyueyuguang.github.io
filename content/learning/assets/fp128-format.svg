@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="520" viewBox="0 0 980 520" role="img" aria-labelledby="title desc">
+  <title id="title">fp128（binary128）的位级表示</title>
+  <desc id="desc">128 位布局：1 位符号 + 15 位指数（偏置 16383）+ 112 位尾数，以及 π 的具体编码示例。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .field{font:600 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .bits{font:700 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .desc{font:13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .mono{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#0f172a}
+      .monoDim{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#475569}
+      .arrow{stroke:#94a3b8;stroke-width:1.5;fill:none}
+      .sign{fill:#fde68a;stroke:#d97706;stroke-width:1.5}
+      .exp{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .frac{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+      .hidden{fill:#bbf7d0;stroke:#16a34a;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="520" fill="#ffffff"/>
+  <text x="40" y="44" class="title">fp128（IEEE 754 binary128）如何表示一个数</text>
+  <text x="40" y="70" class="sub">128 bit = 1 符号位 + 15 指数位 + 112 尾数位，每格代表 1 bit（按比例）</text>
+
+  <!-- 128-bit 布局条：sign 7px + exponent 105px + fraction 784px，x 44..940 -->
+  <text x="44" y="100" class="field">sign</text>
+  <text x="70" y="100" class="field">exponent（偏置 16383）</text>
+  <text x="560" y="100" class="field">fraction（112 位）</text>
+
+  <rect x="44" y="112" width="7" height="42" class="sign"/>
+  <rect x="51" y="112" width="105" height="42" class="exp"/>
+  <rect x="156" y="112" width="784" height="42" class="frac"/>
+
+  <text x="40" y="180" class="bits">1 bit</text>
+  <text x="80" y="180" class="bits">15 bits</text>
+  <text x="520" y="180" class="bits">112 bits</text>
+  <text x="870" y="180" class="bits">共 128 bits</text>
+
+  <!-- 字段语义 -->
+  <text x="44" y="225" class="field">0 = 正数，1 = 负数</text>
+  <text x="280" y="225" class="field">实际指数 = E − 16383 ∈ [−16382, 16383]</text>
+  <text x="640" y="225" class="field">隐式前导 1 + 112 位尾数 = 113 位有效精度</text>
+
+  <!-- 隐式前导位示意 -->
+  <rect x="156" y="240" width="26" height="26" class="hidden"/>
+  <text x="161" y="258" class="bits">1.</text>
+  <path d="M169 266 V290" class="arrow"/>
+  <text x="60" y="308" class="desc">隐式前导位不占存储，常数部分永远是 1（正规数）</text>
+
+  <!-- 示例区域 -->
+  <rect x="40" y="330" width="900" height="160" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" rx="12"/>
+  <text x="64" y="366" class="title">示例：π 在 fp128 中的编码</text>
+  <text x="64" y="396" class="monoDim">π = (−1)⁰ × 2⁽¹⁶³⁸⁴−¹⁶³⁸³⁾ × 1.001001000011111101101010100010001000010110100011…</text>
+  <text x="64" y="422" class="desc">指数位 = 16384（实际指数 1，因为 π ≈ 2¹ × 1.5708），尾数取 112 位后舍入</text>
+  <text x="64" y="452" class="mono">0x4000 921F B544 42D1 8469 898C C517 01B8</text>
+  <text x="64" y="474" class="desc">s = 0 ｜ E = 0x4000 = 16384 ｜ fraction = 0x921FB54442D18469898CC51701B8</text>
+</svg>

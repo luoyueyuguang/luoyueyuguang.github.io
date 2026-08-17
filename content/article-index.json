@@ -21,6 +21,11 @@
       "date": "2026-06-11",
       "tags": ["learning", "quantization", "inference"]
     },
+    "learning/precision": {
+      "title": "数值精度：从 fp4 到 fp128",
+      "date": "2026-08-18",
+      "tags": ["learning", "precision", "numerical"]
+    },
     "learning/flash-attention/01-flash-attention": {
       "title": "Flash Attention",
       "date": "2026-02-09",

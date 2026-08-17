@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430" role="img" aria-labelledby="title desc">
+  <title id="title">四种浮点格式的位布局对比</title>
+  <desc id="desc">fp16、fp32、fp64、fp128 的 sign / exponent / fraction 字段宽度按位比例展示。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .name{font:700 17px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .field{font:12px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .bits{font:700 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .label{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .sign{fill:#fde68a;stroke:#d97706;stroke-width:1.5}
+      .exp{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .frac{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="430" fill="#ffffff"/>
+  <text x="40" y="44" class="title">四种浮点格式的位布局</text>
+  <text x="40" y="72" class="sub">字段宽度按实际位数比例绘制：fp128 的 128 位比 fp16 长 8 倍</text>
+
+  <!-- 列说明（对齐 fp128 行的字段边界） -->
+  <!-- sign 列宽 20，exp 列宽 5×15=75，frac 列宽 5×112=560；起始 x=180 -->
+  <text x="196" y="98" class="label">sign</text>
+  <text x="238" y="98" class="label">exponent</text>
+  <text x="660" y="98" class="label">fraction（含隐式前导 1）</text>
+
+  <!-- fp16: 1+5+10 -->
+  <text x="40" y="143" class="name">fp16</text>
+  <rect x="180" y="118" width="20" height="44" class="sign"/>
+  <text x="186" y="145" class="bits">1</text>
+  <rect x="202" y="118" width="25" height="44" class="exp"/>
+  <text x="208" y="145" class="bits">5</text>
+  <rect x="229" y="118" width="50" height="44" class="frac"/>
+  <text x="246" y="145" class="bits">10</text>
+  <text x="300" y="145" class="field">共 16 位 · 约 3 位十进制</text>
+
+  <!-- fp32: 1+8+23 -->
+  <text x="40" y="213" class="name">fp32</text>
+  <rect x="180" y="188" width="20" height="44" class="sign"/>
+  <text x="186" y="215" class="bits">1</text>
+  <rect x="202" y="188" width="40" height="44" class="exp"/>
+  <text x="210" y="215" class="bits">8</text>
+  <rect x="244" y="188" width="115" height="44" class="frac"/>
+  <text x="286" y="215" class="bits">23</text>
+  <text x="380" y="215" class="field">共 32 位 · 约 7 位十进制</text>
+
+  <!-- fp64: 1+11+52 -->
+  <text x="40" y="283" class="name">fp64</text>
+  <rect x="180" y="258" width="20" height="44" class="sign"/>
+  <text x="186" y="285" class="bits">1</text>
+  <rect x="202" y="258" width="55" height="44" class="exp"/>
+  <text x="212" y="285" class="bits">11</text>
+  <rect x="259" y="258" width="260" height="44" class="frac"/>
+  <text x="370" y="285" class="bits">52</text>
+  <text x="540" y="285" class="field">共 64 位 · 约 16 位十进制</text>
+
+  <!-- fp128: 1+15+112 -->
+  <text x="40" y="353" class="name">fp128</text>
+  <rect x="180" y="328" width="20" height="44" class="sign"/>
+  <text x="186" y="355" class="bits">1</text>
+  <rect x="202" y="328" width="75" height="44" class="exp"/>
+  <text x="215" y="355" class="bits">15</text>
+  <rect x="279" y="328" width="560" height="44" class="frac"/>
+  <text x="540" y="355" class="bits">112</text>
+  <text x="860" y="355" class="field">共 128 位 · 约 34 位十进制</text>
+</svg>
