@@ -7,7 +7,7 @@ document.addEventListener("nav", () => {
   const buttons = [...root.querySelectorAll("[data-tag-filter]")] as HTMLButtonElement[]
   const resultCount = root.querySelector("[data-result-count]") as HTMLElement
   const emptyState = root.querySelector("[data-empty-state]") as HTMLElement
-  let activeTag = ""
+  let activeTag = new URLSearchParams(window.location.search).get("tag") ?? ""
 
   const applyFilters = () => {
     const query = search.value.trim().toLocaleLowerCase()
@@ -32,19 +32,38 @@ document.addEventListener("nav", () => {
     emptyState.hidden = visibleCount !== 0
   }
 
+  const setActiveTag = (tag: string, button: HTMLButtonElement | null) => {
+    activeTag = tag
+    for (const candidate of buttons) {
+      const selected = candidate === button
+      candidate.classList.toggle("active", selected)
+      candidate.setAttribute("aria-pressed", selected.toString())
+    }
+    applyFilters()
+  }
+
+  // 从 URL ?tag= 参数初始化选中状态（点标签跳转进来）
+  if (activeTag !== "") {
+    const match = buttons.find((button) => button.dataset.tagFilter === activeTag)
+    setActiveTag(activeTag, match ?? null)
+  }
+
   const onSearch = () => applyFilters()
   search.addEventListener("input", onSearch)
   window.addCleanup(() => search.removeEventListener("input", onSearch))
 
   for (const button of buttons) {
     const onClick = () => {
-      activeTag = button.dataset.tagFilter ?? ""
-      for (const candidate of buttons) {
-        const selected = candidate === button
-        candidate.classList.toggle("active", selected)
-        candidate.setAttribute("aria-pressed", selected.toString())
+      const tag = button.dataset.tagFilter ?? ""
+      setActiveTag(tag, button)
+      // 同步 URL，便于分享/刷新保持筛选状态
+      const url = new URL(window.location.href)
+      if (tag) {
+        url.searchParams.set("tag", tag)
+      } else {
+        url.searchParams.delete("tag")
       }
-      applyFilters()
+      history.replaceState(null, "", url)
     }
 
     button.addEventListener("click", onClick)

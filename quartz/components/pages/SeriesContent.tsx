@@ -89,7 +89,7 @@ export default ((opts?: Partial<Options>) => {
                   <li>
                     <a
                       class="internal tag-link"
-                      href={resolveRelative(pageSlug, `tags/${tag}` as FullSlug)}
+                      href={resolveRelative(pageSlug, `articles?tag=${tag}` as FullSlug)}
                     >
                       {tag}
                     </a>

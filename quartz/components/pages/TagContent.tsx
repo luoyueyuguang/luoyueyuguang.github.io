@@ -74,7 +74,7 @@ export default ((opts?: Partial<TagContentOptions>) => {
               return (
                 <div>
                   <h2>
-                    <a class="internal tag-link" href={`../tags/${tag}`}>
+                    <a class="internal tag-link" href={`../articles?tag=${tag}`}>
                       {tag}
                     </a>
                   </h2>

@@ -42,55 +42,42 @@ a.internal.tag-link:hover {
   border-bottom-color: transparent;
 }
 
-/* 可点击引用统一为蓝色下划线 */
-a,
-a.internal,
-a.internal.tag-link {
+/* 文章正文中的可点击引用统一为蓝色下划线 */
+article a,
+article a.internal,
+article a.internal.tag-link {
   color: #2563eb;
   text-decoration: underline;
   text-underline-offset: 0.15em;
   text-decoration-thickness: 1px;
 }
 
-a:hover,
-a.internal:hover,
-a.internal.tag-link:hover {
+article a:hover,
+article a.internal:hover,
+article a.internal.tag-link:hover {
   color: #1d4ed8;
 }
 
-:root[saved-theme="dark"] a,
-:root[saved-theme="dark"] a.internal,
-:root[saved-theme="dark"] a.internal.tag-link {
+:root[saved-theme="dark"] article a,
+:root[saved-theme="dark"] article a.internal,
+:root[saved-theme="dark"] article a.internal.tag-link {
   color: #60a5fa;
 }
 
-:root[saved-theme="dark"] a:hover,
-:root[saved-theme="dark"] a.internal:hover,
-:root[saved-theme="dark"] a.internal.tag-link:hover {
+:root[saved-theme="dark"] article a:hover,
+:root[saved-theme="dark"] article a.internal:hover,
+:root[saved-theme="dark"] article a.internal.tag-link:hover {
   color: #93c5fd;
 }
 
-a.external .external-icon > path {
+article a.external .external-icon > path {
   fill: currentColor;
 }
 
 /* 标题锚点（#）保持装饰性：跟随标题色，无下划线 */
-a[role="anchor"] {
+article a[role="anchor"] {
   color: var(--dark);
   text-decoration: none;
-}
-
-/* 侧边栏目录（Explorer）链接：同样蓝色下划线，覆盖 explorer.scss 的 ID 规则 */
-#explorer-content ul li > a {
-  color: #2563eb;
-  opacity: 1;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: 1px;
-}
-
-:root[saved-theme="dark"] #explorer-content ul li > a {
-  color: #60a5fa;
 }
 
 pre,
