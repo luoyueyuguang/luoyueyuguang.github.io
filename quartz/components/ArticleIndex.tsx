@@ -82,7 +82,7 @@ export default (() => {
                     <p class="article-series-reference">
                       <a
                         class="internal"
-                        href={resolveRelative(fileData.slug!, `series/${series}` as FullSlug)}
+                        href={resolveRelative(fileData.slug!, series as FullSlug)}
                       >
                         系列：{article.frontmatter?.seriesTitle} · 第{" "}
                         {article.frontmatter?.seriesOrder} 篇

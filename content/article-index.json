@@ -1,6 +1,6 @@
 {
   "series": {
-    "flash-attention": {
+    "learning/flash-attention": {
       "title": "Flash Attention",
       "description": "从算法原理到 GPU 实现，系统整理 Flash Attention 的关键技术。"
     }
@@ -21,12 +21,10 @@
       "date": "2026-06-11",
       "tags": ["learning", "quantization", "inference"]
     },
-    "learning/flash-attention": {
+    "learning/flash-attention/01-flash-attention": {
       "title": "Flash Attention",
       "date": "2026-02-09",
-      "tags": ["learning", "attention", "cuda"],
-      "series": "flash-attention",
-      "seriesOrder": 1
+      "tags": ["learning", "attention", "cuda"]
     },
     "learning/roofline": {
       "title": "Roofline 模型",

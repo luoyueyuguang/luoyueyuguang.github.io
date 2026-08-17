@@ -1,24 +1,35 @@
-import { SeriesMetadataIndex } from "../../plugins/transformers/articleMetadata"
 import { FullSlug, resolveRelative } from "../../util/path"
 import { Date, getDate } from "../Date"
 import { QuartzComponent, QuartzComponentConstructor, QuartzComponentProps } from "../types"
 import style from "../styles/seriesPage.scss"
+import { SeriesMetadataIndex } from "../../plugins/transformers/articleMetadata"
 
-interface Options {
-  series: SeriesMetadataIndex
-}
-
-export default ((opts?: Partial<Options>) => {
-  const seriesIndex = opts?.series ?? {}
-
+export default (() => {
   const SeriesContent: QuartzComponent = (props: QuartzComponentProps) => {
     const { cfg, fileData, allFiles } = props
     const pageSlug = fileData.slug!
-    if (!pageSlug.startsWith("series/")) {
+    const isOverview = pageSlug === "series/index"
+    const seriesSlug = isOverview
+      ? ""
+      : pageSlug.endsWith("/index")
+        ? pageSlug.slice(0, -"/index".length)
+        : pageSlug
+
+    // 系列信息来自注入的 frontmatter（文件夹自动推导），无需额外配置
+    const seriesIndex: SeriesMetadataIndex = {}
+    for (const file of allFiles) {
+      const slug = file.frontmatter?.series
+      if (!slug || seriesIndex[slug]) continue
+      seriesIndex[slug] = {
+        title: file.frontmatter?.seriesTitle ?? slug,
+        description: file.frontmatter?.seriesDescription,
+      }
+    }
+
+    if (!isOverview && !seriesIndex[seriesSlug]) {
       throw new Error(`Component "SeriesContent" tried to render a non-series page: ${pageSlug}`)
     }
 
-    const seriesSlug = pageSlug.slice("series/".length)
     const articlesInSeries = (slug: string) =>
       allFiles
         .filter((file) => file.frontmatter?.article && file.frontmatter?.series === slug)
@@ -27,7 +38,7 @@ export default ((opts?: Partial<Options>) => {
             (first.frontmatter?.seriesOrder ?? 0) - (second.frontmatter?.seriesOrder ?? 0),
         )
 
-    if (seriesSlug === "index") {
+    if (isOverview) {
       const entries = Object.entries(seriesIndex).sort(([, first], [, second]) =>
         first.title.localeCompare(second.title),
       )
@@ -41,10 +52,7 @@ export default ((opts?: Partial<Options>) => {
               return (
                 <section class="series-card">
                   <h2>
-                    <a
-                      class="internal"
-                      href={resolveRelative(pageSlug, `series/${slug}` as FullSlug)}
-                    >
+                    <a class="internal" href={resolveRelative(pageSlug, slug as FullSlug)}>
                       {metadata.title}
                     </a>
                   </h2>

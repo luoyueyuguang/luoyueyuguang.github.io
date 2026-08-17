@@ -12,17 +12,14 @@ import { QuartzEmitterPlugin } from "../types"
 import { defaultProcessedContent } from "../vfile"
 import { write } from "./helpers"
 
-interface SeriesPageOptions extends FullPageLayout {
-  series: SeriesMetadataIndex
-}
+interface SeriesPageOptions extends FullPageLayout {}
 
 export const SeriesPage: QuartzEmitterPlugin<Partial<SeriesPageOptions>> = (userOpts) => {
-  const { series = {}, ...layoutOverrides } = userOpts ?? {}
   const opts: FullPageLayout = {
     ...sharedPageComponents,
     ...defaultListPageLayout,
-    pageBody: SeriesContent({ series }),
-    ...layoutOverrides,
+    pageBody: SeriesContent(),
+    ...userOpts,
   }
 
   const { head: Head, header, beforeBody, pageBody, afterBody, left, right, footer: Footer } = opts
@@ -57,19 +54,35 @@ export const SeriesPage: QuartzEmitterPlugin<Partial<SeriesPageOptions>> = (user
         )
         graph.addEdge(
           file.data.filePath!,
-          joinSegments(ctx.argv.output, "series", `${seriesSlug}.html`) as FilePath,
+          joinSegments(ctx.argv.output, seriesSlug, "index.html") as FilePath,
         )
       }
       return graph
     },
     async emit(ctx, content, resources): Promise<FilePath[]> {
       const allFiles = content.map((item) => item[1].data)
-      const pages = ["index", ...Object.keys(series)]
+
+      // 系列由文件夹自动推导：收集所有文章 frontmatter 中的 series
+      const seriesFromFiles: SeriesMetadataIndex = {}
+      for (const file of allFiles) {
+        const slug = file.frontmatter?.series
+        if (!slug || seriesFromFiles[slug]) continue
+        seriesFromFiles[slug] = {
+          title: file.frontmatter?.seriesTitle ?? slug,
+          description: file.frontmatter?.seriesDescription,
+        }
+      }
+
+      const pages = ["index", ...Object.keys(seriesFromFiles)]
       const emitted: FilePath[] = []
 
       for (const page of pages) {
-        const slug = joinSegments("series", page) as FullSlug
-        const metadata = page === "index" ? undefined : series[page]
+        // 系列详情页位于其文件夹 URL（如 learning/flash-attention/），总览页在 /series/
+        const slug =
+          page === "index"
+            ? (joinSegments("series", "index") as FullSlug)
+            : (joinSegments(page, "index") as FullSlug)
+        const metadata = page === "index" ? undefined : seriesFromFiles[page]
         const [tree, file] = defaultProcessedContent({
           slug,
           frontmatter: {

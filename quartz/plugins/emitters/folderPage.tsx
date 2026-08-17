@@ -37,6 +37,14 @@ export const FolderPage: QuartzEmitterPlugin<Partial<FolderPageOptions>> = (user
   const Header = HeaderConstructor()
   const Body = BodyConstructor()
 
+  // 系列文件夹由内容自动推导（frontmatter.series），不生成普通文件夹页
+  const seriesFolders = (content: ProcessedContent[]) =>
+    new Set(
+      content
+        .map(([, file]) => file.data.frontmatter?.series)
+        .filter((slug): slug is string => Boolean(slug)),
+    )
+
   return {
     name: "FolderPage",
     getQuartzComponents() {
@@ -58,11 +66,12 @@ export const FolderPage: QuartzEmitterPlugin<Partial<FolderPageOptions>> = (user
       // nested/file.md --> nested/index.html
       // nested/file2.md ------^
       const graph = new DepGraph<FilePath>()
+      const series = seriesFolders(content)
 
       content.map(([_tree, vfile]) => {
         const slug = vfile.data.slug
         const folderName = path.dirname(slug ?? "") as SimpleSlug
-        if (slug && folderName !== "." && folderName !== "tags") {
+        if (slug && folderName !== "." && folderName !== "tags" && !series.has(folderName)) {
           graph.addEdge(vfile.data.filePath!, joinSegments(folderName, "index.html") as FilePath)
         }
       })
@@ -73,12 +82,13 @@ export const FolderPage: QuartzEmitterPlugin<Partial<FolderPageOptions>> = (user
       const fps: FilePath[] = []
       const allFiles = content.map((c) => c[1].data)
       const cfg = ctx.cfg.configuration
+      const series = seriesFolders(content)
 
       const folders: Set<SimpleSlug> = new Set(
         allFiles.flatMap((data) => {
           const slug = data.slug
           const folderName = path.dirname(slug ?? "") as SimpleSlug
-          if (slug && folderName !== "." && folderName !== "tags") {
+          if (slug && folderName !== "." && folderName !== "tags" && !series.has(folderName)) {
             return [folderName]
           }
           return []

@@ -7,7 +7,8 @@ import { ExplorerNode, FileNode, Options } from "./ExplorerNode"
 import { QuartzPluginData } from "../plugins/vfile"
 import { classNames } from "../util/lang"
 import { i18n } from "../i18n"
-import { FullSlug } from "../util/path"
+import { FullSlug, joinSegments } from "../util/path"
+import { SeriesMetadataIndex } from "../plugins/transformers/articleMetadata"
 
 // Options interface defined in `ExplorerNode` to avoid circular dependency
 const defaultOptions = {
@@ -44,43 +45,20 @@ const defaultOptions = {
   order: ["filter", "map", "sort"],
 } satisfies Options
 
-function groupSeriesArticles(node: FileNode) {
+// 系列即文件夹：从注入的 frontmatter 推导系列（文件夹路径 → 标题），
+// 把路径匹配的文件夹标记为系列节点，文章按 seriesOrder 排序（见 sortFn）。
+function markSeriesFolders(node: FileNode, folderPath: string, series: SeriesMetadataIndex) {
   for (const child of node.children) {
-    if (!child.file) groupSeriesArticles(child)
-  }
-
-  const groups = new Map<string, FileNode[]>()
-  const ungrouped: FileNode[] = []
-  for (const child of node.children) {
-    const series = child.file?.frontmatter?.series
-    if (!series) {
-      ungrouped.push(child)
-      continue
+    if (child.file) continue
+    const childPath = folderPath ? joinSegments(folderPath, child.name) : child.name
+    const metadata = series[childPath]
+    if (metadata) {
+      child.displayName = metadata.title
+      child.isSeries = true
+      child.linkSlug = childPath as FullSlug
     }
-
-    const articles = groups.get(series) ?? []
-    articles.push(child)
-    groups.set(series, articles)
+    markSeriesFolders(child, childPath, series)
   }
-
-  for (const [series, articles] of groups) {
-    const firstArticle = articles[0]
-    const seriesNode = new FileNode(
-      `@series-${series}`,
-      firstArticle.file?.frontmatter?.seriesTitle ?? series,
-      undefined,
-      node.depth + 1,
-      true,
-      `series/${series}` as FullSlug,
-    )
-    seriesNode.children = articles
-    for (const article of articles) {
-      article.depth = seriesNode.depth + 1
-    }
-    ungrouped.push(seriesNode)
-  }
-
-  node.children = ungrouped
 }
 
 export default ((userOpts?: Partial<Options>) => {
@@ -93,10 +71,20 @@ export default ((userOpts?: Partial<Options>) => {
   let lastBuildId: string = ""
 
   function constructFileTree(allFiles: QuartzPluginData[]) {
+    // 从注入的 frontmatter 推导系列索引（series → title）
+    const series: SeriesMetadataIndex = {}
+    for (const file of allFiles) {
+      const slug = file.frontmatter?.series
+      if (!slug || series[slug]) continue
+      series[slug] = {
+        title: file.frontmatter?.seriesTitle ?? slug,
+      }
+    }
+
     // Construct tree from allFiles
     fileTree = new FileNode("")
     allFiles.forEach((file) => fileTree.add(file))
-    groupSeriesArticles(fileTree)
+    markSeriesFolders(fileTree, "", series)
 
     // Execute all functions (sort, filter, map) that were provided (if none were provided, only default "sort" is applied)
     if (opts.order) {

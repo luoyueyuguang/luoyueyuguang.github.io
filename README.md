@@ -25,32 +25,33 @@ npm run serve
 
 ## 文章系列
 
-系列用于组织具有固定阅读顺序的多篇文章。先在 `series` 中定义一次系列：
+系列用于组织具有固定阅读顺序的多篇文章，**系列就是文件夹**：把文章放进一个文件夹，
+文件名用 `NN-` 数字前缀标记顺序，该文件夹自动成为系列，无需任何额外配置：
+
+```
+content/learning/flash-attention/
+├── 01-flash-attention.md
+└── 02-flash-attention-2.md
+```
+
+- 系列 slug 即文件夹路径（`learning/flash-attention`），顺序取文件名前缀数字。
+- `content/article-index.json` 的 `series` 条目是可选的标题/描述覆盖：
 
 ```json
 "series": {
-  "flash-attention": {
+  "learning/flash-attention": {
     "title": "Flash Attention",
     "description": "从算法原理到 GPU 实现。"
   }
 }
 ```
 
-然后在属于该系列的文章记录中填写系列 slug 和篇序：
+不写 `series` 条目时，系列标题回退为文件夹名。文章记录中**不要**再填写
+`series`/`seriesOrder` 字段（构建会报错提示）。
 
-```json
-"learning/flash-attention-2": {
-  "title": "Flash Attention 2：分块与重计算",
-  "date": "2026-07-21",
-  "tags": ["learning", "attention", "cuda"],
-  "series": "flash-attention",
-  "seriesOrder": 2
-}
-```
-
-构建会自动生成 `/series` 系列总览、`/series/flash-attention` 系列详情，以及文章底部的
-系列进度、上一篇和下一篇导航。左侧目录还会把同一栏目中的系列文章收进可展开的系列
-节点，并按照 `seriesOrder` 排列。同一系列内的 `seriesOrder` 必须是唯一的正整数。
+构建会自动生成 `/series` 系列总览，以及每个系列文件夹自身的详情页
+（如 `/learning/flash-attention/`）。文章底部有系列进度、上一篇和下一篇导航；
+左侧目录会把系列文件夹标记为"系列"节点，并按 `seriesOrder` 排列文章。
 
 - 推送到非 `main` 分支或打开 PR 时，`.github/workflows/ci.yml` 会运行类型检查、格式检查和 Quartz 构建。
 - 推送到 `main` 时，`.github/workflows/deploy.yml` 会构建 `public/` 静态产物并发布到 GitHub Pages。

@@ -28,7 +28,7 @@ export default (() => {
             <h2>
               <a
                 class="internal"
-                href={resolveRelative(fileData.slug!, `series/${series}` as FullSlug)}
+                href={resolveRelative(fileData.slug!, series as FullSlug)}
               >
                 {title}
               </a>
