@@ -21,7 +21,7 @@ RNN
 
 > GDN 是一种把长上下文压进固定大小矩阵状态里的序列模型。它不像 Transformer 那样保存越来越长的 KV cache，而是每来一个 token，就用门控决定旧记忆忘多少，再用 delta rule 精准改写记忆。
 
-![从 RNN 到 GDN 的演化路线](assets/gdn-rnn-to-gdn.svg)
+![从 RNN 到 GDN 的演化路线](/learning/assets/gdn-rnn-to-gdn.svg)
 
 本文有两类图：
 
@@ -40,15 +40,15 @@ RNN
 
 下面三张是根据论文源码重绘/转写到本地的版本。
 
-![GDN 原论文 Figure 1 架构图转写](assets/gdn-paper-architecture.svg)
+![GDN 原论文 Figure 1 架构图转写](/learning/assets/gdn-paper-architecture.svg)
 
 > 图源说明：根据论文 Figure 1 与 arXiv:2412.06464 的 LaTeX/TikZ 源码 `figures/model.tex` 转写。原图展示 Gated DeltaNet-H1、Gated DeltaNet-H2，以及 Gated DeltaNet block design。
 
-![GDN 原论文 Figure 2 长上下文曲线转写](assets/gdn-paper-length-extrapolation.svg)
+![GDN 原论文 Figure 2 长上下文曲线转写](/learning/assets/gdn-paper-length-extrapolation.svg)
 
 > 图源说明：根据论文 Figure 2 与 arXiv:2412.06464 的 pgfplots 坐标数据转写。为了适合博客阅读，这里保留六个 benchmark 的相对趋势和核心模型对比；精确曲线请以论文 PDF/源码为准。
 
-![GDN 原论文 Figure 3 H100 训练吞吐转写](assets/gdn-paper-throughput.svg)
+![GDN 原论文 Figure 3 H100 训练吞吐转写](/learning/assets/gdn-paper-throughput.svg)
 
 > 图源说明：根据论文 Figure 3 与 arXiv:2412.06464 的 pgfplots 坐标数据转写。横轴是 sequence length × batch size，纵轴是 thousands token per second。
 
@@ -149,7 +149,7 @@ $$
 
 如果上下文有 `N` 个 token，KV cache 也大致随 `N` 增长。prefill 阶段的完整 attention 还会有接近 `N^2` 的交互。
 
-![Attention 和循环状态的区别](assets/gdn-attention-vs-recurrence.svg)
+![Attention 和循环状态的区别](/learning/assets/gdn-attention-vs-recurrence.svg)
 
 所以大家自然会问：
 
@@ -316,7 +316,7 @@ $$
 - `v_t - S_{t-1} k_t` 是旧记忆还差多少。
 - `beta_t` 是写入强度，可以理解成学习率或写门。
 
-![Delta rule 的读、算残差、写回](assets/gdn-delta-update.svg)
+![Delta rule 的读、算残差、写回](/learning/assets/gdn-delta-update.svg)
 
 这个更新非常像在线学习：
 
@@ -426,7 +426,7 @@ $$
 当前 token 只轻微影响状态。
 ```
 
-![Gated DeltaNet 的遗忘门和 delta 写入](assets/gdn-gated-update.svg)
+![Gated DeltaNet 的遗忘门和 delta 写入](/learning/assets/gdn-gated-update.svg)
 
 > 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；`alpha`、`beta` 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。本文上面的图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
 
