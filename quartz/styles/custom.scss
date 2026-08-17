@@ -80,6 +80,19 @@ a[role="anchor"] {
   text-decoration: none;
 }
 
+/* 侧边栏目录（Explorer）链接：同样蓝色下划线，覆盖 explorer.scss 的 ID 规则 */
+#explorer-content ul li > a {
+  color: #2563eb;
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
+:root[saved-theme="dark"] #explorer-content ul li > a {
+  color: #60a5fa;
+}
+
 pre,
 code {
   border-radius: 3px;
