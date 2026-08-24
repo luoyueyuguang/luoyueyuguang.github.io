@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="470" viewBox="0 0 980 470" role="img" aria-labelledby="title desc">
+  <title id="title">double-double 如何用两个 double 表示一个数</title>
+  <desc id="desc">a = a_hi + a_lo：a_hi 装高 53 位，a_lo 装剩余低 53 位，两块非重叠，拼出约 106 位精度。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .name{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .lbl{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .val{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .row{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .hi{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+      .lo{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .lost{fill:#f1f5f9;stroke:#cbd5e1;stroke-width:1.5}
+      .full{fill:#ede9fe;stroke:#7c3aed;stroke-width:1.5}
+      .sep{stroke:#334155;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="470" fill="#ffffff"/>
+  <text x="40" y="44" class="title">double-double：一个数装进两个 double</text>
+  <text x="40" y="70" class="sub">精度不够的本质是“舍入丢失的低位没有地方放”。double-double 用第二个 double（a_lo）把低位接住</text>
+
+  <!-- 定义公式框 -->
+  <rect x="40" y="88" width="900" height="72" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="64" y="120" class="name">a = a_hi + a_lo</text>
+  <text x="300" y="120" class="lbl">｜a_lo｜ ≤ ½·ulp(a_hi)　——　两块的指数差距足够大，互不重叠</text>
+  <text x="64" y="144" class="note">存储：2 × 64 bit（各是一个普通 IEEE double）　｜　有效精度：≈106 bit（约 32 位十进制）</text>
+
+  <!-- 精度阶梯标题 -->
+  <text x="40" y="196" class="name">有效数字位预算：double 掉在“半路”上的低位被谁捡走？</text>
+
+  <!-- 刻度说明：5 px / bit；位起点 x=180 -->
+  <!-- double: 53 bit（绿，265px）+ 舍入丢弃 53 bit（灰，265px） -->
+  <text x="40" y="270" class="row">double</text>
+  <rect x="180" y="248" width="265" height="40" class="hi"/>
+  <text x="286" y="272" class="lbl">53 bit 有效位</text>
+  <rect x="445" y="248" width="265" height="40" class="lost"/>
+  <text x="530" y="272" class="lbl">舍入丢弃的低位（53 bit）</text>
+  <text x="735" y="272" class="val">≈16 位十进制</text>
+
+  <!-- double-double: 53 bit a_hi + 53 bit a_lo -->
+  <text x="40" y="330" class="row">double-double</text>
+  <rect x="180" y="308" width="265" height="40" class="hi"/>
+  <text x="278" y="332" class="lbl">a_hi（53 bit）</text>
+  <line x1="445" y1="308" x2="445" y2="348" class="sep"/>
+  <rect x="445" y="308" width="265" height="40" class="lo"/>
+  <text x="535" y="332" class="lbl">a_lo（53 bit）</text>
+  <text x="735" y="332" class="val">≈32 位十进制</text>
+
+  <!-- fp128: 113 bit -->
+  <text x="40" y="390" class="row">fp128</text>
+  <rect x="180" y="368" width="565" height="40" class="full"/>
+  <text x="430" y="392" class="lbl">113 bit 有效位（一个字段）</text>
+  <text x="760" y="392" class="val">≈34 位十进制</text>
+
+  <!-- 底部说明 -->
+  <text x="180" y="438" class="note">double-double 把 double 丢掉的 53 位“捡回来”，精度接近 fp128；但它的指数范围仍是 double 的 ±10³⁰⁸，不扩展范围</text>
+</svg>

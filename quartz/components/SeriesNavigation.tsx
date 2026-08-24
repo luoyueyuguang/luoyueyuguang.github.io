@@ -26,10 +26,7 @@ export default (() => {
           <div>
             <p class="series-navigation-label">所属系列</p>
             <h2>
-              <a
-                class="internal"
-                href={resolveRelative(fileData.slug!, series as FullSlug)}
-              >
+              <a class="internal" href={resolveRelative(fileData.slug!, series as FullSlug)}>
                 {title}
               </a>
             </h2>

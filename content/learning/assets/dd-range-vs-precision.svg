@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="500" viewBox="0 0 980 500" role="img" aria-labelledby="title desc">
+  <title id="title">double-double 与 fp128：精度与范围的二维差异</title>
+  <desc id="desc">上图：三者有效十进制位数（double 16、DD 32、fp128 34）。下图：指数范围（double/DD 相同为 10^308，fp128 为 10^4932）。DD 只扩精度不扩范围。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .h{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .tick{font:12px system-ui,-apple-system,Segoe UI,sans-serif;fill:#64748b}
+      .lbl{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .val{font:700 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .axis{stroke:#94a3b8;stroke-width:2}
+      .grid{stroke:#e2e8f0;stroke-width:1;stroke-dasharray:4 4}
+      .doub{fill:#86efac;stroke:#16a34a;stroke-width:1.5}
+      .dd{fill:#a5b4fc;stroke:#6366f1;stroke-width:1.5}
+      .f128{fill:#c4b5fd;stroke:#7c3aed;stroke-width:1.5}
+      .g{fill:#a7f3d0;stroke:#059669;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="500" fill="#ffffff"/>
+  <text x="40" y="44" class="title">double-double 和 fp128 差别在哪：精度，还是范围？</text>
+  <text x="40" y="70" class="sub">double-double 只是“把精度拉高”，指数范围锁死在 double 的水平；真 fp128 才同时放开两个维度</text>
+
+  <!-- ① 精度（有效十进制位数）条形图 -->
+  <text x="40" y="106" class="h">① 有效十进制位数（精度）</text>
+
+  <!-- y 轴：baseline y=290，0 位在 y=290；scale 4.4 px/位；0..40 -->
+  <line x1="120" y1="290" x2="900" y2="290" class="axis"/>
+  <text x="786" y="294" class="tick">有效位（十进制）→</text>
+
+  <!-- double: 16 位 → 70px -->
+  <rect x="205" y="220" width="90" height="70" class="doub"/>
+  <text x="242" y="216" class="val">16</text>
+  <text x="196" y="314" class="lbl">double</text>
+
+  <!-- double-double: 32 位 → 141px -->
+  <rect x="455" y="149" width="90" height="141" class="dd"/>
+  <text x="492" y="145" class="val">32</text>
+  <text x="438" y="314" class="lbl">double-double</text>
+
+  <!-- fp128: 34 位 → 150px -->
+  <rect x="705" y="140" width="90" height="150" class="f128"/>
+  <text x="742" y="136" class="val">34</text>
+  <text x="702" y="314" class="lbl">fp128</text>
+
+  <line x1="120" y1="340" x2="900" y2="340" class="grid"/>
+
+  <!-- ② 指数范围（可达最大量级）条形图 -->
+  <text x="40" y="372" class="h">② 指数范围（可达最大量级，log₁₀ 缩放）</text>
+  <line x1="120" y1="458" x2="900" y2="458" class="axis"/>
+
+  <!-- double: log10(308)=2.49 → 180*2.49=448px，x 120..568 -->
+  <rect x="120" y="386" width="448" height="16" class="doub"/>
+  <text x="578" y="398" class="val">±10³⁰⁸</text>
+  <text x="40" y="398" class="lbl">double</text>
+
+  <!-- double-double: 同 double，范围不变 -->
+  <rect x="120" y="410" width="448" height="16" class="dd"/>
+  <text x="578" y="422" class="val">±10³⁰⁸　与 double 相同</text>
+  <text x="40" y="422" class="lbl">double-double</text>
+
+  <!-- fp128: log10(4932)=3.69 → 180*3.69=664px，x 120..784 -->
+  <rect x="120" y="434" width="664" height="16" class="g"/>
+  <text x="794" y="446" class="val">±10⁴⁹³²</text>
+  <text x="40" y="446" class="lbl">fp128</text>
+
+  <text x="40" y="486" class="note" font-size="13">结论：double-double 逼近 fp128 的精度（32 vs 34 位），但范围仍是 ±10³⁰⁸；只要问题不触及指数边界，它几乎总是更划算</text>
+</svg>

@@ -8,3 +8,8 @@ tsconfig.tsbuildinfo
 private/
 .replit
 replit.nix
+
+# 构建产物与本地环境，不提交
+_site/
+.marscode/
+

@@ -1,10 +1,9 @@
 ## FP128：四精度浮点
 
-聊精度，大部分人第一反应是 fp16 / bf16 / fp8——因为它们在 AI 里天天见。但浮点精度的另一端，**fp128（IEEE 754 binary128，四精度）**同样值得理解：它是"double 不够用"时最先想到的逃逸口，也顺便把整条精度链（8 → 16 → 32 → 64 → 128 bit）补完整。
-
+聊精度，大部分人第一反应是 fp16 / bf16 / fp8——因为它们在 AI 里天天见。但浮点精度的另一端，**fp128（IEEE 754 binary128，四精度）**同样值得理解：它是"double 不够用"时的首要选择
 一句话给直觉：
 
-> fp128 把 double 的 53 位有效数字拉到 113 位（约 34 位十进制数字），同时把指数范围扩到 ±10^4932。它解决的不是"double 差一点点"，而是"double 差十万八千里"的问题——病态线性系统、长期数值积分、以及把低精度格式的误差当真值来研究。
+> fp128 把 double 的 53 位有效数字拉到 113 位（约 34 位十进制数字），同时把指数范围扩到 ±10^4932。它解决的不是"double 差一点点"，而是"double 差很多很多的问题"——病态线性系统、长期数值积分、以及把低精度格式的误差当真值来研究。
 
 ### 位布局
 
@@ -44,7 +43,7 @@ fp128 单独的位级结构，以及一个具体数字（π）的完整编码：
 
 ![fp128 的位级表示](/learning/assets/fp128-format.svg)
 
-### 什么时候真的需要它
+### 什么时候需要它
 
 精度不够的本质是**误差被放大**，不是计算本身出错。相对误差的增长由条件数（condition number）$\kappa$ 控制：输入相对误差 $u$ 经过问题放大后，输出相对误差约 $\kappa u$。所以判断是否需要 fp128 只有一个问题：**你的 $\kappa u_{64}$ 是否已经超过容忍线，而换 fp128 后 $\kappa u_{128}$ 能救回来**。
 
@@ -54,7 +53,7 @@ fp128 单独的位级结构，以及一个具体数字（π）的完整编码：
 
 典型场景：
 
-1. **病态线性系统**。Hilbert 矩阵 $H_{ij} = 1/(i+j-1)$ 的条件数随阶数指数增长，$n=12$ 时 $\kappa \approx 10^{16}$，double 已经救不回来；用 fp128 解 $n=20$ 左右的系统仍然可行。数值线性代数里"残差小但解错得离谱"就是这类问题的指纹。
+1. **病态线性系统**。Hilbert 矩阵 $H_{ij} = 1/(i+j-1)$ 的条件数随阶数指数增长，$n=12$ 时 $\kappa \approx 10^{16}$，double 已经救不回来；用 fp128 解 $n=20$ 左右的系统仍然可行。数值线性代数里"残差小但解错得离谱"就是这类问题的表现。
 
 2. **长序列累加 / 求和**。$N$ 项求和的最坏误差 $\sim N u$，随机游走约 $\sqrt{N} u$。当 $N$ 到 $10^8$ 量级，double 的最坏误差已经到 $10^{-8}$；fp128 把它压到 $10^{-26}$ 以下，基本等价于"精确求和"。
 
@@ -76,19 +75,93 @@ fp128 的处境和 fp16/fp32 完全不同：**几乎没有硬件**。
 
 所以"用 fp128"在 x86/GPU 上基本意味着"接受软件模拟的性能"。
 
-### double-double：更实用的替代
+### double-double：用两个 double 拼一个高精度数
 
-double-double（Dekker 拆分，1971 年提出）用两个 double 表示一个高精度数 $a = a_{hi} + a_{lo}$，精度约 106 位（略低于 fp128 的 113 位），**但指数范围与 double 相同**——它不扩展范围，只扩展精度。
+聊到"double 不够"，很多人第一反应是上 fp128。但真到工程里，fp128 在 x86 / GPU 上几乎没有硬件（前面讲过），软件模拟慢 1–2 个数量级。更实用的答案是 **double-double（双倍双精度，DD）**：用两个普通 double 拼出一个约 106 位精度的数。它**不扩展指数范围**（还是 double 的 ±10³⁰⁸），只把精度拉高到几乎和 fp128 一样。
 
-相比真 fp128：
+#### 核心思想：一个数装进两个 double
 
-- 在 GPU 上可以手写 kernel 实现，是 CUDA 里唯一现实的高精度方案；
-- 性能比软件 fp128 快得多（运算分解成 5–10 次 double 运算，而不是一整条软件模拟路径）；
-- 代价是代码复杂、容易在加法重排时引入隐藏 bug。
+一个 double 有 53 位有效数字（约 16 位十进制）。两个 double 相加/相乘，结果的低位会被舍入丢掉——**精度不够的本质，就是这些低位没有地方放**。double-double 的思路很直接：再拿一个 double（$a_{lo}$）专门装低位。于是任意高精度数表示为
 
-典型判断：**只要范围不是问题（几乎总是），double-double 的精度已经覆盖绝大多数 fp128 场景，且移植性和性能都好得多**。真 fp128 的价值在于"格式标准、不用自己维护、范围也大"。
+$$
+a = a_{hi} + a_{lo}
+$$
 
-### 工程建议
+其中 $a_{hi}$ 是主导部分（约前 53 位），$a_{lo}$ 是剩下的小修正。要保证这两块**不重叠**（否则又互相污染），需要
+
+$$
+|a_{lo}| \le \tfrac{1}{2}\,\mathrm{ulp}(a_{hi})
+$$
+
+$a_{hi}$ 和 $a_{lo}$ 各自还是一个普通 double，所以存储就是 2 × 64 bit——不占额外格式、不依赖任何专用硬件。把两块拼起来，有效数字位约 106 bit（≈32 位十进制），离 fp128（113 bit / 34 位）只差一点点。
+
+![double-double 如何用两个 double 表示一个数](/learning/assets/dd-representation.svg)
+
+#### 两块基石：TwoSum 与 TwoProd
+
+光会"拆成两半"没用，关键是在**每一步都精确算出"主值 + 被舍掉的误差"**。两个误差自由变换（error-free transformation）是全部算法的地基：
+
+**TwoSum（精确求和）。** 给定两个 double，返回 $(s, err)$，使 $a+b = s+err$ 精确成立——$err$ 就是被舍掉的那部分：
+
+```c
+double s = a + b;
+double bv = s - a;
+double av = s - bv;
+double err = (a - av) + (b - bv);   // a + b == s + err 精确
+```
+
+**TwoProd（精确乘法）。** 现代 CPU / GPU 有 FMA，一行搞定：
+
+```c
+double p   = a * b;
+double err = fma(a, b, -p);       // a * b == p + err 精确
+```
+
+没有 FMA（旧 x86、部分 GPU）就用 Dekker 拆分，把 $a$、$b$ 各拆成 hi / lo，四个交叉乘积都精确无舍入：
+
+```c
+const double C = 134217729.0;     // 2^27 + 1（s = ⌈53/2⌉ = 27）
+// 拆 a = a_hi + a_lo，b = b_hi + b_lo（每块只占一半有效位）
+double p = a_hi*b_hi + a_hi*b_lo + a_lo*b_hi + a_lo*b_lo;  // 逐项精确
+```
+
+![TwoSum 与 TwoProd：两块基石](/learning/assets/dd-twosum-twoprod.svg)
+
+#### 加法和乘法：合成 + 重排
+
+现在把两块拼起来做运算。硬约束是**结果仍要非重叠**——所以每步合成后都要重新归一化（quick_two_sum），把 $(sum, err)$ 重新打包成 $(s_{hi}, s_{lo})$。
+
+- **加法**：高位相加、低位相加，各自用 TwoSum 把误差抠出来，再把误差并进低位，最后归一化。
+- **乘法**：更贵。DD × DD 展开成四个乘积——主项 + 交叉项 + 低项；其中低项 $a_{lo}\cdot b_{lo}$ 是二阶小量，很多实现直接忽略。一次 DD × DD 大约折合 6–10 次 double 运算。
+
+![double-double 的加法与乘法](/learning/assets/dd-add-mul.svg)
+
+#### 除法
+
+除法没有对应的误差自由变换，通常先求一个近似倒数，再用若干轮 Newton 迭代收敛到约 106 位；每一步乘加都用上面的 DD 原语。因此 DD 除法一般比加减乘都慢一截。
+
+#### 为什么是约 106 位
+
+每个 double 贡献 53 位，两个非重叠就是 106 位。注意它**不是** 2×53 那么干净：$a_{hi}$ 和 $a_{lo}$ 各自的舍入并不总能严丝合缝地接上，中间留了一条小缝，所以实际有效位数略低于 106，通常记为"≈106 bit / ≈32 位十进制"。这也是它比真 fp128（113 bit）少约 7 位的来源。
+
+#### double-double vs fp128：差在"范围"，不在"精度"
+
+把两者放到同一条轴上看，DD 的精度已经非常逼近 fp128；真正拉开差距的是**指数范围**——DD 被锁死在 double 的水平，只有 fp128 能把范围也放大。
+
+![double-double 与 fp128：精度与范围的二维差异](/learning/assets/dd-range-vs-precision.svg)
+
+| 特性 | double | double-double | fp128 |
+| --- | --- | --- | --- |
+| 有效精度 | 53 bit | ≈106 bit | 113 bit |
+| 十进制有效位 | ≈16 | ≈32 | ≈34 |
+| 指数范围 | ±10³⁰⁸ | ±10³⁰⁸（同 double） | ±10⁴⁹³² |
+| 硬件支持 | 原生 | 无需专用硬件 | 仅 POWER9 / 10 |
+| 性能 | ×1 | 约 5–10 次 double 运算 | 软件模拟，慢 1–2 个数量级 |
+| 依赖 | 无 | 自实现，易踩坑 | libquadmath / 编译器 |
+
+**工程结论**：只要问题不触及指数边界（绝大多数情况），double-double 用很小的性能代价就能拿到逼近 fp128 的精度，而且能手写进 GPU kernel。真 fp128 的价值在于**格式标准、不用自己维护、范围也大**——适合"要标准、要省心"的场景。
+
+### 一些tips
 
 1. **先量化，再升级**。算一下 $\kappa$ 或误差增长，确认 double 真的不够；否则 fp128 只是把慢 10 倍换成慢 1000 倍。
 2. **优先迭代精化**。把 fp128 限制在残差计算，主流程保持 double。
@@ -128,5 +201,45 @@ n = mpf(10)**6
 H = log(n) + euler  # H_n ≈ ln(n) + γ
 print(H)
 ```
+
+#### double-double 的最小实现（加法）
+
+```cpp
+#include <cstdio>
+
+// 精确求和：a + b == s + err（对两数大小无假设）
+static void two_sum(double a, double b, double &s, double &err) {
+    s = a + b;
+    double bv = s - a;
+    double av = s - bv;
+    err = (a - av) + (b - bv);
+}
+
+// 已知 |s| >= |e| 的快速版本，保证结果非重叠
+static void quick_two_sum(double a, double b, double &s, double &err) {
+    s = a + b;
+    err = b - (s - a);
+}
+
+// DD + DD：返回非重叠的 (sh, sl)
+void dd_add(double ah, double al, double bh, double bl,
+            double &sh, double &sl) {
+    double s, e;
+    two_sum(ah, bh, s, e);   // 高位相加：主值 s + 误差 e
+    e += al;                 // 并入两个低位（远小于 e，可直接加）
+    e += bl;
+    quick_two_sum(s, e, sh, sl);  // 重新打包成非重叠对
+}
+
+int main() {
+    double sh, sl;
+    // 1.0 和 1e-20：单 double 直接加时后者低于 ulp 被丢掉
+    dd_add(1.0, 0.0, 1e-20, 0.0, sh, sl);
+    std::printf("hi = %.17g\nlo = %.17g\nhi+lo = %.17g\n", sh, sl, sh + sl);
+    return 0;
+}
+```
+
+`1.0 + 1e-20` 在单个 double 里会退化回 `1.0`；用 double-double 加法，`1e-20` 被完整保留在 `lo` 里。把这些原语拼起来，就能得到约 32 位精度的累加与点积。上面这两条 `two_sum` / `quick_two_sum` 写成 `__device__` 函数，就能跑进 CUDA kernel——这也是 GPU 上做高精度运算的现实路径。
 
 把输出和 double 累加的结果对比，能看到 double 在 $10^6$ 项求和时已经丢了约 9–10 位有效数字——这正是 fp128 存在的原因。

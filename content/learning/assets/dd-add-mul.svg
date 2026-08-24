@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="480" viewBox="0 0 980 480" role="img" aria-labelledby="title desc">
+  <title id="title">double-double 的加法与乘法</title>
+  <desc id="desc">左：两次运算用 TwoSum 求出主值与误差，再归一化成非重叠的 (s_hi, s_lo)。右：四个乘积加残差再归一化。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .h{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .code{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#0f172a}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .key{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#16a34a}
+      .box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5}
+      .boxpurple{fill:#f5f3ff;stroke:#7c3aed;stroke-width:1.5}
+      .arrow{stroke:#94a3b8;stroke-width:1.8;fill:none}
+    </style>
+  </defs>
+  <rect width="980" height="480" fill="#ffffff"/>
+  <text x="40" y="44" class="title">double-double 的四则运算：从两个 double 合成两个 double</text>
+  <text x="40" y="70" class="sub">关键约束是“结果仍是非重叠的 (s_hi, s_lo)”，所以每步都要重新归一化</text>
+
+  <!-- 左：加法 -->
+  <rect x="28" y="90" width="452" height="374" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="52" y="126" class="h">⊕ 加法　(a_hi+a_lo) + (b_hi+b_lo)</text>
+
+  <rect x="52" y="146" width="404" height="54" class="box"/>
+  <text x="66" y="168" class="code">two_sum(a_hi, b_hi) → s, e₀</text>
+  <text x="66" y="188" class="note">高位相加；舍入误差完整进 e₀</text>
+
+  <path d="M254 202 v 14" class="arrow"/>
+  <polygon points="249,212 259,212 254,220" fill="#94a3b8"/>
+
+  <rect x="52" y="222" width="404" height="54" class="box"/>
+  <text x="66" y="244" class="code">two_sum(a_lo, b_lo) → t, e₁</text>
+  <text x="66" y="264" class="note">低位相加；二阶小量，误差进 e₁</text>
+
+  <path d="M254 278 v 14" class="arrow"/>
+  <polygon points="249,288 259,288 254,296" fill="#94a3b8"/>
+
+  <rect x="52" y="298" width="404" height="78" class="boxpurple"/>
+  <text x="66" y="322" class="code">累加 e₀ + e₁ → quick_two_sum 归一化</text>
+  <text x="66" y="344" class="note">重新打包成非重叠对：</text>
+  <text x="66" y="364" class="code">→ (s_hi, s_lo)，且 ｜s_lo｜ ≤ ½·ulp(s_hi)</text>
+
+  <!-- 分隔线 -->
+  <line x1="488" y1="90" x2="488" y2="464" stroke="#e2e8f0" stroke-width="1.5"/>
+
+  <!-- 右：乘法 -->
+  <rect x="500" y="90" width="452" height="374" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="524" y="126" class="h">⊗ 乘法　(a_hi+a_lo) × (b_hi+b_lo)</text>
+
+  <rect x="524" y="146" width="404" height="52" class="box"/>
+  <text x="538" y="168" class="code">two_prod(a_hi, b_hi) → p₀, e₀</text>
+  <text x="538" y="188" class="note">主项乘积 + 残差</text>
+
+  <rect x="524" y="210" width="404" height="52" class="box"/>
+  <text x="538" y="232" class="code">two_prod(a_hi, b_lo)、(a_lo, b_hi) → p₁,e₁ / p₂,e₂</text>
+  <text x="538" y="252" class="note">交叉项，一阶小量</text>
+
+  <rect x="524" y="274" width="404" height="52" class="box"/>
+  <text x="538" y="296" class="code">two_prod(a_lo, b_lo) → p₃, e₃</text>
+  <text x="538" y="316" class="note">二阶小量，很多实现直接忽略</text>
+
+  <path d="M726 328 v 14" class="arrow"/>
+  <polygon points="721,338 731,338 726,346" fill="#94a3b8"/>
+
+  <rect x="524" y="348" width="404" height="72" class="boxpurple"/>
+  <text x="538" y="372" class="code">按量级排序累加 e_i → 归一化</text>
+  <text x="538" y="394" class="note">同样保证非重叠：</text>
+  <text x="538" y="412" class="code">→ (s_hi, s_lo)，精度 ≈106 bit</text>
+
+  <text x="524" y="448" class="key" font-size="13">一次 DD×DD 约 6–10 次 double 运算；耗时约 5–10 个 double 乘法</text>
+</svg>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">TwoSum 与 TwoProd：两个误差无处可藏的基石算法</title>
+  <desc id="desc">TwoSum 把 a+b 的舍入误差完整保留在 err；TwoProd（FMA）把 a*b 的舍入误差同样保留，使 hi+err 精确等于原本的和/积。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .h{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .code{font:600 14px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#0f172a}
+      .out{font:700 14px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#7c3aed}
+      .note{font:13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .key{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#16a34a}
+    </style>
+  </defs>
+  <rect width="980" height="420" fill="#ffffff"/>
+  <text x="40" y="44" class="title">TwoSum 与 TwoProd：double-double 的两块基石</text>
+  <text x="40" y="70" class="sub">这两个“误差自由变换（error-free transformation）”各自算出一个主值和它被舍入掉的那部分——两次都精确成立</text>
+
+  <!-- 左面板：TwoSum -->
+  <rect x="28" y="92" width="452" height="300" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="52" y="128" class="h">① TwoSum —— 精确求和</text>
+  <text x="52" y="164" class="code">s  = a + b</text>
+  <text x="200" y="164" class="out">→ s（主值）</text>
+  <text x="52" y="190" class="code">bv = s − a</text>
+  <text x="52" y="216" class="code">av = s − bv</text>
+  <text x="52" y="242" class="code">err = (a − av) + (b − bv)</text>
+  <text x="320" y="242" class="out">→ err</text>
+  <text x="52" y="284" class="key" font-size="13">a + b = s + err　精确成立</text>
+  <text x="52" y="308" class="note">无分支，完全依赖 IEEE 舍入性质；误差被“当场抓出”放进 err</text>
+  <line x1="52" y1="326" x2="460" y2="326" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="52" y="366" class="note">任何两次运算（加减乘除）都先分解成这类原语，再重排合成高精度结果</text>
+
+  <!-- 分隔线 -->
+  <line x1="488" y1="92" x2="488" y2="392" stroke="#e2e8f0" stroke-width="1.5"/>
+
+  <!-- 右面板：TwoProd -->
+  <rect x="500" y="92" width="452" height="300" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="524" y="128" class="h">② TwoProd —— 精确乘法</text>
+  <text x="524" y="164" class="code">p   = a * b</text>
+  <text x="700" y="164" class="out">→ p（主值）</text>
+  <text x="524" y="190" class="code">err = fma(a, b, −p)</text>
+  <text x="700" y="190" class="out">→ err</text>
+  <text x="524" y="216" class="key" font-size="13">a · b = p + err　精确成立</text>
+  <text x="524" y="242" class="note">需要 FMA；现代 CPU / GPU 一条指令内完成，是首选</text>
+  <line x1="524" y1="262" x2="932" y2="262" stroke="#e2e8f0" stroke-width="1.5"/>
+
+  <text x="524" y="290" class="note">无 FMA（旧 x86 / 部分 GPU）用 Dekker 拆分：</text>
+  <text x="524" y="316" class="code">C = 2²⁷ + 1，把 a、b 各拆成 hi / lo</text>
+  <text x="524" y="342" class="code">p = a_hi·b_hi + a_hi·b_lo + a_lo·b_hi + a_lo·b_lo</text>
+  <text x="524" y="368" class="note">拆分使四个交叉乘积都精确无舍入，残差 err 由这四块与 p 的差累出</text>
+</svg>
