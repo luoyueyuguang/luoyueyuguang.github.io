@@ -1,0 +1,137 @@
+.run-button {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  right: 2.1rem;
+  padding: 0.28rem 0.7rem;
+  margin: 0.3rem;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+  font:
+    600 12px system-ui,
+    -apple-system,
+    Segoe UI,
+    sans-serif;
+  line-height: 1.2;
+
+  &:hover:not(:disabled) {
+    cursor: pointer;
+    border-color: var(--secondary);
+  }
+
+  &:focus {
+    outline: 0;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+}
+
+pre:hover > .run-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+.code-output {
+  margin-top: 0.4rem;
+  border: 1px solid var(--gray);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--light);
+
+  .code-output-header {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.8rem;
+    background-color: var(--lightgray);
+    border-bottom: 1px solid var(--gray);
+    font:
+      600 12px system-ui,
+      -apple-system,
+      Segoe UI,
+      sans-serif;
+    color: var(--darkgray);
+  }
+
+  .code-output-title {
+    font-weight: 700;
+  }
+
+  .code-output-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--gray);
+
+    &::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--gray);
+    }
+
+    &.running::before {
+      background-color: #f59e0b;
+    }
+  }
+
+  .code-output-clear {
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 0.12rem 0.4rem;
+    border-radius: 4px;
+    color: var(--gray);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--secondary);
+      background-color: var(--lightgray);
+    }
+  }
+
+  .code-output-body {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    max-height: 24rem;
+    overflow-x: auto;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: var(--codeFont);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--dark);
+  }
+
+  &.code-output-error {
+    border-color: #fca5a5;
+
+    .code-output-header {
+      background-color: #fef2f2;
+      border-bottom-color: #fca5a5;
+    }
+
+    .code-output-status {
+      color: #b91c1c;
+
+      &::before {
+        background-color: #b91c1c;
+      }
+    }
+
+    .code-output-body {
+      color: #b91c1c;
+    }
+  }
+}
