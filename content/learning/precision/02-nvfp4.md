@@ -1,6 +1,6 @@
-聊 4-bit 浮点，绕不开 **NVFP4**——NVIDIA Blackwell 上用于极大模型推理的"最小浮点"。它只有 4 个 bit（1 sign + 2 exponent + 1 mantissa），叫 **E2M1**，正数能表示的档位只有 8 个。可它恰恰是 Blackwell tensor core 吞吐的顶点：位数砍到 4，换来的是**精度粗到只剩"几档"**，必须靠 block scaling 把这几档"换算"到实际数值附近，才勉强喂得动大模型。想先看清楚整个精度家族，见 [[learning/precision/01-overview|精度总览]]。
+聊 4-bit 浮点，绕不开 **NVFP4**——NVIDIA Blackwell 上用于极大模型推理的"最小浮点"。它只有 4 个 bit（1 sign + 2 exponent + 1 mantissa），即**E2M1**，正数能表示的档位只有 8 个。可它恰恰是 Blackwell tensor core 吞吐的顶点：位数砍到 4，换来的是**精度粗到只剩"几档"**，必须靠 block scaling 把这几档"换算"到实际数值附近，才勉强喂得动大模型。想先看清楚整个精度家族，见 [[learning/precision/01-overview|精度总览]]。
 
-> 一句话给直觉：FP4 把整个浮点值域压进不到一打档位——0、0.5、1、1.5、2、3、4、6。它不是你"细看数值"的格式，而是你"丢精度换速度"的格式。NVFP4 在 Blackwell 上给每一小块数据配一个高精度缩放因子，把这十几档"就地放大缩小"，从而 4-bit 的粗颗粒也能保得住大模型的精度。
+> tips：FP4 整个浮点值域很小——0、0.5、1、1.5、2、3、4、6。NVFP4 在 Blackwell 上给每一小块数据配一个高精度缩放因子，把这些值"就地放大缩小"，从而 4-bit 的粗颗粒也能保得住大模型的精度。
 
 ### 位布局
 
@@ -53,7 +53,6 @@ $$
 
 ### 和相邻格式比
 
-FP4 是"micro-float"家族的一员，它的"相邻"主要是两类：同样 4-bit 但带缩放方案的 MXFP4，以及上一档、位宽翻倍的 FP8。
 
 | 格式 | 位宽 | 指数位 | 尾数（有效） | 有效精度 | 单位舍入 | 值域 | 缩放策略 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -64,9 +63,7 @@ FP4 是"micro-float"家族的一员，它的"相邻"主要是两类：同样 4-b
 
 三者共同点是**基础元素都是 E2M1，有效精度和单位舍入完全相同**——差异不在"单个数能多准"，而在"这一档能放到多大/多细的位置上"。MXFP4 用 32 个元素共享一个 $2^n$ 粗缩放；[[learning/precision/03-mxfp4|NVFP4 的兄弟 MXFP4]] 的缩放是"跳档"的 2 的幂。NVFP4 把块缩到 16 个元素，且缩放开到 FP8 的 E4M3（支持非 2 的幂、更细的分数刻度），再配一个 per-tensor 的 FP32 二级缩放——所以同样 4-bit，NVFP4 比 MXFP4 更贴数据的动态范围。上一档的 [[learning/precision/05-fp8|FP8 E4M3]] 位宽翻倍、有效精度翻倍到 4 bit、$u$ 降到 0.0625，精度和值域都好得多，但显存和带宽成本也翻倍。
 
-### 什么时候需要它
-
-FP4 的取舍非常极端：**精度、范围都是"最差"，吞吐、能耗、显存都是"最好"**。
+### 需要FP4的理由
 
 需要（推理显存/带宽/吞吐是瓶颈时）：
 
@@ -74,11 +71,9 @@ FP4 的取舍非常极端：**精度、范围都是"最差"，吞吐、能耗、
 2. **对单值精度不敏感的大模型**。用 PTQ / QAT 配合 per-block 缩放，像 DeepSeek-R1 这类模型从 FP8 降到 NVFP4，关键评测的精度损失能压到 1% 以内——这正是 NVFP4 相对裸 FP4 的价值：靠更密的缩放把粗档位的误差分摊开。
 3. **想要 Blackwell 的峰值算力**。FP4 是 Blackwell 上最小的数据类型，也就对应最高的 sparse/dense petaflops；在"算力优先、精度可容忍"的推理场景，它是压榨硬件选择。
 
-不用（或要非常小心）：
+需要小心的点
 
-1. **训练的主流程**。反向传播要梯度与累加，误差会被条件数放大；即便 Blackwell 的 FP4 tensor core 同时用于训练和推理，训练时权重/梯度通常仍留在 bf16/fp16，FP4 只出现在某些激活或前向层。
-2. **数据有离群值或动态范围过大的层**。只有 8 档，一个 outlier 会把整块 scale 拉飞，其他小值全被压成 0 或噪声（这正是要 Clustering（聚类）/QQQ 的原因）。此时应改 per-channel 或更高精度。
-3. **任何需要 ≥6 位有效数字的科学计算、金融、仿真**。FP4 只有约 0.6 位十进制有效位，差距是数量级的。
+**数据有离群值或动态范围过大的层**。FP4只有 8 档，一个 outlier 会把整块 scale 拉飞，其他小值全被压成 0 或噪声（这正是要 Clustering（聚类）/QQQ 的原因）。此时应改 per-channel 或更高精度。
 
 **精度 vs 范围 vs 成本**：FP4 三个维度全压到极限。有效精度最低（2 bit）、原生值域最窄（0.5→6 只有约 4 个倍频，比 fp16 的约 30 倍频窄得多），换来的是 4-bit 的最小存储和最省的数据搬移——这是一个用正确性换吞吐的刻意选择。
 
@@ -143,3 +138,11 @@ for x in [0.4, 0.9, 1.2, 2.6, 5.8, 7.0, -0.5, -4.1]:
 4. **注意硬件代际**。FP4 需要 Blackwell（第五代 tensor core）；Ampere/Hopper 上跑到最低只能到 FP8。在旧卡上"假装用 FP4"意义不大。
 5. **训练别盲目上 4-bit**。4-bit 主要兑现的是推理的显存与带宽收益；训练的正反向与梯度累加通常还是 bf16/fp16，FP4 更多出现在前向激活或离线量化权重。
 6. **先量化误差再决定**。FP4 的 $u=0.25$ 意味着单次运算相对误差可到 ~25%，任何累积都会迅速放大——只有在"每步误差可容忍 + 需要极致吞吐"时才值得。
+
+## Reference
+
+- NVFP4 Trains with Precision of 16-bit and Speed and Efficiency of 4-bit（NVIDIA）：<https://developer.nvidia.com/blog/nvfp4-trains-with-precision-of-16-bit-and-speed-and-efficiency-of-4-bit/>
+- Pretraining Large Language Models with NVFP4（arXiv:2509.25149）：<https://arxiv.org/abs/2509.25149>
+- OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
+- Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
+- NVIDIA Transformer Engine（FP4 / FP8 支持）：<https://github.com/NVIDIA/TransformerEngine>

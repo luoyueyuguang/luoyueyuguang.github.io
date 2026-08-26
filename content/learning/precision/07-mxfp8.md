@@ -216,3 +216,10 @@ MXFP8   最大相对误差 = 4.0%
 3. **训练时前向用 E4M3、梯度用 E5M2。** 和标量 FP8 一样的取舍：前向无 inf、饱和到 448 更稳；梯度的动态范围更"没谱"，E5M2 的 57344 上限和有 inf 更安全。两者**不能直接相加**——bias 和网格不同，要各自带尺度换算成 fp32 再更新。
 4. **训练时保留 FP32 主权重。** MXFP8 只出现在矩阵乘处的量化，矢量算子（Softmax、LayerNorm、残差）留在 Bfloat16 / FP32，输出回标量浮点；每一步用 FP32 主权重更新。
 5. **块大小必须是 32 的倍数，且要沿归约维做。** 这是 OCP MX 的硬约束；注意**转置和量化不可交换**——重量化后再转置，得另存一份转置后的权重，否则块尺度会跨错维度。
+
+## Reference
+
+- Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
+- OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
+- microxcaling（Microsoft，MX 仿真库）：<https://github.com/microsoft/microxcaling>
+- FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>

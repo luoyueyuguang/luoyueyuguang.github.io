@@ -217,3 +217,9 @@ MXFP4  最大相对误差 = 27.0%
 3. **把块对到 32 的倍数，并沿"归约维度"做。** 尺度通常沿矩阵乘的归约维（一行或一列）共享；注意**转置和量化不可交换**——重量化了再转置，得另存一份转置后的权重。
 4. **训练时保留 FP32 主权重。** MXFP4 只出现在矩阵乘处的量化，矢量算子（Softmax、LayerNorm、残差）留在 Bfloat16 / FP32，输出回标量浮点；每一步用 FP32 主权重更新。
 5. **$u=25\%$ 是常态，不是 bug。** 单元素只有约 0.6 位十进制精度；它的价值在于**显存省 3.7 倍 + 矩阵乘吞吐**，而不是数值精确。需要精确就上 MXFP8（$u=2^{-4}$）或 fp16。
+
+## Reference
+
+- Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
+- OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
+- microxcaling（Microsoft，MX 仿真库）：<https://github.com/microsoft/microxcaling>

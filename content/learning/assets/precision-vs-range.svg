@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="470" viewBox="0 0 980 470" role="img" aria-labelledby="title desc">
+  <title id="title">精度 vs 范围：一份位宽，怎么分</title>
+  <desc id="desc">浮点格式 = 符号位 + 指数位（决定范围）+ 尾数位（决定精度）；位数固定时，指数位与尾数位此消彼长。以同样是 16 位的 fp16 与 bf16 为例展示这种取舍。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .name{font:700 17px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .field{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a;text-anchor:middle}
+      .bits{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a;text-anchor:middle}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .effect{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .sign{fill:#fde68a;stroke:#d97706;stroke-width:1.5}
+      .exp{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .frac{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="470" fill="#ffffff"/>
+  <text x="40" y="42" class="title">精度 vs 范围：一份位宽，怎么分</text>
+  <text x="40" y="68" class="sub">浮点格式 = 符号位 + 指数位（范围）+ 尾数位（精度）；位数固定时，多给指数就少给尾数</text>
+
+  <!-- 通用位布局 -->
+  <text x="40" y="112" class="name">通用结构</text>
+  <rect x="120" y="126" width="40" height="44" class="sign"/>
+  <text x="140" y="153" class="field">sign</text>
+  <rect x="162" y="126" width="262" height="44" class="exp"/>
+  <text x="293" y="153" class="field">exponent　w 位</text>
+  <rect x="426" y="126" width="334" height="44" class="frac"/>
+  <text x="593" y="153" class="field">mantissa　m 位</text>
+  <text x="40" y="198" class="note">符号位决定正负</text>
+  <text x="170" y="198" class="effect">指数位 → 范围（能覆盖多少数量级）</text>
+  <text x="440" y="198" class="effect">尾数位 → 精度（能表达多少位有效数字）</text>
+
+  <!-- 同 16 位的两种分法 -->
+  <text x="40" y="240" class="name">同样 16 位，两种取舍</text>
+
+  <!-- fp16: 1+5+10 -->
+  <text x="40" y="287" class="note">fp16</text>
+  <rect x="120" y="262" width="40" height="44" class="sign"/>
+  <text x="140" y="289" class="bits">1</text>
+  <rect x="162" y="262" width="200" height="44" class="exp"/>
+  <text x="262" y="289" class="bits">5</text>
+  <rect x="362" y="262" width="400" height="44" class="frac"/>
+  <text x="562" y="289" class="bits">10</text>
+  <text x="120" y="326" class="effect">范围 6.6×10⁴（较小）　·　精度 ≈3.3 位十进制（高）</text>
+
+  <!-- bf16: 1+8+7 -->
+  <text x="40" y="367" class="note">bf16</text>
+  <rect x="120" y="342" width="40" height="44" class="sign"/>
+  <text x="140" y="369" class="bits">1</text>
+  <rect x="162" y="342" width="320" height="44" class="exp"/>
+  <text x="322" y="369" class="bits">8</text>
+  <rect x="482" y="342" width="280" height="44" class="frac"/>
+  <text x="622" y="369" class="bits">7</text>
+  <text x="120" y="406" class="effect">范围 3.4×10³⁸（同 fp32）　·　精度 ≈2.4 位十进制（低）</text>
+
+  <text x="40" y="446" class="note">都是 16 位：bf16 用尾数换范围，fp16 用范围换精度——这就是"精度 vs 范围"的取舍。</text>
+</svg>

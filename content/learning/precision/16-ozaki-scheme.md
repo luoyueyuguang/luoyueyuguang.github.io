@@ -246,3 +246,8 @@ Ozaki-int8 结果 vs fp64 参考：
 - 论文：[DGEMM on Integer Matrix Multiplication Unit](https://arxiv.org/abs/2306.11975)（Ootomo, Ozaki, Yokota, IJHPCA 2024）；Ozaki scheme 的 CRS 扩展见 [Ozaki Scheme II](https://arxiv.org/abs/2504.08009)。
 
 回到[[learning/precision/01-overview|精度总览]]。
+
+## Reference
+
+- DGEMM on Integer Matrix Multiplication Unit（Ozaki scheme，arXiv:2306.11975）：<https://arxiv.org/abs/2306.11975>
+- Ozaki Scheme II: A GEMM-oriented emulation of floating-point matrix multiplication using an integer modular technique（arXiv:2504.08009）：<https://arxiv.org/abs/2504.08009>

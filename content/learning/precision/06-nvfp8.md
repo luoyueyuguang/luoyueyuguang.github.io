@@ -134,3 +134,9 @@ print("scale(0.6):", s2, "->", y2)    # 3.5/0.6*448 越界，被裁剪
 4. **E4M3 没有 ±inf**，只有一个 NaN 模式；E5M2 有 ±inf 和 NaN。所以理论上 E5M2 更能容忍"算爆"，E4M3 一旦上到 448 就直接饱和。
 5. **注意转置/重排**。到 Blackwell 的 MXFP8，块必须在归约维度上"连续"，转置要重量化，TE 会同时保留原始与转置两份拷贝——这是 FP8 简单、MXFP8 麻烦的典型差异。
 6. **别拿 FP8 打精度战**。它把 3 位有效数字留给矩阵乘；需要 3 位以上精度的地方（残差、归一化、softmax）留在 FP16/FP32。
+
+## Reference
+
+- FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>
+- NVIDIA Transformer Engine（FP8 / delayed scaling）：<https://github.com/NVIDIA/TransformerEngine>
+- Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>

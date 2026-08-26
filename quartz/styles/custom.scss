@@ -134,8 +134,12 @@ blockquote {
   background-color: var(--light);
 }
 
-footer {
-  opacity: 0.8;
+// 开头的框架提示框：加大与正文的间距，并给左侧一条深色竖条
+
+.callout.callout-accent {
+  margin-top: 1.6rem;
+  border-left: 4px solid var(--secondary);
+  padding: 0.9rem 1.2rem;
 }
 
 @media (max-width: 800px) {

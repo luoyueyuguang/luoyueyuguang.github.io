@@ -158,3 +158,11 @@ print(f"fp8 matmul relative error: {rel_err:.4f}")   # 通常为 1e-2 量级，�
 3. **per-tensor 要小心 outlier**。一个异常大的数就能撑大 $s$，让整块精度崩塌；用 per-channel / per-block 或 clipping 校准。
 4. **训练用延迟缩放，推理用动态缩放**。避免为了等 amax 而同步，吞吐损失往往比精度损失更痛。
 5. **量化不是免费的误差**。fp8 的 $u \approx 6\%$ 在 $K$ 很大会被放大成可见的偏差，别在长上下文的 attention 上无脑用 fp8。
+
+## Reference
+
+- FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>
+- Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
+- LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale（arXiv:2208.07339）：<https://arxiv.org/abs/2208.07339>
+- DGEMM on Integer Matrix Multiplication Unit（Ozaki scheme，arXiv:2306.11975）：<https://arxiv.org/abs/2306.11975>
+- NVIDIA Transformer Engine（张量核心低精度）：<https://github.com/NVIDIA/TransformerEngine>

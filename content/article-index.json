@@ -42,87 +42,87 @@
     },
     "learning/precision/01-overview": {
       "title": "从 fp4 到 fp128：精度总览",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "numerical"]
     },
     "learning/precision/02-nvfp4": {
       "title": "NVFP4：NVIDIA FP4（E2M1）",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/03-mxfp4": {
       "title": "MXFP4：OCP 微缩放 FP4",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/04-fp6": {
       "title": "FP6：六位浮点",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/05-fp8": {
       "title": "FP8：E4M3 与 E5M2",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/06-nvfp8": {
       "title": "NVFP8：NVIDIA 张量核心的 FP8",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/07-mxfp8": {
       "title": "MXFP8：OCP 微缩放 FP8",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/08-int8": {
       "title": "INT8：整数量化",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/09-fp16": {
       "title": "FP16：半精度浮点",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "training"]
     },
     "learning/precision/10-bf16": {
       "title": "BF16：bfloat16",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "training"]
     },
     "learning/precision/11-tf32": {
       "title": "TF32：NVIDIA TensorFloat-32",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "training"]
     },
     "learning/precision/12-fp32": {
       "title": "FP32：单精度浮点",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "training"]
     },
     "learning/precision/13-fp64": {
       "title": "FP64：双精度浮点",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "numerical"]
     },
     "learning/precision/14-fp80": {
       "title": "FP80：x87 扩展精度",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "numerical"]
     },
     "learning/precision/15-fp128": {
       "title": "FP128：四精度浮点",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "numerical"]
     },
     "learning/precision/16-ozaki-scheme": {
       "title": "Ozaki Scheme：用 INT8 张量核算更精确的矩阵乘法",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     },
     "learning/precision/17-matmul": {
       "title": "低精度矩阵乘：张量核心里的精度博弈",
-      "date": "2026-08-18",
+      "date": "2026-08-26",
       "tags": ["learning", "precision", "quantization"]
     }
   }
