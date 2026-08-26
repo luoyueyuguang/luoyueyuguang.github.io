@@ -76,7 +76,8 @@ $$
 ### 硬件与软件现状
 
 - **Hopper H100（首个 FP8 张量核心）**：Transformer Engine 加持，张量核心支持**任意混合**的 FP8 输入格式，所以同一套训练循环里前向 E4M3、反向 E5M2 可以并存（recipe 里就叫 `Format.HYBRID`）。官方 H100 SXM 规格：FP16 张量核心 1,979 TFLOPS，**FP8 张量核心 3,958 TFLOPS**（均含稀疏），正好 **2 倍**。
-- **Blackwell / Rubin**：第五代张量核心新加入 **NVFP4** 和社区定义的 **microscaling** 格式（如 MXFP8/FP6）。FP8 的 E4M3/E5M2 依然支持；面向更低位宽的新叙事以 **NVFP4**（见 [[learning/precision/02-nvfp4|NVFP4]]）与 **MXFP8** 为主。NVIDIA 没有另立一个叫 "NVFP8" 的独立格式——FP8 的"用法故事"就是 E4M3/E5M2 混合配方 + amax 缩放。
+- **Blackwell（第五代）**：张量核心原生支持 FP8（E4M3/E5M2）与社区定义的 **MX** 系列（MXFP8/FP6/FP4），并加入 **NVFP4**。NVIDIA 没有另立一个叫 "NVFP8" 的独立格式——FP8 的"用法故事"就是 E4M3/E5M2 混合配方 + amax 缩放。
+- **Rubin（Vera Rubin，增强第五代）**：沿用 Blackwell 的全部精度（NVFP4、FP64、TF32、BF16、FP16、FP8/FP6、INT8），并**加上 Tensor Core 模拟（emulated）FP32/FP64**——把输入拆成低位分量、用低位宽张量核算，从而在低位宽核上逼近甚至超过原生 IEEE 精度。Rubin 与 Blackwell **向上兼容**，已优化的代码可直接迁移；Transformer Engine 升到第三代（50 PFLOPS NVFP4 推理）。
 - **存储格式 vs 纯计算**：FP8 作为存储格式能显著省显存/带宽（激活、权重、KV cache 都能按 FP8 存），**缩放因子本身是 FP32**（每个张量一个），与数据一起维护。MXFP8 则把 scale 换成 E8M0，随每 32 元素一块存，于是"存和算"是同一套块结构。
 - **框架支持**：Transformer Engine（PyTorch / JAX）把 FP8 封装在 `fp8_autocast` 与 `DelayedScaling`/`MXFP8BlockScaling` 配方里；Megatron-LM、NeMo 训练栈、TensorRT-LLM / vLLM 推理栈、CUDA 均支持。CUDA 层面对纯手写 kernel 会暴露 `__nv_fp8` 类型与相关转换/缩放 intrinsic。
 

@@ -169,6 +169,7 @@ NVIDIA 还有一条 **DP4A** 指令，可对 4 元素 INT8 向量做内积并累
 - **ozIMMU**（github.com/enp1s0/ozimmu）：Ootomo 等的 INT8 版库，用 `cublasGemmEx` 做内部 GEMM，自定义 kernel 做位切分与合成。
 - **cuBLAS / CUTLASS**：提供 INT8×INT8→INT32 的高性能 GEMM 原语，是 Ozaki 实现的底层积木（论文正是借"可复用高度优化的 BLAS"这一大优势）。
 - **框架**：主流框架当前不直接暴露 Ozaki，多把它包装在"仿真 DGEMM/精确推理"类库里；学术界在 FP8、FP4 上继续扩展（FP8 版、FP4 版、Ozaki-II CRT 版等）。
+- **硬件吸收：Rubin 的模拟高精度**。这个"用低精度核逼近高精度"的思路已被 NVIDIA 吸收为硬件能力——Rubin（及 Blackwell）Tensor Core 原生提供**模拟（emulated）FP32/FP64**：把输入拆成低位分量、用低位宽核算，逼近甚至超过原生 IEEE 精度。软件版的 Ozaki 在只有 INT8 核的旧硬件 / 消费 GPU 上仍是主力；而在 Rubin 上，同样的分解由硬件/库直接承担。
 
 ### 代码示例
 

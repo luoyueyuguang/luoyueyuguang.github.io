@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="480" viewBox="0 0 980 480" role="img" aria-labelledby="title desc">
+  <title id="title">OCP MX 微缩放家族：三种格式共用一套块尺度结构</title>
+  <desc id="desc">MXFP4 / MXFP6 / MXFP8 都是"每 k=32 个元素共享一个 8 bit 块尺度 X（E8M0）"。元素位宽不同（4/6/8 bit），但块尺度机制完全一样，因此块内相对精度由元素格式决定，块与块之间靠 X 撑动态范围。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .name{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .lbl{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .val{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .block{fill:#fff7ed;stroke:#ea580c;stroke-width:1.5}
+      .scale{fill:#fef3c7;stroke:#d97706;stroke-width:1.5}
+      .elem4{fill:#ede9fe;stroke:#7c3aed;stroke-width:1.5}
+      .elem6{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+      .elem8{fill:#e0f2fe;stroke:#0284c7;stroke-width:1.5}
+      .sep{stroke:#cbd5e1;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="480" fill="#ffffff"/>
+  <text x="40" y="44" class="title">OCP MX 微缩放：一个家族，一种块尺度</text>
+  <text x="40" y="70" class="sub">无论是 4/6/8-bit 元素，共享的 X（E8M0，8 bit）都把"块与块之间的量级"托起来，而"块内的相对精度"全由元素格式决定</text>
+
+  <!-- 通用结构示意：块尺度 + 32 元素 -->
+  <rect x="40" y="92" width="900" height="64" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="64" y="124" class="name">块尺度 X  (E8M0，8 bit)</text>
+  <text x="310" y="124" class="lbl">＝ 2^(E−127)，精确 2 的幂，无舍入误差</text>
+  <text x="64" y="146" class="note">X 只"定位块量级"，不贡献精度　｜　块大小 k = 32　｜　每 32 元素共享一个 X</text>
+
+  <!-- 三行：MXFP4 / MXFP6 / MXFP8 各自元素密度 -->
+  <text x="40" y="196" class="name">同一套块结构，三种元素位宽</text>
+
+  <!-- MXFP4 -->
+  <text x="40" y="236" class="val">MXFP4</text>
+  <rect x="120" y="216" width="90" height="28" class="scale"/>
+  <text x="144" y="235" class="lbl">X</text>
+  <rect x="210" y="216" width="28" height="28" class="elem4"/><rect x="238" y="216" width="28" height="28" class="elem4"/><rect x="266" y="216" width="28" height="28" class="elem4"/><rect x="294" y="216" width="28" height="28" class="elem4"/><rect x="322" y="216" width="28" height="28" class="elem4"/><rect x="350" y="216" width="28" height="28" class="elem4"/><rect x="378" y="216" width="28" height="28" class="elem4"/><rect x="406" y="216" width="28" height="28" class="elem4"/>
+  <text x="446" y="235" class="note">E2M1，d=4 bit，每元素</text>
+  <text x="40" y="252" class="note">位宽 4</text>
+
+  <!-- MXFP6 -->
+  <text x="40" y="290" class="val">MXFP6</text>
+  <rect x="120" y="270" width="90" height="28" class="scale"/>
+  <text x="144" y="289" class="lbl">X</text>
+  <rect x="210" y="270" width="28" height="28" class="elem6"/><rect x="238" y="270" width="28" height="28" class="elem6"/><rect x="266" y="270" width="28" height="28" class="elem6"/><rect x="294" y="270" width="28" height="28" class="elem6"/><rect x="322" y="270" width="28" height="28" class="elem6"/><rect x="350" y="270" width="28" height="28" class="elem6"/><rect x="378" y="270" width="28" height="28" class="elem6"/><rect x="406" y="270" width="28" height="28" class="elem6"/>
+  <text x="446" y="289" class="note">E2M3 / E3M2，d=6 bit，每元素</text>
+  <text x="40" y="306" class="note">位宽 6</text>
+
+  <!-- MXFP8 -->
+  <text x="40" y="344" class="val">MXFP8</text>
+  <rect x="120" y="324" width="90" height="28" class="scale"/>
+  <text x="144" y="343" class="lbl">X</text>
+  <rect x="210" y="324" width="28" height="28" class="elem8"/><rect x="238" y="324" width="28" height="28" class="elem8"/><rect x="266" y="324" width="28" height="28" class="elem8"/><rect x="294" y="324" width="28" height="28" class="elem8"/><rect x="322" y="324" width="28" height="28" class="elem8"/><rect x="350" y="324" width="28" height="28" class="elem8"/><rect x="378" y="324" width="28" height="28" class="elem8"/><rect x="406" y="324" width="28" height="28" class="elem8"/>
+  <text x="446" y="343" class="note">E4M3 / E5M2，d=8 bit，每元素</text>
+  <text x="40" y="360" class="note">位宽 8</text>
+
+  <!-- 底部说明 -->
+  <text x="40" y="412" class="note">共享同一块结构 → 每块满打满算只有 0.25 bit/元素 的尺度开销（8/32）。差异只在"元素能放多细"：MXFP4 约 0.6 位十进制、MXFP6 约 0.9–1.2 位、MXFP8 约 0.9–1.2 位</text>
+  <text x="40" y="442" class="note">硬件：NVIDIA Blackwell 第五代张量核原生执行这三种 MX 格式；Hopper / Ampere 不支持（最低到 FP8）</text>
+</svg>

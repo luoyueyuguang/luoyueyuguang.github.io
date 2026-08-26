@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="460" viewBox="0 0 980 460" role="img" aria-labelledby="title desc">
+  <title id="title">低精度 / 混合精度矩阵乘：三个精度位各管各的</title>
+  <desc id="desc">一次 GEMM 有三个精度位：A 的精度、B 的精度、累加器的精度。低精度矩阵乘把 A/B 压到 fp8/int8 级、累加放在 fp32；混合精度更进一步，让 A、B、累加各自独立选择，从而对权重压得更狠、对激活留得更宽。</desc>
+  <defs>
+    <style>
+      .title{font:700 22px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .sub{font:15px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .name{font:700 16px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .lbl{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#334155}
+      .val{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;fill:#0f172a}
+      .note{font:600 13px system-ui,-apple-system,Segoe UI,sans-serif;fill:#475569}
+      .a{fill:#ede9fe;stroke:#7c3aed;stroke-width:1.5}
+      .b{fill:#dcfce7;stroke:#16a34a;stroke-width:1.5}
+      .acc{fill:#fef3c7;stroke:#d97706;stroke-width:1.5}
+      .lowp{fill:#f1f5f9;stroke:#cbd5e1;stroke-width:1.5}
+      .sep{stroke:#cbd5e1;stroke-width:1.5}
+    </style>
+  </defs>
+  <rect width="980" height="460" fill="#ffffff"/>
+  <text x="40" y="44" class="title">GEMM 的三个精度点：A、B、累加</text>
+  <text x="40" y="70" class="sub">低精度矩阵乘的精度损失几乎全部来自"输入量化"A、B 两步；累加放高一档（fp32），就能把"累加舍入"这一项直接抹掉</text>
+
+  <!-- 三个精度点 -->
+  <text x="40" y="112" class="name">① A（输入左矩阵）</text>
+  <rect x="40" y="130" width="150" height="150" class="a"/>
+  <text x="86" y="216" class="val">A</text>
+  <text x="40" y="302" class="note">低精度 fp8 / int8 / fp4；<br/>混合精度可单独压低（权重常更低）</text>
+
+  <text x="290" y="112" class="name">② B（输入右矩阵）</text>
+  <rect x="290" y="130" width="150" height="150" class="b"/>
+  <text x="336" y="216" class="val">B</text>
+  <text x="290" y="302" class="note">可与 A 不同精度；<br/>激活通常留更高（动态范围大）</text>
+
+  <!-- 乘法号 -->
+  <text x="215" y="216" class="val">×</text>
+
+  <!-- 累加器 -->
+  <text x="510" y="112" class="name">③ 累加器（输出）</text>
+  <rect x="510" y="130" width="430" height="60" class="acc"/>
+  <text x="530" y="160" class="val">fp32 / int32 累加</text>
+  <text x="530" y="178" class="note">通常是"免费的"——加法树比乘法宽得多</text>
+  <rect x="510" y="206" width="430" height="74" class="lowp"/>
+  <text x="530" y="230" class="note">若累加也在低精度：K 次累加的舍入会<br/>和输入量化误差叠在一起，精度崩掉</text>
+
+  <!-- 箭头 -->
+  <line x1="440" y1="205" x2="506" y2="205" class="sep" stroke="#64748b"/>
+  <polygon points="506,200 516,205 506,210" fill="#64748b"/>
+
+  <!-- 混合精度表格 -->
+  <text x="40" y="368" class="name">"混合精度"的两种含义</text>
+  <text x="40" y="396" class="lbl">训练混合精度：fp16 / bf16 计算 + fp32 主权重（误差不累积），详见 fp16 / bf16 篇</text>
+  <text x="40" y="420" class="lbl">非对称操作数精度：A、B 用不同精度（权重压更低、激活留更高），如 W8A16、MXFP4 + MXFP8</text>
+  <text x="40" y="444" class="note">关键：把最容易出错 / 最需要动态范围的（激活、累加）留高精度，把最可压缩的（权重）压低精度</text>
+</svg>
