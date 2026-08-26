@@ -1,0 +1,241 @@
+---
+title: INT8：整数量化
+---
+
+## INT8：整数量化
+
+前面聊的 [[learning/precision/fp16|fp16]]、[[learning/precision/bf16|bf16]]、[[learning/precision/fp8|fp8]] 都是浮点——值在一条随指数变化的"对数刻度"上，动态范围大。**INT8 完全反过来**：它是一段**固定、均匀的网格**，256 个格子等距排开，没有指数、没有尾数、没有动态范围。它出现在精度话题里，不是因为"一种更小的浮点"，而是因为它是**量化的主力格式**：把连续浮点值压缩到 8 个比特的整数码点上，换来一倍到数倍的吞吐和存储。 返回 [[learning/precision|精度总览]]。
+
+一句话给直觉：
+
+> INT8 是一个均匀的"模子"。浮点数的网格是越靠近 0 越密（对数刻度），INT8 是**全程等距**——每个格子都一样宽。所以它的精度不是一个固定的相对量，而是"网格宽度除以值本身"：值越小，相对误差越大。量化的一切麻烦——校准、裁剪、per-channel scale——都是在想办法让这个"固定的模子"贴合数据实际占据的范围。
+
+### 位布局
+
+INT8 是**整型**，不是浮点。8 位两补码（two's complement）有符号整型：
+
+| 字段 | 位数 |
+| --- | --- |
+| sign（MSB） | 1 |
+| magnitude（低 7 位） | 7 |
+| 总计 | 8 |
+
+两补码的值公式（$b_7$ 是最高位符号位，$b_0$ 是最低位）：
+
+$$
+x = -b_7 \cdot 2^7 + \sum_{i=0}^{6} b_i \cdot 2^i
+$$
+
+也可以等价写成"按无符号读成 $U \in [0,255]$，再 $\ge 128$ 时减 256"：$x = U - 256\cdot\mathbf{1}[U \ge 128]$。得到范围 $[-128, 127]$，共 256 个码点，**每个码点间隔恰好 1**。这与浮点的本质差别在于：这里**没有指数**，所以不存在"隐式前导 1"、"偏置"、"非正规数"——网格是全程固定且等距的，精度逐点相同（在绝对意义上）。
+
+量化时这个"间隔 1"被放大成实际步长 $s$，于是整数码点 $q$ 对应回实数 $x$：
+
+$$
+\tilde{x} = s \cdot (q - z)
+$$
+
+其中 $s$ 是步长（scale，正实数），$z$ 是零点（zero-point，整数）。这就是**仿射量化**（affine quantization），也是 [[learning/precision/fp8|fp8]] 之类浮点格式所没有的"额外一维自由度"：浮点直接用数值本身表示，量化则要*先定刻度*再编码。偏置/刻度（$z$、$s$）在 INT8 里的角色，相当于浮点的**指数偏置**——它决定了网格落在哪、格子多宽。
+
+### 关键数值
+
+因为 INT8 没有指数，所谓"精度"要换一种说法：它不是"多少位有效数字"，而是"网格被切成多少块、每块多宽"。
+
+| 项 | 值 | 说明 |
+| --- | --- | --- |
+| 存储位宽 | 8 bit | 1 符号 + 7 数值 |
+| 码点 / 电平数 | 256 | $2^8$ |
+| 均匀分隔数 | 255 | 256 个点之间 255 个间隔 |
+| 步长（相对满量程） | $1/255 \approx 3.92\times10^{-3}$ | $s = R/255$，$R$ 为量程 |
+| 最大舍入误差（半格） | $1/510 \approx 1.96\times10^{-3}$ | 约 0.196% 满量程 |
+| 等效十进制分辨 | $\log_{10}256 \approx 2.41$ | 与 8 位尾数的 bf16 相当 |
+| 编码范围（signed） | $[-128, 127]$ | 对称量化常见，刻度 $s=\max\|x\|/127$ |
+
+把"每格相对误差"写成公式。满量程为 $R$，步长 $s = R/255$。一个幅度为 $|x|$ 的值，其相对舍入误差上限为
+
+$$
+\mathrm{err}_{rel}(x) \le \frac{s/2}{|x|} = \frac{R}{510\,|x|}
+$$
+
+这正是整篇的**核心公式**：相对误差由 **$\frac{R}{|x|}$（反过来就是动态范围）** 决定，而不是一个固定的数字。同样的量程下，$|x|$ 越小相对误差越大；想让每个值都拿到 $0.2\%$ 级别的相对误差，就必须让 $R$ 收紧到接近值的实际范围——这就是**校准**（calibration）要做的事。这与浮点"$u$ 固定、相对误差恒定"截然不同。
+
+### 与其他格式对比
+
+注意两个方向：**同为 8 位**的浮点（[[learning/precision/fp8|fp8]]、[[learning/precision/bf16|bf16]]），以及**更宽/更窄**的参照。
+
+| 格式 | 结构 | 动态范围 | 分辨率 | 相对误差 | 典型用途 |
+| --- | --- | --- | --- | --- | --- |
+| **INT8** | 1+7（整型） | 固定量程 $R$，靠 scale 手动定 | 256 电平 | $R/(510\|x\|)$，依赖校准 | W8A8 量化推理 |
+| [[learning/precision/fp8|fp8]] E4M3 | 1+4+3（浮点） | 约 $1.95\times10^{-3}$ 到 448 | 4 位有效位 | $u=2^{-4}\approx6.3\%$ | 训练/推理低精度 |
+| [[learning/precision/bf16|bf16]] | 1+8+7（浮点） | $\pm3.4\times10^{38}$ | 8 位有效位 | $u=2^{-8}\approx0.39\%$ | 训练 bf16 |
+| [[learning/precision/fp16|fp16]] | 1+5+10（浮点） | 约 $6\times10^{-5}$ 到 65504 | 11 位有效位 | $u=2^{-11}\approx0.05\%$ | 混合精度 / KV cache |
+
+最有意思的一格是 **INT8 和 bf16 的"分辨率"相同**：INT8 的 256 电平约等于 2.4 位十进制，bf16 的 8 位有效数字也是 2.4 位。差别在**动态范围**——bf16 的"0.39%" 相对误差在整个 $10^{38}$ 范围内都成立，INT8 的"0.196%" 相对误差只在一个**被校准过的窄量程**内成立；一旦量程用错（比如数据里混进一个大离群值），INT8 的相对误差会立刻恶化到几十个百分点，而 bf16 完全不受影响。**INT8 用"动态范围"换"速度与体积"，bf16 用"体积"守"动态范围"**。
+
+### 什么时候需要，什么时候不用
+
+**需要 INT8：**
+
+- **推理吞吐 / 显存是瓶颈**。INT8 只有 fp32 的 1/4 体积，且整型张量核（INT8 tensor core）、CPU 的 VNNI / I8MM 指令能跑出比 fp16/bf16 高得多的峰值算力。LLM 的 **W8A8**（weights 和 activations 都量化到 int8，int32 累加）就是为"每条 token 都要过一遍全部权重"的 decoding 场景设计的。
+- **物理量范围可控**。模型 weight 的值通常集中在某个窄区间（例如 $\pm0.1$ 附近），没有跨度 $10^{10}$ 的离群值——这时校准能给出很紧的 $s$，量化损失可以压到 0.5% 以内。
+- **需要确定性累积**。INT8 的整数算术在不同硬件上结果完全一致（浮点则可能有非确定性的 FMA / 舍入差异），这对某些需要可复现的推理管线有价值。
+
+**不用 INT8：**
+
+- **动态范围巨大**（特征里有少量跨度极大的离群值）。一个幅值 $10^3$ 的离群值会把 $R$ 撑大到 $10^3$，步长 $s\approx4$，其余 $O(1)$ 的值直接塌回零、相对误差爆表。LLM 的 activation 正是这种"少量大离群特征 + 大量小特征"的分布，这也是 [[learning/precision/fp8|fp8]] 反而更好用的原因之一（浮点自带宽动态范围）。
+- **范围**：单靠 INT8 表达不了 $\pm10^{38}$ 这种跨度，需要 scale 逐通道/逐张量地"打补丁"。
+- **需要高精度但不想做校准**。校准（absmax、分位数裁剪、per-channel、QAT）是 INT8 能用的前提；不做校准直接照搬 scale，精度往往在几个百分点以上。
+- **训练前向/反向**的更新值分布极宽，一般用 bf16/fp16，INT8 多用在对精度更宽容的推理侧。
+
+### 硬件与软件现状
+
+INT8 是主流硬件都有的"基础款"，支持程度远超低精度浮点。
+
+- **x86 CPU**：AVX-512 **VNNI**（`VPDPBUSD`/`VPDPWSSD`，int8×int8→int32 点积）和 AVX-512 **VBMI**（高效打包/重排），下游实现主要靠这些指令做 int8 矩阵乘。旧 AVX2 也支持 `_mm256_maddubs_epi16`。
+- **ARM**：**I8MM**（v8.6+ 的 SVE/I8MM）、**DOTPROD**（v8.2+）提供 int8 点积，移动端 NPU 常用。
+- **NVIDIA GPU**：Tensor Core 自 Turing 起支持 **INT8 模式**（INT8 吞吐是 fp16 的约 2 倍），Ampere/Hopper 延续。这使 "int8 权重 × int8 激活 → **int32 累加**" 能在张量核里直接算。
+- **主流框架**：
+  - PyTorch：`torch.quantization`（动态/静态/QAT），`torch.ao.quantization` 量化算子，`int8` dtype（QInt8 / QUInt8）。
+  - llama.cpp：GGUF 的 **Q8_0 / Q8_1**（int8 分块量化，含 scale）；W8A8 部署主力。
+  - TensorRT：INT8 PTQ（calibration）、SmoothQuant、LLM 的 Intel ONNX runtime 的 int8 加速。
+  - bitsandbytes：**LLM.int8()** 混合方案——把含大离群值的特征列保留在 fp16，其余走 int8，是"动态范围太大时的折中"。
+
+要区分"**存储格式**"与"**计算格式**"：LLM.int8() 的权重以 int8 存储、计算时一部分仍以 fp16 参与；许多 INT8 方案是"**PTQ 量化后模型以 int8 存储**，运行时用 int8 计算 + int32 累加"，但激活的 scale 必须逐次/逐 batch 动态决定。
+
+### 量化误差：裁剪 vs 舍入
+
+量化把一个连续向量 $x$ 压到 $q$，误差来自两处，性质完全不同：
+
+**舍入误差（rounding）**——$q=\mathrm{round}(x/s+z)$ 是"四舍五入到最近格点"。只要 $x$ 落在格点覆盖的范围内，误差就被限制在半个步长内：
+
+$$
+| x - \tilde{x} | \le \frac{s}{2}
+$$
+
+这是**良性的、可控的**：误差均匀、有界、随 $s$ 缩小而缩小。这也是"把 $R$ 收紧"能带来好处的直接原因。
+
+**裁剪误差（clamping）**——当 $x/s + z$ 超出 $[q_{min}, q_{max}]$ 时，值被"截断"到边界上：
+
+$$
+\tilde{x} = \begin{cases} s(q_{max}-z) & x > x_{max} \\ s(q_{min}-z) & x < x_{min} \end{cases}
+$$
+
+这时误差**无界**：$|x-\tilde{x}|$ 可以远大于 $s/2$。更糟的是，裁剪的离群值**还会抬高量程** $R$，把 $s$ 撑大，殃及所有正常值的舍入精度——这是**双重伤害**。
+
+所以量化误差管理有两个动作：**舍入误差**靠"减小步长"（即校准出更紧的范围）压制；**裁剪误差**靠"先裁剪离群值再校准"压制。常见的校准策略：
+
+| 策略 | scale 求法 | 特点 |
+| --- | --- | --- |
+| absmax（对称） | $s = \max\|x\|/127$，$z=0$ | 最简；单个大离群值会毁掉所有人 |
+| 分位数裁剪 | 对激活取某分位点后设 $\max$ | 牺牲极少数离群值，保住主数据精度 |
+| per-channel / per-group | 每一行/每一组单独求 scale | 把动态范围拆小，LLM 标配 |
+| QAT（量化感知训练） | scale 可学习 | 反向把量化误差也考虑进去，精度最好 |
+
+**数学小结**：仿射量化的正逆向：
+
+$$
+q = \mathrm{clamp}\big(\mathrm{round}\!\big(\tfrac{x}{s}+z\big),\, q_{min}, q_{max}\big), \qquad
+\tilde{x} = s\,(q - z)
+$$
+
+对称量化取 $z=0$、$q\in[-128,127]$（scale 用 $\max|x|/127$）；非对称量化 $q\in[0,255]$、$z$ 把 $x_{min}$ 对齐到 $q_{min}$。存储的只是 $q$，$s$ 和 $z$ 是逐张量/逐通道的元数据。
+
+### 整型累加：为什么是 int32
+
+W8A8 能快，靠的是"**整数点积不回浮点**"：两个 int8 相乘最大为 $127\times127=16129$（或 $(-128)\times(-128)=16384$），单个乘积落在 int16 范围内（上限 32767）；但把 $N$ 个乘积累加，int16 在 $N\ge 3$ 时就会溢出（$3\times16129\approx48387>32767$），因此累加器必须是 **int32**。最后整体按权重 scale 与激活 scale 的乘积一次还原：
+
+$$
+\sum \tilde{w}_i \tilde{a}_i = (s_w \cdot s_a)\cdot \sum_i q^w_i \,q^a_i
+$$
+
+其中 $\sum_i q^w_i q^a_i$ 正是 int32 张量核输出的那个整数和。**fp16/bf16 累加**会引入逐次舍入（每次乘加都丢低位），而**整数累加在溢出前是精确的**——这是 INT8 在"结果确定性"上的另一层优势。
+
+### 一些 tips
+
+1. **量程是命根子**。INT8 的精度完全取决于 $s$ 抓得多准；不校准直接硬量化，误差常常在几个百分点以上，校准后能压到 0.5% 以内。永远先看数据的动态范围再决定格式。
+2. **一层 outlier 毁全层**。对称 absmax 对单个大离群值极敏感；LLM activation 有"少数大特征"，优先用分位数裁剪或 per-channel，而不是全局 absmax。
+3. **per-channel 权重 + per-tensor 激活**是常见折中：权重每行一个 scale（离群值被逐行消化），激活整批一个 scale（省去逐元素 scale 的开销）。
+4. **区分存储与实际范围**：int8 存的是码点 $q$，实物是 $s(q-z)$。两个不同 scale 的 int8 张量不能直接相加——必须先反量化到同一刻度，否则数值完全错。这是拼模型、做 residual add 时的经典坑。
+5. **饱和值**：signed int8 的 $-128$ 是"不对称"的负数端（$[-128,127]$ 不是对称区间），对称量化时 $127$ 通常被当作正端刻度，$-128$ 留作离群负值的缓冲。
+
+### 代码示例
+
+用纯 Python（不依赖 numpy）演示仿射量化的正逆向，并对比**舍入误差**与**裁剪误差**，以及一个离群值如何摧毁整层的精度：
+
+```python
+def quantize(x, x_min, x_max, q_min=0, q_max=255):
+    """仿射量化: q = clamp(round(x/s + z), q_min, q_max)，返回 (q, s, z)"""
+    s = (x_max - x_min) / (q_max - q_min)
+    z = round(-x_min / s)                      # 使 x_min 对齐到接近 q_min
+    q = round(x / s + z)
+    q = max(q_min, min(q_max, q))
+    return q, s, z
+
+def dequantize(q, s, z):
+    return s * (q - z)
+
+def quantize_symmetric(x, absmax):
+    """对称量化: z=0, s = absmax/127，q ∈ [-128, 127]"""
+    s = absmax / 127.0
+    q = max(-128, min(127, round(x / s)))
+    return q, s
+
+# ---- 一组正常的权重：范围紧凑，校准后精度很高 ----
+w = [0.412, -0.191, 0.078, -0.033, 0.0, 0.295]
+x_min, x_max = min(w), max(w)
+
+print("== 非对称量化（unsigned [0,255]）==")
+qs, s, z = [], None, None
+for v in w:
+    q, s, z = quantize(v, x_min, x_max)
+    qs.append(q)
+print(f"量化码点: {qs}")
+print(f"scale = {s:.4f}, zero-point = {z}")
+print(f"反量化: {[dequantize(q, s, z) for q in qs]}")
+err = max(abs(v - dequantize(q, s, z)) for v, q in zip(w, qs))
+print(f"最大绝对误差 = {err:.4f}（理论上限 s/2 ≈ {s/2:.4f}）")
+
+# ---- 对称量化（signed [-128,127]）----
+print("\n== 对称量化（signed, z=0）==")
+absmax = max(abs(v) for v in w)
+qs_s, s_s = [], None
+for v in w:
+    q, s_s = quantize_symmetric(v, absmax)
+    qs_s.append(q)
+print(f"scale = absmax/127 = {s_s:.4f}")
+print(f"码点: {qs_s}, 反量化: {[q * s_s for q in qs_s]}")
+
+# ---- 一个离群值如何摧毁整层 ----
+print("\n== 一个离群值摧毁整层 ==")
+w_out = [0.412, -0.191, 0.078, -0.033, 0.0, 295.0]   # 加一个大离群值
+a_max = max(abs(v) for v in w_out)
+s_big = a_max / 127.0
+print(f"absmax 被 295 撑到 scale = {s_big:.4f}")
+print(f"小值 0.078 量化后相对误差 = "
+      f"{abs(0.078 - round(0.078/s_big)*s_big)/0.078:.1%}")
+
+# ---- 逐通道（per-channel）救回精度 ----
+print("\n== per-channel scale 救回精度 ==")
+ch0_absmax = 0.412               # 正常权重组：每组一个 absmax，离群值单独处理
+s_ch = ch0_absmax / 127.0
+q_ch, _ = quantize_symmetric(0.078, ch0_absmax)
+print(f"0.078 在 per-channel 下: q={q_ch}, 反量化={q_ch*s_ch:.4f}")
+```
+
+同一段逻辑在 CUDA / llama.cpp 里就是"逐个 int8 点积进 int32 累加器"：
+
+```cpp
+// int8 张量核的模型示意: 两个 int8 向量点积, 累加进 int32
+__global__ void dot_int8(const int8_t* a, const int8_t* b,
+                         int32_t* out, int n, float sa, float sb) {
+    int32_t acc = 0;
+    for (int i = 0; i < n; i++) {
+        acc += (int32_t)a[i] * (int32_t)b[i];   // int8×int8 -> int32, 无舍入
+    }
+    out[blockIdx.x] = acc;
+    // 反量化在最后乘 (sa * sb): sum = sa * sb * acc
+}
+```
+
+关键点：**整数点积在溢出前精确**，唯一的精度损失发生在"反量化乘 scale"的那一步——这也是为什么在分块（block-wise）量化里，把大块切成小块、每块单独带 scale，能大幅压低误差。
+
+运行这段 Python 会看到：正常权重经校准后最大绝对误差在 $s/2$ 内；而混入一个 $295$ 的离群值后，$0.078$ 这种小值的相对误差飙升到几乎 100%——这正是校准和 per-channel 存在的理由。
