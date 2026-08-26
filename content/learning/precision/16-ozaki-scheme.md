@@ -1,10 +1,4 @@
----
-title: Ozaki Scheme：用 INT8 张量核算更精确的矩阵乘法
----
-
-## Ozaki Scheme：用 INT8 张量核算更精确的矩阵乘法
-
-聊低精度计算，大部分人想到的是"省内存、快，但精度差"。Ozaki scheme（Ozaki 分解）反其道而行：**用比目标精度更低的计算单元，算出比原生浮点还准的矩阵乘法**。它把每个数拆成若干"整数残差"之和（拆法本身无舍入），再用 [[learning/precision/int8|INT8]] 张量核做乘法、INT32 精确累加，最后按位权重新合成。结果是在消费级 GPU 上，它甚至能超过 FP64 硬件的原生 GEMM。
+聊低精度计算，大部分人想到的是"省内存、快，但精度差"。Ozaki scheme（Ozaki 分解）反其道而行：**用比目标精度更低的计算单元，算出比原生浮点还准的矩阵乘法**。它把每个数拆成若干"整数残差"之和（拆法本身无舍入），再用 [[learning/precision/08-int8|INT8]] 张量核做乘法、INT32 精确累加，最后按位权重新合成。结果是在消费级 GPU 上，它甚至能超过 FP64 硬件的原生 GEMM。
 
 一句话给直觉：
 
@@ -246,8 +240,8 @@ Ozaki-int8 结果 vs fp64 参考：
 
 ### 延伸阅读
 
-- 基础：[[learning/precision/int8|INT8：AI 推理的量化基石]]、[[learning/precision/fp32|FP32：单精度浮点]]、[[learning/precision/fp64|FP64：双精度浮点]]
-- 对称思路：[[learning/precision/fp128|FP128：四精度浮点]]（谈到 double-double 的 elementwise 拆分，与这里的 shared-place 拆分对照）、[[learning/precision/fp16|FP16：半精度浮点]]（FP16-Tensor-Core 版 Ozaki 的载体）
+- 基础：[[learning/precision/08-int8|INT8：AI 推理的量化基石]]、[[learning/precision/12-fp32|FP32：单精度浮点]]、[[learning/precision/13-fp64|FP64：双精度浮点]]
+- 对称思路：[[learning/precision/15-fp128|FP128：四精度浮点]]（谈到 double-double 的 elementwise 拆分，与这里的 shared-place 拆分对照）、[[learning/precision/09-fp16|FP16：半精度浮点]]（FP16-Tensor-Core 版 Ozaki 的载体）
 - 论文：[DGEMM on Integer Matrix Multiplication Unit](https://arxiv.org/abs/2306.11975)（Ootomo, Ozaki, Yokota, IJHPCA 2024）；Ozaki scheme 的 CRS 扩展见 [Ozaki Scheme II](https://arxiv.org/abs/2504.08009)。
 
-回到[[learning/precision|精度总览]]。
+回到[[learning/precision/01-overview|精度总览]]。

@@ -52,35 +52,35 @@ $$
 
 从 fp4 到 fp8，目标只有一个：**用尽量少的比特装下神经网络，同时让精度损失可接受。**
 
-- [[learning/precision/nvfp4|NVFP4：NVIDIA FP4（E2M1）]]——4 位，只有 16 种值，Blackwell 张量核上的极致吞吐。
-- [[learning/precision/mxfp4|MXFP4：OCP 微缩放 FP4]]——同样是 4 位元数据，但加了一个块共享指数，动态范围更好。
-- [[learning/precision/fp6|FP6：六位浮点]]——介于 fp8 和 fp4 之间的研究性格式，还没标准化。
-- [[learning/precision/fp8|FP8：E4M3 与 E5M2]]——8 位的两种变体，目前低精度推理/训练的主力。
-- [[learning/precision/nvfp8|NVFP8：NVIDIA 张量核心的 FP8]]——讲 NVIDIA 如何在硬件上使用 FP8。
-- [[learning/precision/mxfp8|MXFP8：OCP 微缩放 FP8]]——给 FP8 加块共享指数。
-- [[learning/precision/int8|INT8：整数量化]]——不是浮点，是定点网格，W8A8 量化的根基。
+- [[learning/precision/02-nvfp4|NVFP4：NVIDIA FP4（E2M1）]]——4 位，只有 16 种值，Blackwell 张量核上的极致吞吐。
+- [[learning/precision/03-mxfp4|MXFP4：OCP 微缩放 FP4]]——同样是 4 位元数据，但加了一个块共享指数，动态范围更好。
+- [[learning/precision/04-fp6|FP6：六位浮点]]——介于 fp8 和 fp4 之间的研究性格式，还没标准化。
+- [[learning/precision/05-fp8|FP8：E4M3 与 E5M2]]——8 位的两种变体，目前低精度推理/训练的主力。
+- [[learning/precision/06-nvfp8|NVFP8：NVIDIA 张量核心的 FP8]]——讲 NVIDIA 如何在硬件上使用 FP8。
+- [[learning/precision/07-mxfp8|MXFP8：OCP 微缩放 FP8]]——给 FP8 加块共享指数。
+- [[learning/precision/08-int8|INT8：整数量化]]——不是浮点，是定点网格，W8A8 量化的根基。
 
 ### 二、训练与中精度：精度和范围的平衡
 
 这一组是训练的主流：既要够快，又要避免下溢/上溢。
 
-- [[learning/precision/fp16|FP16：半精度浮点]]——经典混合精度，配 fp32 主权重和动态缩放。
-- [[learning/precision/bf16|BF16：bfloat16]]——保留 fp32 范围、砍精度，现代大模型训练默认。
-- [[learning/precision/tf32|TF32：NVIDIA TensorFloat-32]]——张量核内部用的"假 32 位"，精度介于 fp16 和 fp32。
-- [[learning/precision/fp32|FP32：单精度浮点]]——一切浮点的基准参照。
+- [[learning/precision/09-fp16|FP16：半精度浮点]]——经典混合精度，配 fp32 主权重和动态缩放。
+- [[learning/precision/10-bf16|BF16：bfloat16]]——保留 fp32 范围、砍精度，现代大模型训练默认。
+- [[learning/precision/11-tf32|TF32：NVIDIA TensorFloat-32]]——张量核内部用的"假 32 位"，精度介于 fp16 和 fp32。
+- [[learning/precision/12-fp32|FP32：单精度浮点]]——一切浮点的基准参照。
 
 ### 三、高精度：当 double 不够用
 
-- [[learning/precision/fp64|FP64：双精度浮点]]——科学计算的主力。
-- [[learning/precision/fp80|FP80：x87 扩展精度]]——x86 专属的 80 位中间格式。
-- [[learning/precision/fp128|FP128：四精度浮点]]——固定精度的尽头，还讲了 double-double 这个工程替代品。
+- [[learning/precision/13-fp64|FP64：双精度浮点]]——科学计算的主力。
+- [[learning/precision/14-fp80|FP80：x87 扩展精度]]——x86 专属的 80 位中间格式。
+- [[learning/precision/15-fp128|FP128：四精度浮点]]——固定精度的尽头，还讲了 double-double 这个工程替代品。
 
 ### 四、落地视角：低精度矩阵乘
 
 格式是"单个数字"，而真正决定性能与精度的是它们被**乘起来、累加起来**的方式。这一篇把前面的格式放到 GEMM 上串联起来：张量核心、累加精度、输入量化和三条路线。
 
-- [[learning/precision/matmul|低精度矩阵乘：张量核心里的精度博弈]]——低精度格式如何在矩阵乘法里发挥作用，以及三条工程路线。
-- [[learning/precision/ozaki_scheme|Ozaki Scheme：用 INT8 张量核算更精确的矩阵乘法]]——其中"用 int8 拿 fp32 精度"这条路线。
+- [[learning/precision/17-matmul|低精度矩阵乘：张量核心里的精度博弈]]——低精度格式如何在矩阵乘法里发挥作用，以及三条工程路线。
+- [[learning/precision/16-ozaki-scheme|Ozaki Scheme：用 INT8 张量核算更精确的矩阵乘法]]——其中"用 int8 拿 fp32 精度"这条路线。
 
 ## 怎么选：一条从低到高的判断路径
 
@@ -91,8 +91,8 @@ $$
 
 ## 阅读顺序建议
 
-- 第一次接触：先看本总览，再读 [[learning/precision/fp16|FP16]] 和 [[learning/precision/bf16|BF16]]，建立"精度 vs 范围"的直觉。
-- 关注 AI 训练：读 [[learning/precision/bf16|BF16]]、[[learning/precision/tf32|TF32]]、[[learning/precision/fp8|FP8]]。
-- 关注量化推理：读 [[learning/precision/int8|INT8]]、[[learning/precision/fp8|FP8]]、[[learning/precision/mxfp4|MXFP4]]、[[learning/precision/nvfp4|NVFP4]]。
-- 关注误差与病态问题：读 [[learning/precision/fp64|FP64]] 和 [[learning/precision/fp128|FP128]]。
-- 想理解前面的格式在真实计算里怎么用：读 [[learning/precision/matmul|低精度矩阵乘]]。
+- 第一次接触：先看本总览，再读 [[learning/precision/09-fp16|FP16]] 和 [[learning/precision/10-bf16|BF16]]，建立"精度 vs 范围"的直觉。
+- 关注 AI 训练：读 [[learning/precision/10-bf16|BF16]]、[[learning/precision/11-tf32|TF32]]、[[learning/precision/05-fp8|FP8]]。
+- 关注量化推理：读 [[learning/precision/08-int8|INT8]]、[[learning/precision/05-fp8|FP8]]、[[learning/precision/03-mxfp4|MXFP4]]、[[learning/precision/02-nvfp4|NVFP4]]。
+- 关注误差与病态问题：读 [[learning/precision/13-fp64|FP64]] 和 [[learning/precision/15-fp128|FP128]]。
+- 想理解前面的格式在真实计算里怎么用：读 [[learning/precision/17-matmul|低精度矩阵乘]]。

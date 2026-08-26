@@ -1,10 +1,4 @@
----
-title: NVFP4：NVIDIA FP4（E2M1）
----
-
-## NVFP4：NVIDIA FP4（E2M1）
-
-聊 4-bit 浮点，绕不开 **NVFP4**——NVIDIA Blackwell 上用于极大模型推理的"最小浮点"。它只有 4 个 bit（1 sign + 2 exponent + 1 mantissa），叫 **E2M1**，正数能表示的档位只有 8 个。可它恰恰是 Blackwell tensor core 吞吐的顶点：位数砍到 4，换来的是**精度粗到只剩"几档"**，必须靠 block scaling 把这几档"换算"到实际数值附近，才勉强喂得动大模型。想先看清楚整个精度家族，见 [[learning/precision|精度总览]]。
+聊 4-bit 浮点，绕不开 **NVFP4**——NVIDIA Blackwell 上用于极大模型推理的"最小浮点"。它只有 4 个 bit（1 sign + 2 exponent + 1 mantissa），叫 **E2M1**，正数能表示的档位只有 8 个。可它恰恰是 Blackwell tensor core 吞吐的顶点：位数砍到 4，换来的是**精度粗到只剩"几档"**，必须靠 block scaling 把这几档"换算"到实际数值附近，才勉强喂得动大模型。想先看清楚整个精度家族，见 [[learning/precision/01-overview|精度总览]]。
 
 > 一句话给直觉：FP4 把整个浮点值域压进不到一打档位——0、0.5、1、1.5、2、3、4、6。它不是你"细看数值"的格式，而是你"丢精度换速度"的格式。NVFP4 在 Blackwell 上给每一小块数据配一个高精度缩放因子，把这十几档"就地放大缩小"，从而 4-bit 的粗颗粒也能保得住大模型的精度。
 
@@ -68,7 +62,7 @@ FP4 是"micro-float"家族的一员，它的"相邻"主要是两类：同样 4-b
 | **NVFP4** | 4 | 2 | 1(+1) | 2 bit | $2^{-2}=0.25$ | $\approx[-6,6]\times$ 每块 scale | 每 16 元素共 1 个 E4M3 scale + 每 tensor 1 个 FP32 二级 scale |
 | FP8 (E4M3) | 8 | 4 | 3(+1) | 4 bit | $2^{-4}\approx0.0625$ | $\approx\pm448$ | 无 |
 
-三者共同点是**基础元素都是 E2M1，有效精度和单位舍入完全相同**——差异不在"单个数能多准"，而在"这一档能放到多大/多细的位置上"。MXFP4 用 32 个元素共享一个 $2^n$ 粗缩放；[[learning/precision/mxfp4|NVFP4 的兄弟 MXFP4]] 的缩放是"跳档"的 2 的幂。NVFP4 把块缩到 16 个元素，且缩放开到 FP8 的 E4M3（支持非 2 的幂、更细的分数刻度），再配一个 per-tensor 的 FP32 二级缩放——所以同样 4-bit，NVFP4 比 MXFP4 更贴数据的动态范围。上一档的 [[learning/precision/fp8|FP8 E4M3]] 位宽翻倍、有效精度翻倍到 4 bit、$u$ 降到 0.0625，精度和值域都好得多，但显存和带宽成本也翻倍。
+三者共同点是**基础元素都是 E2M1，有效精度和单位舍入完全相同**——差异不在"单个数能多准"，而在"这一档能放到多大/多细的位置上"。MXFP4 用 32 个元素共享一个 $2^n$ 粗缩放；[[learning/precision/03-mxfp4|NVFP4 的兄弟 MXFP4]] 的缩放是"跳档"的 2 的幂。NVFP4 把块缩到 16 个元素，且缩放开到 FP8 的 E4M3（支持非 2 的幂、更细的分数刻度），再配一个 per-tensor 的 FP32 二级缩放——所以同样 4-bit，NVFP4 比 MXFP4 更贴数据的动态范围。上一档的 [[learning/precision/05-fp8|FP8 E4M3]] 位宽翻倍、有效精度翻倍到 4 bit、$u$ 降到 0.0625，精度和值域都好得多，但显存和带宽成本也翻倍。
 
 ### 什么时候需要它
 
@@ -76,7 +70,7 @@ FP4 的取舍非常极端：**精度、范围都是"最差"，吞吐、能耗、
 
 需要（推理显存/带宽/吞吐是瓶颈时）：
 
-1. **超大 LLM 的推理**。权重堆在 HBM 上，走内存带宽的钱比算得快还贵。NVFP4 把权重压到约 4.5 bit/值（4-bit 值 + 每 16 个值共享 1 个 FP8 scale + 每 tensor 1 个 FP32），比 [[learning/precision/fp16|FP16]] 省约 3.5× 显存、比 [[learning/precision/fp8|FP8]] 省约 1.8×，直接换来更高的 token 吞吐和更低的每 token 能耗（Blackwell Ultra 相对 H100 号称每 token 能耗降约 50×）。
+1. **超大 LLM 的推理**。权重堆在 HBM 上，走内存带宽的钱比算得快还贵。NVFP4 把权重压到约 4.5 bit/值（4-bit 值 + 每 16 个值共享 1 个 FP8 scale + 每 tensor 1 个 FP32），比 [[learning/precision/09-fp16|FP16]] 省约 3.5× 显存、比 [[learning/precision/05-fp8|FP8]] 省约 1.8×，直接换来更高的 token 吞吐和更低的每 token 能耗（Blackwell Ultra 相对 H100 号称每 token 能耗降约 50×）。
 2. **对单值精度不敏感的大模型**。用 PTQ / QAT 配合 per-block 缩放，像 DeepSeek-R1 这类模型从 FP8 降到 NVFP4，关键评测的精度损失能压到 1% 以内——这正是 NVFP4 相对裸 FP4 的价值：靠更密的缩放把粗档位的误差分摊开。
 3. **想要 Blackwell 的峰值算力**。FP4 是 Blackwell 上最小的数据类型，也就对应最高的 sparse/dense petaflops；在"算力优先、精度可容忍"的推理场景，它是压榨硬件选择。
 

@@ -1,16 +1,10 @@
----
-title: MXFP8：OCP 微缩放 FP8
----
-
-## MXFP8：OCP 微缩放 FP8
-
-聊 FP8，大家第一反应是"每 8 bit 装一个数，误差百分之几"。但真正让 FP8 **能用于训练**的，往往不是元素格式本身，而是**谁负责缩放**。[[learning/precision/fp8|FP8]] 用**一个** per-tensor 尺度去撑动态范围，可一旦权重/激活的量级在张量内部剧烈起伏，这个"单一尺度"就把小值压碎。**MXFP8（OCP 微缩放，Microscaling / MX）**给出了另一条路：不再是整个张量一个尺度，而是**每 32 个 8 bit 元素共享一个 8 bit 块尺度**。它是 OCP（Open Compute Project）在 2023 年 9 月发布、AMD / Arm / Intel / Meta / Microsoft / NVIDIA / Qualcomm 联合制定的 MX 格式家族里"8 bit 元素"的那一个，在 [[learning/precision|精度总览]] 的"低精度 AI 格式"谱系里，和 [[learning/precision/mxfp4|MXFP4]] 只差元素位宽。
+聊 FP8，大家第一反应是"每 8 bit 装一个数，误差百分之几"。但真正让 FP8 **能用于训练**的，往往不是元素格式本身，而是**谁负责缩放**。[[learning/precision/05-fp8|FP8]] 用**一个** per-tensor 尺度去撑动态范围，可一旦权重/激活的量级在张量内部剧烈起伏，这个"单一尺度"就把小值压碎。**MXFP8（OCP 微缩放，Microscaling / MX）**给出了另一条路：不再是整个张量一个尺度，而是**每 32 个 8 bit 元素共享一个 8 bit 块尺度**。它是 OCP（Open Compute Project）在 2023 年 9 月发布、AMD / Arm / Intel / Meta / Microsoft / NVIDIA / Qualcomm 联合制定的 MX 格式家族里"8 bit 元素"的那一个，在 [[learning/precision/01-overview|精度总览]] 的"低精度 AI 格式"谱系里，和 [[learning/precision/03-mxfp4|MXFP4]] 只差元素位宽。
 
 一句话给直觉：
 
 > MXFP8 不是给每个数配一个指数，而是**每 32 个数配一个共享的 2 的幂指数**。这个共享指数（E8M0）本身不含精度、只给块"定位置"，于是 32 个元素的相对精度（E4M3 的 $u=2^{-4}$）完全由元素格式决定，而**块与块之间**的量级可以差上几百个数量级也不相互污染。它解决的是**标量 FP8 在权重幅值剧烈变化时的"表示真空"**——一个尺度管全张量，小权重块会被压成 0；MX 的块尺度让每一块"各取所需"，这才让 FP8 在训练里站得住。
 
-相关：[[learning/precision/fp8|FP8]]（标量/每张量尺度）、[[learning/precision/mxfp4|MXFP4]]（同一套块尺度，4 bit 元素）、[[learning/precision/fp16|FP16]]（每个数自带指数的大范围格式）、[[learning/precision|精度总览]]。
+相关：[[learning/precision/05-fp8|FP8]]（标量/每张量尺度）、[[learning/precision/03-mxfp4|MXFP4]]（同一套块尺度，4 bit 元素）、[[learning/precision/09-fp16|FP16]]（每个数自带指数的大范围格式）、[[learning/precision/01-overview|精度总览]]。
 
 ### 位布局
 
@@ -35,7 +29,7 @@ $$
 
 $E$ 是 8 bit 无符号值，合法范围 $E = 0 \ldots 254$，对应指数 $-127 \sim 127$（$E=255$ 被保留为唯一的 NaN 编码 $11111111_2$）。注意 E8M0 **不含 Inf**——它只描述一块的"量级"，不能描述无穷。关键点是：**E8M0 本身不贡献精度，只贡献范围**，而且它的覆盖范围（$2^{-127} \sim 2^{127}$）比 Float32 的指数范围还宽，所以在现实数值范围内，块尺度永远不会成为溢出的瓶颈。由于 $X$ 永远是**精确的 2 的幂**，缩放本身不引入任何舍入误差——MXFP8 的全部误差都来自元素量化这一步。
 
-**元素 $P_i$：E4M3 或 E5M2。** 就是 [[learning/precision/fp8|FP8]] 里那两种标准 8 bit 浮点，各自带自己的偏置（E4M3 bias 7，E5M2 bias 15），隐式前导 1：
+**元素 $P_i$：E4M3 或 E5M2。** 就是 [[learning/precision/05-fp8|FP8]] 里那两种标准 8 bit 浮点，各自带自己的偏置（E4M3 bias 7，E5M2 bias 15），隐式前导 1：
 
 $$
 P = (-1)^s \cdot 2^{E - \text{bias}} \cdot (1.M)_2
@@ -81,10 +75,10 @@ $$
 | 格式 | 元素格式 | 尺度来源 | 块大小 | 元素有效精度 | 尺度开销 | 典型用途 |
 | --- | --- | --- | --- | --- | --- | --- |
 | **MXFP8** | E4M3 / E5M2（8 bit） | 每块 E8M0 | 32 | 4 bit / 3 bit | 0.25 bit/元素 | 权重 + 激活（训练/推理） |
-| **[[learning/precision/fp8\|FP8]]** | E4M3 / E5M2（8 bit） | 每张量标量 | — | 4 bit / 3 bit | 0 | 权重 + 激活（单尺度） |
-| **[[learning/precision/mxfp4\|MXFP4]]** | E2M1（4 bit） | 每块 E8M0 | 32 | 2 bit | 0.25 bit/元素 | 权重低比特量化 |
-| [[learning/precision/nvfp8\|NVFP8]] | E4M3 / E5M2（8 bit） | 每通道/张量标量（硬件变体） | — | 4 bit / 3 bit | 0 | 推理 W8A8 |
-| [[learning/precision/fp16\|fp16]] | IEEE 半精度（16 bit） | **每个数自带指数** | — | 11 bit | 0 | 通用训练 / 推理 |
+| **[[learning/precision/05-fp8\|FP8]]** | E4M3 / E5M2（8 bit） | 每张量标量 | — | 4 bit / 3 bit | 0 | 权重 + 激活（单尺度） |
+| **[[learning/precision/03-mxfp4\|MXFP4]]** | E2M1（4 bit） | 每块 E8M0 | 32 | 2 bit | 0.25 bit/元素 | 权重低比特量化 |
+| [[learning/precision/06-nvfp8\|NVFP8]] | E4M3 / E5M2（8 bit） | 每通道/张量标量（硬件变体） | — | 4 bit / 3 bit | 0 | 推理 W8A8 |
+| [[learning/precision/09-fp16\|fp16]] | IEEE 半精度（16 bit） | **每个数自带指数** | — | 11 bit | 0 | 通用训练 / 推理 |
 
 对比的核心不是"谁 bit 数更少"，而是**尺度放在哪一级**：
 
@@ -118,10 +112,10 @@ MXFP8 的价值不在"8 bit 能存多细的数"，而在**块级的动态范围�
 
 ### 什么时候不用它
 
-- **需要超过约 1–2 位十进制有效数字的数值任务**（病态线性系统、长累加、数值积分）。MXFP8 的元素误差仍是百分之几量级，$\kappa u$ 会爆炸；这类任务去 [[learning/precision/fp64|fp64]] 或 [[learning/precision/fp128|fp128]]。
+- **需要超过约 1–2 位十进制有效数字的数值任务**（病态线性系统、长累加、数值积分）。MXFP8 的元素误差仍是百分之几量级，$\kappa u$ 会爆炸；这类任务去 [[learning/precision/13-fp64|fp64]] 或 [[learning/precision/15-fp128|fp128]]。
 - **块内动态范围超过元素格式的上限**。一个块的元素幅值如果拉得比 E4M3 的约 5.4 个数量级还开，小元素仍会塌缩到次正规或 0。块尺度只管"块与块之间"，不管"块内部"。
 - **没有对应硬件/库支持的算子**。MXFP8 的收益主要在**存储和矩阵乘吞吐**；如果算子要来回解量化成 FP32 再算，省下的带宽被转换开销吃掉，就不划算。
-- **激活值可能超过 E4M3 的 448 且不能接受饱和**。指数很大的激活（Softmax 前、残差周围）用 E5M2（能到 57344、且有 inf）比 E4M3（无 inf、只饱和到 448）更安全——这和 [[learning/precision/fp8|FP8]] 的取舍一样。
+- **激活值可能超过 E4M3 的 448 且不能接受饱和**。指数很大的激活（Softmax 前、残差周围）用 E5M2（能到 57344、且有 inf）比 E4M3（无 inf、只饱和到 448）更安全——这和 [[learning/precision/05-fp8|FP8]] 的取舍一样。
 
 ### 硬件与软件现状
 

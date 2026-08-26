@@ -6,7 +6,7 @@
 
 > MXFP4 不是给每个数字配一个指数，而是**每 32 个元素配一个指数**。它把"谁负责缩放"从"整个张量"细化到"32 个数的块"，于是权重幅值在块与块之间差很多时也能被精确表示，而付出的代价只有每元素 0.25 bit 的尺度开销。它解决的是**标量 FP4 在权重幅值剧烈变化时的"表示真空"**——太小的小数被压成 0，太大的被削顶，而 MX 的块尺度让每一块都"各取所需"。
 
-相关：[[learning/precision/nvfp4|NVIDIA FP4]]（标量/每通道尺度）、[[learning/precision/mxfp8|MXFP8]]（同一块尺度方案，8 bit 元素）、[[learning/precision|精度总览]]。
+相关：[[learning/precision/02-nvfp4|NVIDIA FP4]]（标量/每通道尺度）、[[learning/precision/07-mxfp8|MXFP8]]（同一块尺度方案，8 bit 元素）、[[learning/precision/01-overview|精度总览]]。
 
 ### 位布局
 
@@ -80,9 +80,9 @@ $$
 | --- | --- | --- | --- | --- | --- | --- |
 | **MXFP4** | E2M1（4 bit） | 每块 E8M0 | 32 | 2 bit | 0.25 bit/元素 | 权重低比特量化 |
 | **MXFP8** | E4M3 / E5M2（8 bit） | 每块 E8M0 | 32 | 4 bit / 3 bit | 0.25 bit/元素 | 权重 + 激活 |
-| **[[learning/precision/nvfp4\|NVIDIA FP4]]** | E2M1（4 bit） | 每张量 / 每通道标量 | — | 2 bit | 0 | （推理）4 bit 权重 |
-| [[learning/precision/fp8\|fp8]] | E4M3 / E5M2（8 bit） | 每张量标量 | — | 4 bit / 3 bit | 0 | 权重 + 激活 |
-| [[learning/precision/fp16\|fp16]] | IEEE 半精度（16 bit） | **每个数自带指数** | — | 11 bit | 0 | 通用训练 / 推理 |
+| **[[learning/precision/02-nvfp4\|NVIDIA FP4]]** | E2M1（4 bit） | 每张量 / 每通道标量 | — | 2 bit | 0 | （推理）4 bit 权重 |
+| [[learning/precision/05-fp8\|fp8]] | E4M3 / E5M2（8 bit） | 每张量标量 | — | 4 bit / 3 bit | 0 | 权重 + 激活 |
+| [[learning/precision/09-fp16\|fp16]] | IEEE 半精度（16 bit） | **每个数自带指数** | — | 11 bit | 0 | 通用训练 / 推理 |
 
 对比的核心不是"谁 bit 数更少"，而是**尺度放在哪一级**：
 
@@ -115,7 +115,7 @@ MXFP4 的价值不在"4 bit 能存多细的数"，而在于**块级的动态范�
 
 - **直接全量压到 MXFP4（权重 + 激活）做 direct-cast 推理**。论文数据很残酷：MobileNetV2 直接掉到 0.25（崩溃），ResNet-50 从 77.40 掉到 42.39。激活（比如 Softmax 后、残差周围）的**块内**动态范围通常远超 12 倍，会被块尺度压塌。MXFP4 几乎从不单独用于激活。
 - **块内动态范围超过 ~12 倍**。一个块的元素幅值如果拉得很开（差一个数量级以上），小元素仍会塌缩到次正规或 0。块尺度只管"块与块之间"，不管"块内部"。
-- **需要高精度的数值任务**（病态线性系统、长累加、数值积分）。4 bit 的 $u=25\%$ 让任何 $\kappa u$ 估计都爆炸——这类任务应该去看 [[learning/precision/fp64|fp64]] 或 [[learning/precision/fp128|fp128]]。
+- **需要高精度的数值任务**（病态线性系统、长累加、数值积分）。4 bit 的 $u=25\%$ 让任何 $\kappa u$ 估计都爆炸——这类任务应该去看 [[learning/precision/13-fp64|fp64]] 或 [[learning/precision/15-fp128|fp128]]。
 - **没有对应硬件/库支持的算子**。MXFP4 的收益主要在**存储和矩阵乘的吞吐**；如果算子要来回解量化成 FP32 再算，省下的显存被转换开销吃掉，就不划算了。
 
 ### 硬件与软件现状

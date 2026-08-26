@@ -1,12 +1,6 @@
----
-title: NVFP8：NVIDIA 张量核心的 FP8
----
-
-## NVFP8：NVIDIA 张量核心的 FP8
-
 聊 FP8，最常见的误解是"只有一种 FP8 格式"。但对 NVIDIA 张量核心来说，FP8 是一套**怎么用**的方法论，而不是一个孤立的数据类型：从 Hopper（H100）开始，张量核心用 **E4M3 + E5M2 两种 8 位格式的"混合配方"**，配合**逐张量动态缩放（amax → scale）**，在矩阵乘上拿到约 2 倍于 FP16 的吞吐，同时把训练精度保住。
 
-> 一句话直觉：NVIDIA 的 FP8 不是一个格式，而是"**前向用更精的 E4M3，反向用范围更大的 E5M2，再用每个张量自己的 amax 算一个缩放因子把它们塞进 8 位**"的一套工程配方。格式本身在 [[learning/precision/fp8|FP8]] 里讲，这篇讲张量核心**怎么用它**。
+> 一句话直觉：NVIDIA 的 FP8 不是一个格式，而是"**前向用更精的 E4M3，反向用范围更大的 E5M2，再用每个张量自己的 amax 算一个缩放因子把它们塞进 8 位**"的一套工程配方。格式本身在 [[learning/precision/05-fp8|FP8]] 里讲，这篇讲张量核心**怎么用它**。
 
 ### 位布局（简要）
 
@@ -26,7 +20,7 @@ $$
 - **E4M3**（bias = 7）：值域窄但尾数宽，适合**前向**的激活和权重。
 - **E5M2**（bias = 15）：指数多两位、范围大，但只留 2 位尾数，适合**反向**的梯度——梯度需要更大的动态范围，对精度不那么敏感。
 
-完整的格式推导、子正规数、以及"E4M3 为什么没有无穷"的编码细节，见 [[learning/precision/fp8|FP8]]。
+完整的格式推导、子正规数、以及"E4M3 为什么没有无穷"的编码细节，见 [[learning/precision/05-fp8|FP8]]。
 
 ### 关键数值
 
@@ -62,7 +56,7 @@ $$
 
 问题是"先知道 amax 再量化"要两次扫数据，得不偿失。NVIDIA 的解法是 **delayed scaling（延迟缩放）**：用**最近若干次迭代**记录下来的 amax 历史来估计下一次的 scale，训练时拿上一次的估计直接量化，同时把本次真实 amax 追加进历史。这就是为什么 Transformer Engine（TE）的配方里有个 `amax_history_len`。
 
-> 反例：**MXFP8** 把"一个张量一个 scale"改成"每 32 个连续元素一个 scale"，缩放因子用 8 位的 E8M0 存。scale 细粒度化后动态范围需求骤降，于是**所有值都能用更精的 E4M3**，不用再靠 E5M2 兜底。这是 [[learning/precision/mxfp8|MXFP8]] 的本质，也是 Blackwell 的新方向。
+> 反例：**MXFP8** 把"一个张量一个 scale"改成"每 32 个连续元素一个 scale"，缩放因子用 8 位的 E8M0 存。scale 细粒度化后动态范围需求骤降，于是**所有值都能用更精的 E4M3**，不用再靠 E5M2 兜底。这是 [[learning/precision/07-mxfp8|MXFP8]] 的本质，也是 Blackwell 的新方向。
 
 ### 什么时候需要 / 什么时候不用
 
@@ -75,14 +69,14 @@ $$
 **不用**：
 
 1. **要精度的操作**——LayerNorm、Softmax、残差累加、`exp`/`log`，这类要么小矩阵、要么对相对误差极敏感，留在 FP32/FP16。
-2. **范围随层剧烈变化**。有的层 amax 小到 $10^{-3}$，下一个就大到 $10^{2}$，单一 scale 很难同时伺候；这种时候要么逐通道 scale，要么直接上 [[learning/precision/mxfp8|MXFP8]]。
+2. **范围随层剧烈变化**。有的层 amax 小到 $10^{-3}$，下一个就大到 $10^{2}$，单一 scale 很难同时伺候；这种时候要么逐通道 scale，要么直接上 [[learning/precision/07-mxfp8|MXFP8]]。
 3. **科学计算 / HPC**。要的是 FP64/F32 的精确度，不是吞吐；FP8 在这里纯属帮倒忙。
 4. **小矩阵或内存瓶颈**。FP8 的 2 倍收益来自张量核心的**算力**，对 memory-bound 的小运算、逐元素 op 没有意义。
 
 ### 硬件与软件现状
 
 - **Hopper H100（首个 FP8 张量核心）**：Transformer Engine 加持，张量核心支持**任意混合**的 FP8 输入格式，所以同一套训练循环里前向 E4M3、反向 E5M2 可以并存（recipe 里就叫 `Format.HYBRID`）。官方 H100 SXM 规格：FP16 张量核心 1,979 TFLOPS，**FP8 张量核心 3,958 TFLOPS**（均含稀疏），正好 **2 倍**。
-- **Blackwell / Rubin**：第五代张量核心新加入 **NVFP4** 和社区定义的 **microscaling** 格式（如 MXFP8/FP6）。FP8 的 E4M3/E5M2 依然支持；面向更低位宽的新叙事以 **NVFP4**（见 [[learning/precision/nvfp4|NVFP4]]）与 **MXFP8** 为主。NVIDIA 没有另立一个叫 "NVFP8" 的独立格式——FP8 的"用法故事"就是 E4M3/E5M2 混合配方 + amax 缩放。
+- **Blackwell / Rubin**：第五代张量核心新加入 **NVFP4** 和社区定义的 **microscaling** 格式（如 MXFP8/FP6）。FP8 的 E4M3/E5M2 依然支持；面向更低位宽的新叙事以 **NVFP4**（见 [[learning/precision/02-nvfp4|NVFP4]]）与 **MXFP8** 为主。NVIDIA 没有另立一个叫 "NVFP8" 的独立格式——FP8 的"用法故事"就是 E4M3/E5M2 混合配方 + amax 缩放。
 - **存储格式 vs 纯计算**：FP8 作为存储格式能显著省显存/带宽（激活、权重、KV cache 都能按 FP8 存），**缩放因子本身是 FP32**（每个张量一个），与数据一起维护。MXFP8 则把 scale 换成 E8M0，随每 32 元素一块存，于是"存和算"是同一套块结构。
 - **框架支持**：Transformer Engine（PyTorch / JAX）把 FP8 封装在 `fp8_autocast` 与 `DelayedScaling`/`MXFP8BlockScaling` 配方里；Megatron-LM、NeMo 训练栈、TensorRT-LLM / vLLM 推理栈、CUDA 均支持。CUDA 层面对纯手写 kernel 会暴露 `__nv_fp8` 类型与相关转换/缩放 intrinsic。
 
