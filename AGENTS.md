@@ -150,7 +150,13 @@ if (!file) {
 
 ### Git Workflow
 - **Branching**: Simple workflow, no strict branching rules
-- **Commit**: Clear commit messages in English or Chinese matching content
+- **Commit**: Write commit messages in [Conventional Commits](https://www.conventionalcommits.org/) style.
+  - Format: `<type>: <subject>` — subject in **imperative mood**, ≤ 50 chars when possible, **no trailing period**.
+  - Types: `feat` (new capability), `fix` (bug fix), `content` (markdown/article changes), `docs` (documentation), `style` (formatting), `refactor`, `perf`, `chore` (build/maintenance), `ci`, `test`, `revert`. This repo uses `content` for article/content edits.
+  - Add a body when the change isn't obvious from the subject: a blank line, then text wrapped at ~72 chars explaining **what** changed and **why**.
+  - **One type per commit** — split mixed changes (e.g., a feature plus content edits) into separate commits. Example:
+    - `feat: add in-browser Python runner for code blocks`
+    - `content: enrich precision docs with references and ULP notes`
 - **Deployment**: Push to GitHub Pages, automatic deployment
 
 ---
