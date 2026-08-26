@@ -29,23 +29,20 @@ article {
   font-size: 1.02rem;
 }
 
-a.internal,
-a.internal.tag-link {
+a.internal {
   background-color: transparent;
   border-bottom: none;
   border-radius: 0;
   padding: 0;
 }
 
-a.internal:hover,
-a.internal.tag-link:hover {
+a.internal:hover {
   border-bottom-color: transparent;
 }
 
 /* 文章正文中的可点击引用统一为蓝色下划线 */
 article a,
-article a.internal,
-article a.internal.tag-link {
+article a.internal {
   color: #2563eb;
   text-decoration: underline;
   text-underline-offset: 0.15em;
@@ -53,21 +50,64 @@ article a.internal.tag-link {
 }
 
 article a:hover,
-article a.internal:hover,
-article a.internal.tag-link:hover {
+article a.internal:hover {
   color: #1d4ed8;
 }
 
 :root[saved-theme="dark"] article a,
-:root[saved-theme="dark"] article a.internal,
-:root[saved-theme="dark"] article a.internal.tag-link {
+:root[saved-theme="dark"] article a.internal {
   color: #60a5fa;
 }
 
 :root[saved-theme="dark"] article a:hover,
-:root[saved-theme="dark"] article a.internal:hover,
-:root[saved-theme="dark"] article a.internal.tag-link:hover {
+:root[saved-theme="dark"] article a.internal:hover {
   color: #93c5fd;
+}
+
+/* 标签统一为胶囊 chip：浅底、描边、等宽字体，深浅模式均适配 */
+a.internal.tag-link,
+article a.internal.tag-link {
+  display: inline-block;
+  background-color: var(--highlight);
+  border: 1px solid var(--lightgray);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  margin: 0;
+  font-family: var(--codeFont);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--darkgray);
+  text-decoration: none;
+  text-underline-offset: 0;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+a.internal.tag-link::before,
+article a.internal.tag-link::before {
+  content: "#";
+  opacity: 0.5;
+  margin-right: 0.12em;
+}
+
+a.internal.tag-link:hover,
+article a.internal.tag-link:hover {
+  background-color: var(--lightgray);
+  border-color: var(--gray);
+  color: var(--dark) !important;
+  text-decoration: none;
+}
+
+:root[saved-theme="dark"] a.internal.tag-link,
+:root[saved-theme="dark"] article a.internal.tag-link {
+  color: var(--darkgray);
+}
+
+:root[saved-theme="dark"] a.internal.tag-link:hover,
+:root[saved-theme="dark"] article a.internal.tag-link:hover {
+  color: var(--light) !important;
 }
 
 article a.external .external-icon > path {
