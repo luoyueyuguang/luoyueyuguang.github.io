@@ -1,12 +1,12 @@
 这篇文章讲 **GDN**，也就是 **Gated DeltaNet / Gated Delta Networks**。
 
-我会从 RNN 开始讲，因为 GDN 最好不要一上来就当成“另一个 Transformer 变体”看。它更像是把三条线合到一起：
+把 GDN 当“另一个 Transformer 变体”看会走偏。它更像把三条线合到一起：
 
 - RNN 的固定状态。
 - Attention / fast weight memory 的 key-value 读取。
 - Delta rule 和 gating 的可编辑记忆。
 
-更自然的理解路线是：
+从 RNN 一步步到 GDN：
 
 ```text
 RNN
@@ -17,9 +17,7 @@ RNN
   -> Gated DeltaNet
 ```
 
-一句话先给直觉：
-
-> GDN 是一种把长上下文压进固定大小矩阵状态里的序列模型。它不像 Transformer 那样保存越来越长的 KV cache，而是每来一个 token，就用门控决定旧记忆忘多少，再用 delta rule 精准改写记忆。
+> GDN 是一种把长上下文压进固定大小矩阵状态里的序列模型。它每来一个 token，就用门控决定旧记忆忘多少，再用 delta rule 精准改写记忆。
 
 ![从 RNN 到 GDN 的演化路线](/learning/assets/gdn-rnn-to-gdn.svg)
 
@@ -52,15 +50,13 @@ RNN
 
 > 图源说明：根据论文 Figure 3 与 arXiv:2412.06464 的 pgfplots 坐标数据转写。横轴是 sequence length × batch size，纵轴是 thousands token per second。
 
-这篇文章面向没接触过线性注意力和 SSM 的读者。你只需要先记住一个问题：
+这篇文章面向没接触过线性注意力和 SSM 的读者，先看一个问题：
 
 > 模型读完很多 token 以后，过去的信息到底存在哪里？
 
 Transformer 的答案是：存在越来越长的 KV cache 里。
 
 RNN / SSM / GDN 这类模型的答案是：存在一个固定大小的状态里。
-
-区别就在这里。
 
 ## 1. 从最朴素的 RNN 开始
 
@@ -90,7 +86,7 @@ $$
 
 可以把 `h_t` 想成“读到当前位置时，模型脑子里压缩出来的笔记”。
 
-RNN 的优点非常明显：
+RNN 的优点：
 
 - 每一步只需要一个状态 `h`。
 - 内存不会随着序列长度无限增长。
@@ -111,9 +107,7 @@ RNN 的优点非常明显：
 
 ## 2. Attention：不要压缩，直接查原文
 
-Transformer 的 attention 换了一种思路。
-
-它不强迫模型把全部历史压进一个向量，而是把每个历史 token 都留下来：
+Transformer 的 attention 换了一种思路：把每个历史 token 都留下来。
 
 - 每个历史 token 产生一个 `Key`。
 - 每个历史 token 产生一个 `Value`。
@@ -138,7 +132,7 @@ $$
   按相关性读取对应 value
 ```
 
-这就是 Transformer 强大的原因：它不是只依赖一个压缩状态，而是可以重新访问完整历史。
+这就是 Transformer 强大的原因：它能重新访问完整历史。
 
 但是代价也很直接：
 
@@ -188,7 +182,7 @@ o_t =
 }
 $$
 
-重点是中间两项可以递推维护：
+中间两项可以递推维护：
 
 $$
 S_t = S_{t-1} + \phi(k_t) v_t^T
@@ -205,13 +199,13 @@ o_t =
 \frac{\phi(q_t)^T S_t}{\phi(q_t)^T z_t}
 $$
 
-这就是 “Transformers are RNNs” 这类工作的核心观察：某些 attention 可以写成 RNN 风格的状态更新。历史不再是 `N` 个 KV 条目，而是一个矩阵 `S_t` 和一个向量 `z_t`。
+这就是 “Transformers are RNNs” 这类工作的核心观察：某些 attention 可以写成 RNN 风格的状态更新。历史从 `N` 个 KV 条目，变成一个矩阵 `S_t` 和一个向量 `z_t`。
 
 这个矩阵 `S_t` 可以理解成：
 
 > 一个从 key 到 value 的可学习映射表。
 
-当前 query 来了以后，不再查完整 KV cache，而是查这个压缩后的映射表。
+当前 query 来了以后，查这个压缩后的映射表。
 
 ## 4. Fast Weight Memory：状态矩阵像一张临时字典
 
@@ -318,7 +312,7 @@ $$
 
 ![Delta rule 的读、算残差、写回](/learning/assets/gdn-delta-update.svg)
 
-这个更新非常像在线学习：
+这个更新很像在线学习：
 
 ```text
 先问旧模型：这个 key 应该对应什么 value？
@@ -332,7 +326,7 @@ $$
 - 如果旧状态答错，就写入修正。
 - 相比纯加法，更像是在维护一个 key-value 映射。
 
-这也是为什么很多论文会把线性 attention 和 fast weight memory 联系起来：状态矩阵不是普通隐藏状态，而像一个会在推理过程中不断被输入 token 编程的临时权重矩阵。
+这也是为什么很多论文会把线性 attention 和 fast weight memory 联系起来：状态矩阵更像一个会在推理过程中不断被输入 token 编程的临时权重矩阵。
 
 ## 6. 只用 Delta 还不够：旧记忆什么时候该忘？
 
@@ -444,7 +438,7 @@ GDN 的论文标题是 **Gated Delta Networks: Improving Mamba2 with Delta Rule*
 
 Mamba2 的重要思想是：很多 SSM、linear attention、attention-like 模型可以放到一个统一框架里理解。它们都可以看成某种结构化的序列混合，只是状态更新和矩阵结构不同。
 
-从实现角度看，Mamba2 这类模型很重视两件事：
+从实现角度看，Mamba2 这类模型重视两件事：
 
 - **线性复杂度**：处理长度为 `N` 的序列，计算量尽量随 `N` 线性增长。
 - **硬件友好训练**：虽然递推看起来是一步一步的，但训练时要能 chunk-wise / parallel scan，否则 GPU 利用率会很差。
@@ -455,7 +449,7 @@ GDN 沿着这条路继续走：
 - 它把 DeltaNet 的 delta rule 引入 gated recurrence。
 - 它设计了适合现代硬件的并行训练算法。
 
-所以 GDN 不是简单回到老式 RNN。它更像是：
+所以 GDN 比老式 RNN 多了几样东西：
 
 ```text
 RNN 的固定状态思想
@@ -472,7 +466,7 @@ RNN 的固定状态思想
 
 这说明作者并没有把 GDN 当成“完全消灭 attention”的方案。更现实的做法是：用 GDN 处理大部分线性序列混合，再用局部 attention 补足局部比较、位移和精细检索能力。
 
-这也是 Figure 1 里 H1/H2 存在的原因：纯 recurrent/linear 模型更擅长固定状态和长序列吞吐，sliding window attention 更擅长短距离精细对齐。混合架构不是折中失败，而是把不同模块放在各自擅长的位置。
+这也是 Figure 1 里 H1/H2 存在的原因：纯 recurrent/linear 模型更擅长固定状态和长序列吞吐，sliding window attention 更擅长短距离精细对齐。混合架构把不同模块放在各自擅长的位置。
 
 ## 9. 训练时为什么不能直接一步步循环？
 
@@ -499,30 +493,28 @@ chunk 3: token 513-768
 
 每个 chunk 内部用更适合矩阵乘法的形式计算，chunk 之间再用 scan / recurrence 把状态接起来。
 
-这类算法的目标不是改变数学结果，而是改变计算组织方式：
+这类算法改变计算组织方式，不改变数学结果：
 
 | 方式                       | 问题                             |
 | -------------------------- | -------------------------------- |
 | 逐 token Python 循环       | 太慢，GPU 利用率差               |
 | chunk-wise / parallel scan | 更容易用大矩阵乘法和并行前缀计算 |
 
-这也是现代 RNN-like 模型和 1990 年代 RNN 的最大区别之一：它们不是只提出一个递推公式，还要同时提出能在 GPU 上训练的算法。
+这也是现代 RNN-like 模型和 1990 年代 RNN 的一大区别：它们既提出递推公式，也提出能在 GPU 上训练的算法。
 
 > 对照原文图：论文 Figure 3 给了 1.3B 模型在单张 H100 GPU 上的训练吞吐对比。论文正文说明，GDN 的 gating 项主要是 elementwise multiplication，不破坏 matmul 结构，因此 Gated DeltaNet 的速度和 DeltaNet 接近，只比 Mamba2 有小幅差距。这张图适合用来理解“为什么 chunkwise 形式和 tensor core 友好很重要”。
 
-你可以回看本文开头的 Figure 3 转写图：Transformer++ 在短上下文里非常快，但随着序列长度变长吞吐下降明显；Gated DeltaNet、DeltaNet、Mamba2 这类 recurrent/SSM-like 模型曲线更平。这正是“线性序列混合”在长上下文训练里的工程价值。
+你可以回看本文开头的 Figure 3 转写图：Transformer++ 在短上下文里很快，但随着序列长度变长吞吐会掉下来；Gated DeltaNet、DeltaNet、Mamba2 这类 recurrent/SSM-like 模型曲线更平。这就是“线性序列混合”在长上下文训练里的工程价值。
 
 ## 10. Decode 时 GDN 真的总是更快吗？
 
 不一定。
 
-这是一个很容易误解的点。
-
 Transformer decode 时每生成一个 token，需要读取越来越长的 KV cache。GDN 看起来只维护固定大小状态，似乎一定更快。
 
 但实际系统里还要看状态大小和访存。
 
-GDN 的状态不是一个小向量，而通常是每层、每个 head 的矩阵状态。每生成一个 token，都可能要从 HBM 读出状态、更新状态、再写回状态。
+GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 token，都可能要从 HBM 读出状态、更新状态、再写回状态。
 
 所以 batch size 很小、状态矩阵很大时，GDN decode 可能变成 memory-bound：
 
@@ -536,19 +528,19 @@ GDN 的状态不是一个小向量，而通常是每层、每个 head 的矩阵�
 
 - 长上下文下，它避免了 KV cache 随 `N` 增长。
 - 但每步固定状态本身也不小。
-- 真正速度取决于硬件、batch size、状态维度、kernel fusion 和数据驻留策略。
+- 实际速度取决于硬件、batch size、状态维度、kernel fusion 和数据驻留策略。
 
-所以不要把 GDN 简化成“固定状态，所以一定比 Transformer decode 快”。更准确的说法是：
+所以不要把 GDN 简化成“固定状态，所以一定比 Transformer decode 快”。
 
 > GDN 把随上下文增长的 KV cache 问题，换成了固定大小状态的读写和更新问题。
 
 这通常更适合长上下文，但仍然需要好的实现。
 
-工程上真正关键的是：状态能不能尽量留在片上，或者至少通过 fused kernel 减少 HBM 往返。如果每个 token 都把大状态矩阵完整读出、更新、写回，batch-1 decode 仍然会被内存带宽限制。
+工程上关键的是：状态能不能尽量留在片上，或者至少通过 fused kernel 减少 HBM 往返。如果每个 token 都把大状态矩阵完整读出、更新、写回，batch-1 decode 仍然会被内存带宽限制。
 
 ## 11. 和其他模型对比
 
-为了避免概念混淆，先放一张表：
+先放一张表：
 
 | 方法             | 历史怎么存                    | 优点                                 | 主要问题                                 |
 | ---------------- | ----------------------------- | ------------------------------------ | ---------------------------------------- |
@@ -571,8 +563,6 @@ GDN 的关键优势是固定状态。
 
 历史信息被压进状态矩阵里。生成第 `t` 个 token 时，不需要保留长度为 `t` 的 KV cache。代价是：历史已经被压缩，不是所有细节都能原样恢复。
 
-一句话：
-
 ```text
 Transformer 更像开卷查原文；
 GDN 更像维护一张不断更新的压缩索引表。
@@ -580,7 +570,7 @@ GDN 更像维护一张不断更新的压缩索引表。
 
 ## 13. GDN vs Mamba2
 
-Mamba2 提供了一个很重要的统一视角：SSM 和 attention 并不是完全无关的两类东西，它们可以通过结构化矩阵联系起来。
+Mamba2 提供了一个重要的统一视角：SSM 和 attention 可以通过结构化矩阵联系起来。
 
 GDN 和 Mamba2 的关系可以这样理解：
 
@@ -597,7 +587,7 @@ GDN 往里面加入更像“可编辑 key-value 记忆”的 delta 更新。
 
 > 对照原文图：论文 Figure 2 展示了六个长上下文 benchmark 的 length extrapolation 曲线。作者的结论是，在 RNN 类模型中，Gated DeltaNet 整体 perplexity 更低，长序列上更稳健；hybrid 版本借助 attention 做局部上下文建模，还能进一步改善表现。
 
-这张图最好不要只看某一个点。更重要的是看趋势：随着长度从 4K 增到 20K，普通 recurrent/SSM 模型容易出现记忆管理问题，而 Gated DeltaNet 系列通常更稳。这个结果和前面的机制解释是对得上的：gating 帮助清理旧记忆，delta rule 帮助把当前 key 对应的 value 改写得更准。
+这张图别只看某一个点，要看趋势：随着长度从 4K 增到 20K，普通 recurrent/SSM 模型容易出现记忆管理问题，Gated DeltaNet 系列通常更稳。这个结果和前面的机制解释是对得上的：gating 帮助清理旧记忆，delta rule 帮助把当前 key 对应的 value 改写得更准。
 
 ## 14. GDN vs DeltaNet
 
@@ -615,7 +605,7 @@ GDN 在 DeltaNet 上加了 gating，解决的是：
 旧记忆什么时候该保留，什么时候该快速擦除？
 ```
 
-所以两者不是完全不同路线，而是递进关系：
+所以两者是递进关系：
 
 ```text
 Linear Attention: 直接加法写入
@@ -655,7 +645,7 @@ GDN-2 的思路是把两个 gate 拆开：
 
 这让记忆编辑更灵活。代价是模型和实现更复杂。
 
-这类后续工作也说明：GDN 的核心不是某个固定公式已经终结一切，而是打开了一个方向：把线性 attention 的状态矩阵当作“可编辑记忆”，再继续研究擦除、写入、归一化和曲率预条件这些机制。
+这类后续工作也说明：GDN 的核心是一条开放的方向。它把线性 attention 的状态矩阵当作“可编辑记忆”，后续又在此基础上研究擦除、写入、归一化和曲率预条件这些机制。
 
 ## 16. 一个完整例子：模型读代码时发生什么
 
@@ -690,7 +680,7 @@ value: 30
 timeout = config.request_timeout
 ```
 
-如果状态里已经有 `timeout -> 30`，DeltaNet / GDN 不会只是再加一个新 value，而是先读旧答案：
+如果状态里已经有 `timeout -> 30`，DeltaNet / GDN 会先读旧答案：
 
 ```text
 old_read = 30
@@ -708,7 +698,7 @@ client = Client(timeout=timeout)
 
 模型更可能把 `timeout` 理解成新的 `config.request_timeout`，而不是最早的 `30`。
 
-当然真实模型不会存字符串和数字，而是存高维向量。但直觉就是这样：GDN 在维护一张会随上下文不断改写的压缩记忆表。
+当然真实模型存的是高维向量。但直觉就是这样：GDN 在维护一张会随上下文不断改写的压缩记忆表。
 
 ## 17. 这篇文章最值得带走的点
 
@@ -721,8 +711,6 @@ GDN 可以从 RNN 一步步理解：
 5. **DeltaNet**：写入前先读旧答案，再写入残差，让记忆修改更精准。
 6. **GDN**：加入门控，让模型既能快速忘掉旧记忆，也能用 delta rule 精准写入新记忆。
 7. **工程上**：GDN 避免 KV cache 随上下文增长，但状态矩阵的读写仍然是 decode 性能关键。
-
-如果只记一句话：
 
 > GDN 是一种 RNN-like 的线性序列模型：它用固定大小矩阵状态代替不断增长的 KV cache，用 gating 控制遗忘，用 delta rule 控制精准改写，从而在长上下文里取得比普通线性注意力更强的记忆更新能力。
 

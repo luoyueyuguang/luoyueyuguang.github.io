@@ -8,7 +8,7 @@ Coauthor with codex 5.5
 
 先说一句大白话：
 
-> TurboQuant 不是把向量“无损压缩”。它承认压缩会丢信息，但它让丢掉的信息尽量不影响 AI 真正在乎的计算，尤其是距离、相似度和内积。
+> TurboQuant 是有损压缩。它承认压缩会丢信息，但让丢掉的信息尽量不影响 AI 在乎的计算，尤其是距离、相似度和内积。
 
 ![TurboQuant整体流程](/learning/assets/turboquant-pipeline.svg)
 
@@ -16,7 +16,7 @@ Coauthor with codex 5.5
 
 大模型不会直接拿中文词语做计算。它会把词、token、句子、中间状态都变成一串数字。
 
-比如非常简化地看：
+比如简化地看：
 
 ```text
 北京 = [0.12, -0.84, 0.33, 1.27]
@@ -146,13 +146,11 @@ $$
 
 大模型注意力里就大量用到类似计算。当前 Query 会和历史 Key 做点积，模型靠这个分数判断“前文哪个位置更重要”。
 
-所以 TurboQuant 关心的不只是：
-
-> 压缩后能不能恢复原来的向量？
-
-它更关心：
+所以 TurboQuant 在乎的是：
 
 > 压缩后，用这个向量算点积，结果还准不准？
+
+能不能恢复出原向量本身，是次要的。
 
 这是后面 MSE 量化和内积量化分开的原因。
 
@@ -379,7 +377,7 @@ $$
 
 ![PolarQuant直觉](/learning/assets/turboquant-polar.svg)
 
-这张图用二维箭头解释“方向 + 长度”的直觉。但 TurboQuant_mse 的具体做法不是直接存二维角度，而是随机旋转后，对每个坐标做最优标量量化。
+这张图用二维箭头解释“方向 + 长度”的直觉。但 TurboQuant_mse 并不存二维角度；它随机旋转后，对每个坐标做最优标量量化。
 
 ## 11. codebook 是怎么来的：一维 k-means
 
@@ -422,7 +420,7 @@ $$
 
 这就是连续版的一维 k-means，也叫 Lloyd-Max 量化。
 
-论文不是每次量化都重新算 codebook，而是预先算好常用 bit-width 的 codebook，实际运行时直接查表。
+论文预先算好常用 bit-width 的 codebook，实际运行时直接查表，并不会每次量化都重新算。
 
 ## 12. 为什么总 MSE 等于 d 乘一维误差
 
@@ -657,7 +655,7 @@ $$
 
 `2/pi ≈ 0.637`。
 
-也就是说，如果真实点积是 `1.0`，它平均估计成 `0.637`。这不是随机噪声，而是系统性偏小。
+也就是说，如果真实点积是 `1.0`，它平均估计成 `0.637`。这是系统性偏小，不是随机噪声。
 
 这就是为什么 TurboQuant 还需要第二版算法：`TurboQuant_prod`。
 
@@ -748,7 +746,7 @@ $$
 
 ## 16. TurboQuant_prod：主量化 + QJL 残差
 
-`TurboQuant_prod` 目标不是让 `x_hat` 本身最像 `x`，而是让内积估计无偏、低误差。
+`TurboQuant_prod` 目标是让内积估计无偏、低误差，而不追求让 `x_hat` 本身最像 `x`。
 
 它把总 bit-width `b` 拆成两部分：
 
@@ -826,7 +824,7 @@ $$
 
 这就是论文里的 `TurboQuant_prod`。
 
-注意它不是完整恢复残差。它只是用一个 1 bit 草图帮忙修正内积。
+它不完整恢复残差，只用 1 bit 草图帮忙修正内积。
 
 ## 17. 为什么这样能无偏
 
@@ -1105,7 +1103,7 @@ def demo():
 demo()
 ```
 
-你应该关注的不是某一次输出，而是平均值。
+你应该关注平均值。
 
 理论上：
 
@@ -1132,7 +1130,7 @@ demo()
 
 ## 22. 从算法到 CUDA kernel：先看数据布局
 
-前面的 NumPy 代码是“数学长什么样”。真正放到 GPU 上时，第一件事不是写公式，而是决定数据怎么摆。
+前面的 NumPy 代码是“数学长什么样”。放到 GPU 上，第一件事是决定数据怎么摆。
 
 KV cache 通常可以想成这种形状：
 
@@ -1601,14 +1599,14 @@ $$
 \langle \mathbf{S}\mathbf{y}, \mathbf{s} \rangle
 $$
 
-不过也要诚实说：如果 `S` 是普通 dense Gaussian 矩阵，提前算 `Sy` 本身也要 `O(d^2)`，这在热路径里很贵。生产实现需要考虑：
+不过要注意：如果 `S` 是普通 dense Gaussian 矩阵，提前算 `Sy` 本身也要 `O(d^2)`，这在热路径里很贵。生产实现需要考虑：
 
 - 用结构化随机投影降低 `S*y` 的代价。
 - 把 QJL 修正只用于最需要的路径。
 - 和 attention kernel 融合，减少中间数组。
 - 在质量和吞吐之间选择是否启用完整 `TurboQuant_prod`。
 
-这里的“结构化随机投影”就是房间里的大象。JL/QJL 在数学上常用 dense Gaussian 矩阵，因为它好分析；但工程上更希望用随机正负号对角矩阵和 Hadamard 变换这类结构来近似随机投影。
+这里的“结构化随机投影”是关键。JL/QJL 在数学上常用 dense Gaussian 矩阵，因为它好分析；但工程上更希望用随机正负号对角矩阵和 Hadamard 变换这类结构来近似随机投影。
 
 ![结构化随机投影](/learning/assets/turboquant-structured-projection.svg)
 
@@ -1631,7 +1629,7 @@ $$
 
 ## 27. outlier channel 和 2.5-bit / 3.5-bit 是怎么来的
 
-论文实验里提到 2.5-bit 和 3.5-bit。它们不是说某个单独 channel 用了半个 bit，而是把 channel 分组。
+论文实验里提到 2.5-bit 和 3.5-bit。它们是把 channel 分组，而不是某个单独 channel 用了半个 bit。
 
 例如某些模型配置的 head_dim 是 `d = 128`，具体数值要以模型 config 为准。如果 32 个 outlier channel 用 3 bit，其余 96 个普通 channel 用 2 bit，平均 bit 是：
 
@@ -1651,7 +1649,7 @@ $$
 
 论文正文的核心意思是：把 outlier 和 regular channel 拆开，用两个独立 TurboQuant 实例，给 outlier 更高 bit。无论具体比例怎么选，核心思想都是：
 
-> 不是所有 channel 一样重要。特别容易出大值、对质量更敏感的 channel，可以多给一点 bit。
+> 不同 channel 的重要性不一样。特别容易出大值、对质量更敏感的 channel，可以多给一点 bit。
 
 kernel 层面上，这会让实现复杂一些：
 
@@ -1755,7 +1753,7 @@ TurboQuant 的意义在于：
 | TurboQuant_mse | 用随机旋转 + 标量最优量化降低 MSE | 第一阶段主量化 |
 | TurboQuant_prod | MSE 主量化 + QJL 残差修正 | 面向内积的完整版本 |
 
-不要把 TurboQuant 简化成“PolarQuant 加一点东西”。TurboQuant 的核心数学是：
+TurboQuant 的核心数学是下面这几步：
 
 1. 随机旋转后坐标服从可分析分布。
 2. 用 Lloyd-Max 做每个坐标的最优标量量化。
@@ -1841,7 +1839,7 @@ $$
 
 不是。它是有损压缩。
 
-它厉害的地方不是不丢信息，而是让丢掉的信息尽量不影响最终任务。
+它厉害的地方是让丢掉的信息尽量不影响最终任务。
 
 ### 误解二：MSE 小就一定适合注意力
 
