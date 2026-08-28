@@ -123,8 +123,6 @@ o_t =
 \mathrm{softmax}(q_t k_i^T)_i v_i
 $$
 
-通俗地说：
-
 ```text
 当前问题 q_t：
   去历史笔记里逐条查 key
@@ -201,7 +199,7 @@ $$
 
 这就是 “Transformers are RNNs” 这类工作的核心观察：某些 attention 可以写成 RNN 风格的状态更新。历史从 `N` 个 KV 条目，变成一个矩阵 `S_t` 和一个向量 `z_t`。
 
-这个矩阵 `S_t` 可以理解成：
+这个矩阵 `S_t` 是：
 
 > 一个从 key 到 value 的可学习映射表。
 
@@ -308,7 +306,7 @@ $$
 - `v_t` 是当前要写入的 value。
 - `S_{t-1} k_t` 是旧记忆对这个 key 的预测。
 - `v_t - S_{t-1} k_t` 是旧记忆还差多少。
-- `beta_t` 是写入强度，可以理解成学习率或写门。
+- `beta_t` 是写入强度，相当于学习率或写门。
 
 ![Delta rule 的读、算残差、写回](/learning/assets/gdn-delta-update.svg)
 
@@ -424,7 +422,7 @@ $$
 
 > 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；`alpha`、`beta` 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。本文上面的图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
 
-所以 GDN 可以用一句话总结：
+GDN 的核心是：
 
 > Gating 负责控制记忆寿命，delta rule 负责精准修改 key-value 映射。
 
@@ -577,8 +575,6 @@ GDN 和 Mamba2 的关系可以这样理解：
 - Mamba2 强调 selective SSM / SSD 形式。
 - GDN 在这个大框架里强调 gated delta rule。
 - GDN 论文报告它在语言建模、常识推理、in-context retrieval、长度外推、长上下文理解等任务上超过 Mamba2 和 DeltaNet。
-
-更通俗地说：
 
 ```text
 Mamba2 给出一种高效状态空间序列混合；

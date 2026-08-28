@@ -22,7 +22,7 @@ Coauthor with codex 5.5
 
 > 图源：MiniMax Sparse Attention 论文 Figure 1，原始图片来自 <https://arxiv.org/html/2606.13392v2>。
 
-论文里的主要数字也可以先记住：
+论文里的主要数字：
 
 - 在 1M context 下，MSA 的每 token attention FLOPs 比 GQA 少 **28.4x**。
 - 结合专门设计的 kernel，在 H800 上实现了 **14.2x prefill** 和 **7.6x decoding** 的端到端 attention 加速。
@@ -157,8 +157,6 @@ $$
 $$
 O_i = \sum_{j \le i} \alpha_{i,j} V_j
 $$
-
-通俗地说：
 
 1. 当前 token 拿着 query 去问：前面每个位置和我有多相关？
 2. softmax 把相关性分数变成比例。
@@ -314,8 +312,6 @@ $$
 K^{idx} \in \mathbb{R}^{N \times 1 \times d_{idx}}
 $$
 
-翻译一下：
-
 - 每个 GQA group 有自己的 index query。
 - 所有 group 共享一个 index key。
 - `d_idx` 通常比主 attention 的规模更轻。
@@ -461,7 +457,7 @@ MSA 的做法是加一个辅助监督：**KL loss**。
 
 ## 11. KL Loss：让小索引分支模仿主分支
 
-KL loss 可以理解成“分布对齐损失”。
+KL loss 就是"分布对齐损失"。
 
 在 MSA 里：
 
@@ -531,8 +527,6 @@ $$
 - `W_k_idx`
 
 而不是通过 `X` 影响整个模型主干。
-
-通俗地说：
 
 > KL loss 只训练“索引器怎么找书页”，不要改变“模型怎么理解内容”。
 
@@ -621,7 +615,7 @@ full attention 的主分支要看近百万历史 token，而 MSA 的 Main Branch
 | shared memory | 一个 CUDA thread block 内共享的片上高速缓存 |
 | register | 每个线程自己的最快存储，但数量有限 |
 | warp | NVIDIA GPU 上 32 个线程一起执行的一组线程 |
-| CTA | CUDA thread block，论文里说 CTA 时基本可以理解成一个线程块 |
+| CTA | CUDA thread block，论文里说 CTA 时基本相当于一个线程块 |
 | tensor core / MMA | 专门做矩阵乘法的小硬件单元，形状合适时非常快 |
 | TMA | Tensor Memory Accelerator，Hopper/Blackwell 这类 GPU 上用于高效搬运多维 tensor tile 的机制 |
 | LSE | log-sum-exp，FlashAttention 类 softmax kernel 用它稳定地合并 softmax 分母 |
@@ -816,7 +810,7 @@ block 8 -> query 1, query 2, ...
 - `k2q_q_indices`
 - `schedule`
 
-CSR 可以理解成一种压缩存储“每个 block 对应哪些 query”的格式。
+CSR 是一种压缩存储“每个 block 对应哪些 query”的格式。
 
 例如有 3 个 KV blocks：
 
@@ -1956,7 +1950,7 @@ combine.py:
 
 > 图源：MiniMax Sparse Attention 论文 Figure 4，原始图片来自 <https://arxiv.org/html/2606.13392v2>。
 
-这里要注意：这些数字是在论文的模型结构、上下文长度、GPU、kernel 实现和 benchmark 设置下得到的，不应该直接外推到所有模型和硬件。但方向很清楚：MSA 的收益主要来自超长上下文，越长越有意义。
+这些数字是在论文的模型结构、上下文长度、GPU、kernel 实现和 benchmark 设置下得到的，不应该直接外推到所有模型和硬件。但方向很清楚：MSA 的收益主要来自超长上下文，越长越有意义。
 
 ## 18. 和其他长上下文方法对比
 
@@ -2284,8 +2278,6 @@ MSA 的关键是几个设计咬合在一起：
 7. **Gradient detach**：让 KL loss 只训练 indexer，不扰动 backbone。
 8. **Indexer warmup**：避免训练早期随机 sparse routing 破坏学习。
 9. **KV-outer kernel**：把理论稀疏转成 GPU 上的速度收益。
-
-一句话总结：
 
 > MSA 是一种为超长上下文设计的、GQA 原生的、按块动态选择的 sparse softmax attention：先用轻量索引器找相关 KV blocks，再在这些 blocks 上做标准 attention，并通过 KL loss 和专门 kernel 让它既能训练稳定，又能实际跑快。
 
