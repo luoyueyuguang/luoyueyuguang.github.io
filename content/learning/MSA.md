@@ -2,8 +2,6 @@ Coauthor with codex 5.5
 
 这篇文章讲 MiniMax Sparse Attention，也就是论文里简称的 **MSA**。
 
-一个很粗糙但有用的直觉：
-
 > MSA 先用一个很便宜的小分支给上下文分块打分，只挑出少量最可能有用的块，再让主注意力分支认真阅读这些块。
 
 如果把大模型读长文档比作考试：
@@ -214,8 +212,6 @@ $$
 $$
 o_i = \mathrm{Attn}(q_i, K[\mathcal{I}_i], V[\mathcal{I}_i])
 $$
-
-翻译成人话：
 
 - `Index` 阶段：为当前 query 选出要看的位置集合 `I_i`。
 - `Attn` 阶段：只在这些被选中的位置上做标准 attention。
@@ -780,7 +776,7 @@ $$
 \frac{2}{3}B_k \approx 85
 $$
 
-这比 Q-outer 的 `G=16` 高很多。直觉上就是：每次把一个 128-token 的 KV block 搬上来，尽量让更多 query 使用它，而不是搬上来只服务一个 query。
+这比 Q-outer 的 `G=16` 高很多。每次把一个 128-token 的 KV block 搬上来，尽量让更多 query 使用它，而不是搬上来只服务一个 query。
 
 这也是为什么 MSA 要选 block：block 粒度会损失一点选择精度，但能换来更连续的 K/V 读取和更适合 GPU 的矩阵形状。
 
@@ -2151,7 +2147,7 @@ MSA 的位置可以概括成：
 
 > 它把 softmax attention 做成可训练、GQA 原生、硬件友好的动态 block sparse attention。
 
-各方法一句话记：
+各方法：
 
 - GQA：少存一些 KV heads。
 - Longformer / BigBird：按固定模式少看一些位置。

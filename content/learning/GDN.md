@@ -225,7 +225,7 @@ $$
 S_t = S_{t-1} + k_t v_t^T
 $$
 
-这里为了写得简单，我省略 `phi`，直接用 `k_t`。不同论文里会把状态写成 `S` 或 `W`，也会因为行向量/列向量约定不同，把外积写成 `k_t v_t^T` 或 `v_t k_t^T`。本文保持一个直觉：**状态矩阵要能用 key 读出 value**。
+这里为了写得简单，我省略 `phi`，直接用 `k_t`。不同论文里会把状态写成 `S` 或 `W`，也会因为行向量/列向量约定不同，把外积写成 `k_t v_t^T` 或 `v_t k_t^T`。本文的原则是：**状态矩阵要能用 key 读出 value**。
 
 这很像在字典里追加一条记忆。但问题是：如果相似的 key 出现多次，简单相加会把很多 value 混在一起。
 
@@ -480,7 +480,7 @@ for token in sequence:
 
 Transformer 训练快的一个重要原因是：整段序列可以并行算 attention。RNN 类模型如果完全串行，会吃亏。
 
-所以 GDN 论文强调 parallel training algorithm。直觉上，它会把长序列切成 chunks：
+所以 GDN 论文强调 parallel training algorithm。它会把长序列切成 chunks：
 
 ```text
 chunk 1: token 1-256
@@ -694,7 +694,7 @@ client = Client(timeout=timeout)
 
 模型更可能把 `timeout` 理解成新的 `config.request_timeout`，而不是最早的 `30`。
 
-当然真实模型存的是高维向量。但直觉就是这样：GDN 在维护一张会随上下文不断改写的压缩记忆表。
+当然真实模型存的是高维向量。GDN 在维护一张会随上下文不断改写的压缩记忆表。
 
 ## 17. 这篇文章最值得带走的点
 

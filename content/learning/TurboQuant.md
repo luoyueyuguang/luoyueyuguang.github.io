@@ -6,8 +6,6 @@ Coauthor with codex 5.5
 2. **数学**：TurboQuant 到底在优化什么，随机旋转为什么有用，MSE 量化和内积量化为什么不是一回事。
 3. **代码**：用 NumPy 写一个教学版 TurboQuant，看到每行代码对应哪条公式。最后**再落到 kernel**：看 packed cache、CUDA block/thread 映射、融合解码和 attention 打分该怎么想。
 
-先说一句大白话：
-
 > TurboQuant 是有损压缩。它承认压缩会丢信息，但让丢掉的信息尽量不影响 AI 在乎的计算，尤其是距离、相似度和内积。
 
 ![TurboQuant整体流程](/learning/assets/turboquant-pipeline.svg)
@@ -1804,8 +1802,6 @@ $$
 这就是论文标题里 “near-optimal distortion rate” 的意思。
 
 ## 32. 从零复述一遍算法
-
-最后把整个算法用一句一句人话复述。
 
 第一步，向量太大，直接存很贵。
 
