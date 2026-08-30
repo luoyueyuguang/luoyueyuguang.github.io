@@ -95,17 +95,88 @@ $s$ 称为缩放因子（scale）。$s$ 怎么取，直接决定误差有多大�
 
 ## 低精度矩阵乘的误差有多大
 
-可以这样估算：假设输入量化相对误差 $\sim u$，那么一个内积（长度 $K$）的误差大约为
+假设输入量化到相对精度 $u$：每个元素被舍入成 $\pm u$ 档的误差，$\hat A\hat B$ 就是这些带误差项的随机和。在 fp32 累加、误差不是同向对齐时，相对误差近似为
 
 $$
-\frac{\|\hat{A}\hat{B} - AB\|}{\|AB\|} \sim u \cdot c \cdot n
+\frac{\|\hat A\hat B - AB\|}{\|AB\|} \approx u \cdot c
 $$
 
-其中 $n$ 是 $K$ 的一半（每次乘积两个输入各量化一次），$c$ 是一个与数值分布有关的常数。随机趋向下约 $\sqrt{K}\,u$，最坏约 $K\,u$。所以：
+$c$ 是一个**分布常数**，取决于元素的动态范围、有没有离群值、用整体缩放还是逐通道/逐块缩放。关键是它**不随 $K$ 增长**：误差是 $K$ 个独立小项的随机和，分子 $\sim\sqrt{\sum_k(A_{jk}B_{kl})^2}$ 和分母 $\|AB\|$ 都以 $\sqrt K$ 的节奏增长，相对误差就被消掉了。只有误差**同向对齐**（系统性舍入偏差）时，才会涨到 $\sim\sqrt K\,u$。
 
-- **$K$ 越大，误差越大**：attention 里的 $QK^\top$ 在上下文很长时，$K = \text{seqlen}$ 会到几千，fp8 的误差会被放大。
-- **累加用 fp32** 能把"累加舍入"这一项压到可忽略，剩下的就是输入量化项。
-- **分层量化/块缩放**能把 $u$ 对动态范围敏感的部分压小，但不能消掉 $u$ 本身。
+实测最直观。下面用 per-tensor E4M3 量化一个随机矩阵乘，先看相对误差随 $K$ 怎么变，再看一个离群行把 per-tensor 和 per-row（per-token 缩放）拉开多大差距：
+
+```python
+import numpy as np
+
+def q_tensor(x, max_abs=448.0):
+    amax = np.abs(x).max()
+    s = amax / max_abs if amax else 1.0
+    q = np.clip(np.round(x / s), -max_abs, max_abs)
+    return q.astype(np.float32), s
+
+def q_rows(x, max_abs=448.0):          # per-row（per-token / per-channel）缩放
+    amax = np.abs(x).max(axis=1, keepdims=True)
+    s = np.where(amax == 0, 1.0, amax / max_abs)
+    q = np.clip(np.round(x / s), -max_abs, max_abs)
+    return q.astype(np.float32), s
+
+rng = np.random.default_rng(0)
+
+print("--- rel_err vs K (no outlier, per-tensor) ---")
+for K in (256, 1024, 4096, 8192):
+    A = rng.normal(0, 1, (128, K)).astype(np.float32)
+    B = rng.normal(0, 1, (K, 128)).astype(np.float32)
+    C = A @ B
+    Aq, sa = q_tensor(A); Bq, sb = q_tensor(B)
+    Cq = (Aq @ Bq) * (sa * sb)
+    print(f"K={K:5d}  rel_err={np.linalg.norm(Cq-C)/np.linalg.norm(C):.4f}")
+
+print("--- one outlier row: per-tensor vs per-row ---")
+A = rng.normal(0, 1, (256, 1024)).astype(np.float32)
+A[0] *= 100
+B = rng.normal(0, 1, (1024, 256)).astype(np.float32)
+C = A @ B
+Aq, sa = q_tensor(A); Bq, sb = q_tensor(B)
+print(f"per-tensor rel_err={np.linalg.norm((Aq@Bq)*(sa*sb)-C)/np.linalg.norm(C):.4f}")
+Ar, sr = q_rows(A)
+print(f"per-row    rel_err={np.linalg.norm((Ar@Bq)*(sr*sb)-C)/np.linalg.norm(C):.4f}")
+```
+
+```text
+K=  256  rel_err=0.0042
+K= 1024  rel_err=0.0041
+K= 4096  rel_err=0.0044
+K= 8192  rel_err=0.0046
+per-tensor rel_err=0.0362
+per-row    rel_err=0.0039
+```
+
+看两个结论：
+
+- **$K$ 从 256 到 8192，相对误差基本钉在约 0.4%**，并没有随 $K$ 变大。所以 attention 里 $QK^\top$ 的 $K=\text{seqlen}$ 很大，并不是"直接放大相对误差"的原因——真正让误差暴涨的是**动态范围和离群值**。
+- **一个离群行（放大 100 倍）**：per-tensor 一下从 0.4% 涨到 3.6%（$s$ 被 outlier 撑大，其余行被压进很少的档位），per-row 缩放基本不变（0.4%）。这就是"离群值拖累全局缩放"的实测。
+
+顺带，代码最后那步 `(sa * sb)` 就是**输出缩放**：把量化结果乘回两个 scale，得到近似 fp32 的输出。这个乘在真实内核里通常和 bias、激活一起融进 **epilogue**；但如果 scale 本身也用低精度保存（比如 fp8/bf16 的 scale），这一步会再引入一次舍入。
+
+判断误差可以归纳成几条：
+
+- **相对误差 $\approx u\cdot c$，与 $K$ 基本无关**（随机输入）。要压误差，优先压低 $u$（更深位宽、更细缩放）或压 $c$（消离群值、窄动态范围）。
+- **累加用 fp32** 把"累加舍入"消掉后，剩下的才是输入量化项；**低精度累加**才会让误差随 $K$ 累积（见下一节）。
+- **分层量化 / 块缩放**压的是 $c$ 里"被全局 outlier 拖累"的部分，并不能消掉 $u$ 本身。
+
+## K 维怎么累加：split-K 与归约顺序
+
+前面"累加精度"说的是**位宽**，但**累加的顺序**同样影响结果。真实 GEMM 不会把 $K$ 一次全乘完，而是沿 $K$ 切成块：
+
+- **K-tiling**：把 $A$、$B$ 沿 $K$ 切成若干 chunk，每个 chunk 对应一组 MMA；一个 CTA 处理一个 $(M_{\text{tile}}, N_{\text{tile}})$ 输出块，沿 $K$ 逐步累加进本地的 fp32 accumulator。
+- **split-K**：当 $K$ 非常大而 $M\times N$ 偏小（或为了让 tile 更小、塞进更多 CTA 并行）时，把 $K$ 拆给多个 CTA，每个算一份 partial sum，最后再合并。
+
+合并的方式决定结果**是不是确定**：
+
+- **固定顺序（顺序累加 / 固定归约树）**：partial 按固定顺序相加，结果可复现。张量核心内部的加法树本来就是固定树序，舍入误差也最低。
+- **atomic 累加**：多个 CTA 算完 partial，直接 atomically 加进同一个 fp32 输出 buffer——**谁先到谁先加**，求和顺序不稳定，每次运行结果会差在最后几位。fp32 累加下这点差异通常可接受；但换成低精度累加，顺序带来的差异会被放大，跑出来不再可复现。
+
+所以生产内核里的 split-K 合并，几乎都在 fp32 / int32 accumulator 上做固定归约，避免"低精度累加 + 乱序"把误差和不确定性同时放大。这也是把**累加精度和归约顺序**一起放进"怎么选"的原因——它们共同决定误差会不会随 $K$ 累积，以及每次跑出来是不是同一个数。
 
 ## 怎么选
 
@@ -153,11 +224,11 @@ print(f"fp8 matmul relative error: {rel_err:.4f}")   # 通常为 1e-2 量级，�
 
 ## 一些 tips
 
-1. **先看 $K$ 和分布，再定格式**。内积长度越长、离群值越多，越低精度越危险。
+1. **先看分布和离群值，再定格式**。离群值越多、动态范围越宽，越低精度越危险；$K$ 只影响绝对误差和跨层传播，随机输入下相对误差约 $u\cdot c$。
 2. **累加永远用高精度**（fp32/int32）。任何"低精度累加"都在同时毁掉输入和累加两层精度。
 3. **per-tensor 要小心 outlier**。一个异常大的数就能撑大 $s$，让整块精度崩塌；用 per-channel / per-block 或 clipping 校准。
 4. **训练用延迟缩放，推理用动态缩放**。避免为了等 amax 而同步，吞吐损失往往比精度损失更痛。
-5. **量化不是免费的误差**。fp8 的 $u \approx 6\%$ 在 $K$ 很大会被放大成可见的偏差，别在长上下文的 attention 上无脑用 fp8。
+5. **量化不是免费的误差**。fp8 的 $u \approx 6\%$ 在长上下文 attention 里，容易被离群值和跨层传播放大成可见的偏差，别无脑用 fp8。
 
 ## Reference
 
@@ -166,3 +237,4 @@ print(f"fp8 matmul relative error: {rel_err:.4f}")   # 通常为 1e-2 量级，�
 - LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale（arXiv:2208.07339）：<https://arxiv.org/abs/2208.07339>
 - DGEMM on Integer Matrix Multiplication Unit（Ozaki scheme，arXiv:2306.11975）：<https://arxiv.org/abs/2306.11975>
 - NVIDIA Transformer Engine（张量核心低精度）：<https://github.com/NVIDIA/TransformerEngine>
+- CUTLASS：高性能 GEMM 内核模板（K-tiling / split-K / 累加与归约顺序）：<https://github.com/NVIDIA/cutlass>
