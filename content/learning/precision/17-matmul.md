@@ -28,7 +28,7 @@
 
 ![GEMM 的三个精度点：A、B、累加](/learning/assets/matmul-mixed-precision.svg)
 
-"混合精度"其实分两类，逻辑不同：
+"混合精度"分两类，逻辑不同：
 
 **第一类：训练混合精度（fp16 / bf16 计算 + fp32 主权重）。** 这是 ML 里"混合精度"最经典的含义："混合"发生在**权重与计算**之间，而不是矩阵乘的两个输入之间。主权重留在 **fp32**（每步用 fp32 更新，误差不累积），计算量最大的**矩阵乘**用 **fp16 / bf16** 跑，累加用 **fp32**，fp16 时还要配合 **loss scaling** 防下溢。详见 [[learning/precision/09-fp16|FP16]] 与 [[learning/precision/10-bf16|BF16]]。
 

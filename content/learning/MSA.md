@@ -187,7 +187,7 @@ $$
 
 GQA 的意义是减少 KV cache 和 KV 读写。对长上下文推理来说，KV cache 非常大，减少 KV head 数量很有价值。
 
-但是注意：GQA 主要减少的是 KV 的存储和读取规模，并没有从根本上改变“每个 query 仍然要看长上下文”的问题。MSA 要做的是再往前走一步：**每个 GQA group 动态选择少量 KV blocks。**
+但 GQA 主要减少的是 KV 的存储和读取规模，并没有从根本上改变“每个 query 仍然要看长上下文”的问题。MSA 要做的是再往前走一步：**每个 GQA group 动态选择少量 KV blocks。**
 
 ## 4. 稀疏注意力：不看全部，只看一部分
 
@@ -281,7 +281,7 @@ MSA 每层 attention 有两个逻辑分支：
 - **Index Branch**：轻量索引分支，只负责给 KV blocks 打分并选 Top-K。
 - **Main Branch**：主 attention 分支，对选中的 blocks 做正常 softmax attention。
 
-注意：Index Branch 很轻，论文说它只在标准 GQA 上额外加入两个投影矩阵：
+Index Branch 很轻，论文说它只在标准 GQA 上额外加入两个投影矩阵：
 
 $$
 Q^{idx} = X W_q^{idx}
@@ -395,7 +395,7 @@ O^{(h)}_i =
 V^{(r)}[\mathcal{I}^{(r)}_i]
 $$
 
-这个公式看起来长，其实意思很简单：
+这个公式看起来长，但意思很简单：
 
 - `I_i^(r)` 是 Index Branch 选出的 blocks。
 - 从这些 blocks 里取出对应的 K/V。
