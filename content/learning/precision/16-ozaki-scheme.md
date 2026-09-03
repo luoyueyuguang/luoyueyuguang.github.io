@@ -77,7 +77,7 @@ $$
 | **INT8-INT32** | **7** | **31** | **1 B** |
 | INT12-INT32 | 11 | 31 | 1.5 B |
 
-由上式可算：当 $k < 2^{18}$ 时 INT8-INT32 的 $\mathrm{BPS} = \ell_{\text{in}} = 7$（无浪费位，$\alpha \ge 7$ 给足了余量）；当 $k \ge 2^{18}$ 时 $\mathrm{BPS} = \alpha < 7$。相比 FP16-FP32，INT8 每片多存有效位、浪费更少，因此**同样的精度所需的片数更少**，从而 GEMM 次数和内存都更省。
+由上式可算：$\alpha \ge 7$ 需要 $\log_2 k \le 17$，所以 $k \le 2^{17}$ 时 INT8-INT32 的 $\mathrm{BPS} = \ell_{\text{in}} = 7$（无浪费位）；$k > 2^{17}$ 时 $\mathrm{BPS} = \alpha < 7$。相比 FP16-FP32，INT8 每片多存有效位、浪费更少，因此**同样的精度所需的片数更少**，从而 GEMM 次数和内存都更省。
 
 达到目标精度需要的片数：
 
@@ -167,7 +167,7 @@ NVIDIA 还有一条 **DP4A** 指令，可对 4 元素 INT8 向量做内积并累
 - **ozIMMU**（github.com/enp1s0/ozimmu）：Ootomo 等的 INT8 版库，用 `cublasGemmEx` 做内部 GEMM，自定义 kernel 做位切分与合成。
 - **cuBLAS / CUTLASS**：提供 INT8×INT8→INT32 的高性能 GEMM 原语，是 Ozaki 实现的底层积木（论文正是借"可复用高度优化的 BLAS"这一大优势）。
 - **框架**：主流框架当前不直接暴露 Ozaki，多把它包装在"仿真 DGEMM/精确推理"类库里；学术界在 FP8、FP4 上继续扩展（FP8 版、FP4 版、Ozaki-II CRT 版等）。
-- **硬件吸收：Rubin 的模拟高精度**。这个"用低精度核逼近高精度"的思路已被 NVIDIA 吸收为硬件能力。Rubin（及 Blackwell）Tensor Core 原生提供**模拟（emulated）FP32/FP64**：把输入拆成低位分量、用低位宽核算，逼近甚至超过原生 IEEE 精度。软件版的 Ozaki 在只有 INT8 核的旧硬件 / 消费 GPU 上仍是主力；而在 Rubin 上，同样的分解由硬件/库直接承担。
+- **硬件/库吸收：cuBLAS 的浮点仿真**。NVIDIA 已把"低精度核逼近高精度"做成 cuBLAS 的原生能力。cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+，覆盖 CC 8.x/9.0/10.0/11.0/12.x）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享行/列缩放因子合成——与本文算法同构，且库明确说明结果"非 IEEE-754 兼容"、切片数随尾数位二次增长；另有 **BF16x9** 算法（Blackwell CC 10.0/10.3，CUDA 12.9+）把 FP32 拆成 3 个 BF16 分量仿真 FP32。所以在只有 INT8 核的消费 GPU 上，ozIMMU 这类库仍是主力；在 Blackwell/Rubin 上，同样的分解由 cuBLAS 直接承担。
 
 ### 代码示例
 
@@ -232,7 +232,7 @@ Ozaki-int8 结果 vs fp64 参考：
 ### 一些 tips
 
 1. **先看指数分布，再定片数。** 行内元素量级跨度（$\phi$）越大，需要的 $s$ 越多。真实工程里常按行/列的最大值设共享指数，并预留余量，这正是"exponent span"这个核心约束。
-2. **片数 $s$ 决定精度-速度-内存三角。** 每加一片，GEMM 次数和内存都近乎线性增长（合成次数是 $\frac{s(s+1)}2$）。不要盲目追高，先用 $\alpha=\lfloor(\ell_{\text{acc}}-\log_2 k)/2\rfloor$ 算出 BPS 再定 $s$。
+2. **片数 $s$ 决定精度-速度-内存三角。** 每加一片，内存近乎线性增长，而 GEMM（合成）次数按 $\frac{s(s+1)}2$ 二次增长；对 FP64 目标，$s$ 从 8 涨到 13，合成次数就从 36 涨到 91。不要盲目追高，先用 $\alpha=\lfloor(\ell_{\text{acc}}-\log_2 k)/2\rfloor$ 算出 BPS 再定 $s$。
 3. **只在 FP64 弱、INT8 强的硬件上划算。** A100/H100 这类有强 FP64 张量核的芯片上，原生 DGEMM 更快；消费级 GPU 或"INT8 被抬上去、FP64 被压下去"的新架构才是主战场。
 4. **合成用目标精度累加。** 最后一步 $\mathbf{C}\leftarrow\mathbf{C}+\mathbf{C}_{\text{tmp}}\odot(\cdots)$ 务必在 FP64（或更高）上进行，否则前面省下的精度会在这步被丢回。
 5. **警惕消零，但也利用消零。** 对 $A\cdot A^{\dagger}$ 这类消零敏感问题，Ozaki 反而优于原生 DGEMM，因为它从 MSB 逐块算、高位不被低位污染。
