@@ -509,7 +509,7 @@ DeQuant_mse(idx):
 
 注意：这不是生产级代码。论文使用的是 Beta 分布对应的最优 codebook；下面为了可读性，用高维下的正态近似 `N(0, 1/d)` 来用 Lloyd-Max 数值求 codebook。生产系统还需要 bit packing、CUDA kernel、快速旋转、norm 存储和 outlier channel 处理。
 
-代码里用 `np.trapz` 做数值积分，是为了兼容 NumPy 1.x。NumPy 2.0 之后也可以用等价的 `np.trapezoid`。
+代码里用 `np.trapezoid` 做数值积分（NumPy 2.0 之前叫 `trapz`），这样能直接在 Pyodide 的 NumPy 2.x 上运行。
 
 ```python
 import numpy as np
@@ -535,7 +535,7 @@ def lloyd_max_normal(bit_width, d, steps=200, grid_size=20001):
     sigma = 1.0 / np.sqrt(d)
     grid = np.linspace(-6 * sigma, 6 * sigma, grid_size)
     pdf = np.exp(-0.5 * (grid / sigma) ** 2)
-    pdf = pdf / np.trapz(pdf, grid)
+    pdf = pdf / np.trapezoid(pdf, grid)
 
     centers = np.linspace(-2.5 * sigma, 2.5 * sigma, k)
 
@@ -548,9 +548,9 @@ def lloyd_max_normal(bit_width, d, steps=200, grid_size=20001):
 
         for i, (left, right) in enumerate(zip(left_edges, right_edges)):
             mask = (grid >= left) & (grid < right)
-            mass = np.trapz(pdf[mask], grid[mask])
+            mass = np.trapezoid(pdf[mask], grid[mask])
             if mass > 1e-12:
-                new_centers[i] = np.trapz(
+                new_centers[i] = np.trapezoid(
                     grid[mask] * pdf[mask],
                     grid[mask],
                 ) / mass
