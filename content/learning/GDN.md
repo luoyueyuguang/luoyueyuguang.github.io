@@ -522,6 +522,8 @@ GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 tok
 
 2026 年有一篇关于 GDN decode 加速的 FPGA 工作就指出，GDN 用固定 recurrent state 替代增长的 KV cache，但 batch-1 GPU decode 会被状态往返 HBM 的访存卡住。它们的思路是把状态常驻在 FPGA 片上 BRAM 里，减少每 token 的状态搬运。
 
+那篇工作把瓶颈讲得很具体：所有 subquadratic 序列模型在 decode 时算术强度都低于 **1 FLOP/B**，也就是每搬一个字节还做不到一次乘加，因此比普通 Transformer 更受限于访存。GDN 的 recurrent state 在它们的配置里约 **2 MB**，每个 token 都要整块读、改、写回。把状态常驻到 FPGA 片上 BRAM 后，它们测得 **63 us / token**，比 H100 PCIe 上的 GPU 参考实现快 **4.5x**，片上功耗约 9.96 W，折算下来每个 token 的能量效率最高提升约 **60x**。
+
 这说明 GDN 的工程判断要更细：
 
 - 长上下文下，它避免了 KV cache 随 `N` 增长。

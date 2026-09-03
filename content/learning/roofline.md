@@ -68,19 +68,19 @@ for name, pi in (("FP32", pi_fp32), ("BF16", pi_bf16)):
     peak = np.minimum(pi, beta * I)      # 可达到性能（折线）
     print(f"{name}: ridge point = {ridge:8.1f} FLOPs/byte")
 
-def classify(ai, peak):
+def classify(ai, ridge):
     """按算术强度判断一个 kernel 落在哪一区。"""
-    if ai < peak:
-        return "memory-bound（被带宽卡）"
-    return "compute-bound（被算力卡）"
+    return "memory-bound（被带宽卡）" if ai < ridge else "compute-bound（被算力卡）"
 
-print("\n常见 kernel 的算术强度（粗略）：")
-print(f"  elementwise（逐元素，如激活）        I≈0.5  → {classify(0.5, 9.75)}")
-print(f"  大 N 的 GEMM（N=4096，AI≈2N/3≈2730） → {classify(2730, 9.75)}")
-print(f"  注意力（分块把 HBM 压到 O(N) 后）    I≈几十 → {classify(60, 9.75)}")
+print("\n常见 kernel 的算术强度（粗略，对照 BF16 张量核 ridge=156）：")
+print(f"  elementwise（逐元素，如激活）         I≈0.5  → {classify(0.5, 156)}")
+print(f"  注意力（分块后，HBM 压到 O(N)）       I≈几十 → {classify(60, 156)}")
+print(f"  大 N 的 GEMM（N=4096，I≈2N/3≈2730）   I≈2730 → {classify(2730, 156)}")
 ```
 
-实际运行会打印：`FP32: ridge point = 9.8`、`BF16: ridge point = 156.0`，并把三个 example 归好区。
+实际运行会打印：`FP32: ridge point = 9.8`、`BF16: ridge point = 156.0`，并把三个 example 归好区：elementwise 和注意力（都在 ridge 左边）是 **memory-bound**，大 N 的 GEMM（远远甩在右边）是 **compute-bound**。
+
+**注意 ridge 跟着"用哪条计算路径"变**：attention 用的是 tensor core，所以必须对照 BF16 的 ridge（156），而不是 FP32 的（9.75）。同一份 $I$ 在不同 ridge 下可能属于不同区——这就是为什么先得确认"拿什么算"，再查表归类。
 
 ## 怎么用
 
@@ -93,7 +93,7 @@ Roofline 的用法不是"看个热闹"，而是**先定位瓶颈，再改对地�
 
 ## 和 attention 的关系
 
-attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少（[[learning/flash-attention/01-flash-attention|FlashAttention 系列]] 开篇就在讲这个）。FlashAttention 靠分块 + online softmax 把 HBM 读写从 $O(N^2)$ 压到 $O(N)$，本质就是**把 $I$ 一路抬到 ridge point 右边，把"带宽瓶颈"变成"算力瓶颈"**。而 FA4 在 Blackwell 上甚至先画 roofline 判断瓶颈是否已经换人（B200 的 tensor core 翻倍但共享内存带宽和指数单元没涨），再决定改 kernel 还是改算法。
+attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少（[[learning/flash-attention/01-flash-attention|FlashAttention 系列]] 开篇就在讲这个）。朴素的 attention 有个 $O(N^2)$ 的 HBM 读写下限，$I$ 被压得很低；FlashAttention 靠分块 + online softmax 把 HBM 读写从 $O(N^2)$ 压到 $O(N)$，让 $I$ 从"远低于 ridge"一路抬**向 ridge 靠拢**，从而把带宽瓶颈大大缓解——但它通常仍落在 ridge 左边（仍是 memory-bound），只是不再被 $O(N^2)$ 的流量死死压住。这就是"把 $I$ 抬向 ridge"和"直接跨过 ridge"的区别。而 FA4 在 Blackwell 上甚至先画 roofline 判断瓶颈**是否已经换人**（B200 的 tensor core 翻倍但共享内存带宽和指数单元没涨），再决定改 kernel 还是改算法。
 
 ## Reference
 

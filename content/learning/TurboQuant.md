@@ -1740,6 +1740,8 @@ TurboQuant 的意义在于：
 
 论文报告说，在 KV cache 量化实验里，3.5 bits per channel 可以达到接近无质量损失，2.5 bits per channel 只有轻微质量下降。具体效果当然依赖模型、任务和实现。
 
+Google 的官方博客（2026 年 3 月更新）进一步公开了几组更偏部署的测量，可以当作补充：在开源模型上，TurboQuant 能在不重训、不微调的情况下把 KV cache 压到 **3 bit** 且不损失准确度，KV cache 体积至少下降 **6x**；在 H100 上，4-bit TurboQuant 算 attention logits 相比 32-bit 未量化 key 最高约 **8x** 加速。博客同时确认 TurboQuant 入选 **ICLR 2026**、PolarQuant 入选 **AISTATS 2026**、QJL 发表在 **AAAI**（见 Reference 里的 QJL 链接）。
+
 ## 30. 和 PolarQuant、QJL 的关系
 
 你可以把三者关系理解成：
@@ -1871,5 +1873,6 @@ QJL 只保存正负号草图，它不能完整恢复残差。它的目标是内�
 
 - [Google TurboQuant blog](https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/)
 - [Google QJL arxiv paper](https://arxiv.org/abs/2406.03482)
+- [Google QJL AAAI 发表版本](https://dl.acm.org/doi/10.1609/aaai.v39i24.34773)
 - [Google PolarQuant paper](https://arxiv.org/abs/2502.02617)
 - [Google TurboQuant arxiv paper](https://arxiv.org/abs/2504.19874)

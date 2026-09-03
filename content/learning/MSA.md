@@ -27,6 +27,10 @@ Coauthor with codex 5.5
 - 论文在一个 **109B 参数、每 token 激活 6B 参数** 的 MoE 多模态模型上做实验，MSA 效果和 full attention GQA 基本相当。
 - 论文公开了 inference kernel：<https://github.com/MiniMax-AI/MSA>。
 - 使用 MSA 的公开模型是 MiniMax-M3：<https://huggingface.co/MiniMaxAI/MiniMax-M3>。
+  MiniMax-M3 是更大的生产模型，约 **428B 总参数、每 token 激活约 23B**，原生多模态、支持 1M context，
+  和上面论文里做对照实验的那个 **109B / 6B-activated** 实验模型不是同一个。
+  M3 发布页单独给了一套和上一代 M2 对比的数字（和论文里 H800 上测的 14.2x/7.6x 是两套不同的对比）：
+  1M context 下 **9x prefill、15x decode** 加速，per-token compute 降到 **1/20**。
 
 想快速抓住全文，记住这条线：
 
@@ -1919,6 +1923,9 @@ combine.py:
 - head dimension 128。
 - `B_k = 128`。
 - `k = 16`。
+
+上面这组 `~109B / ~6B-activated` 是论文用来做受控对照实验的模型；MiniMax 公开的 MSA 生产模型
+MiniMax-M3 更大（约 428B / 23B activated），别把这组 109B 配置当成 M3 的 config。
 
 训练预算：
 
