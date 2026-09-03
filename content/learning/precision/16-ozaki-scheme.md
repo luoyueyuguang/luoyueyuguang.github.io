@@ -87,7 +87,7 @@ $$
 | FP64 | 53 | 7 | ≈8 | 36 |
 | FP64（带余量） | — | 7 | 9～13 | 45～91 |
 
-> GEMM 次数公式：最内层只需算 $i+j \le s+1$ 的对角带，即 $\frac{s(s+1)}{2}$ 次。这和 FP16-Tensor-Core 版（Mukunoki 等人用 $s=10\sim20$）相比显著减少。
+> GEMM 次数公式：最内层只需算 $i+j \le s+1$ 的对角带，即 $\frac{s(s+1)}{2}$ 次。这和 FP16-Tensor-Core 版（Mukunoki 等人用 $s=10\sim20$）相比显著减少。（注：这个"对角带"截断只有在下述高位数项确实低于目标精度时才合法；下面的小 demo 因为只拆 4 片、位权还落在目标精度之上，所以代码保留全部 $s^2$ 项，才能看到 $10^{-7}$ 的误差。）
 
 ### 算法总览（伪代码）
 
@@ -167,7 +167,8 @@ NVIDIA 还有一条 **DP4A** 指令，可对 4 元素 INT8 向量做内积并累
 - **ozIMMU**（github.com/enp1s0/ozimmu）：Ootomo 等的 INT8 版库，用 `cublasGemmEx` 做内部 GEMM，自定义 kernel 做位切分与合成。
 - **cuBLAS / CUTLASS**：提供 INT8×INT8→INT32 的高性能 GEMM 原语，是 Ozaki 实现的底层积木（论文正是借"可复用高度优化的 BLAS"这一大优势）。
 - **框架**：主流框架当前不直接暴露 Ozaki，多把它包装在"仿真 DGEMM/精确推理"类库里；学术界在 FP8、FP4 上继续扩展（FP8 版、FP4 版、Ozaki-II CRT 版等）。
-- **硬件/库吸收：cuBLAS 的浮点仿真**。NVIDIA 已把"低精度核逼近高精度"做成 cuBLAS 的原生能力。cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+，覆盖 CC 8.x/9.0/10.0/11.0/12.x）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享行/列缩放因子合成——与本文算法同构，且库明确说明结果"非 IEEE-754 兼容"、切片数随尾数位二次增长；另有 **BF16x9** 算法（Blackwell CC 10.0/10.3，CUDA 12.9+）把 FP32 拆成 3 个 BF16 分量仿真 FP32。所以在只有 INT8 核的消费 GPU 上，ozIMMU 这类库仍是主力；在 Blackwell/Rubin 上，同样的分解由 cuBLAS 直接承担。
+- **硬件/库吸收：cuBLAS 的浮点仿真**。NVIDIA 已把"低精度核逼近高精度"做成 cuBLAS 的原生能力。cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+，覆盖 CC 8.x/9.0/10.0/11.0/12.x）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享行/列缩放因子合成——与本文算法同构，且库明确说明结果"非 IEEE-754 兼容"、切片数随尾数位二次增长；另有 **BF16x9** 算法（Blackwell CC 10.0/10.3，CUDA 12.9+）把 FP32 拆成 3 个 BF16 分量仿真 FP32。关键差异在于：Ozaki 是**数据相关的**——FP64 统一拆几片不够，因为对齐指数后需要的"尾数位数"取决于输入；所以 cuBLAS 内建了一个 **ADP（automatic dynamic precision）框架**，先分析输入决定能否安全仿真、自动配置仿真参数，保证"等于或优于原生 FP64"，并对小问题回退到原生算法避免惩罚。cuBLAS 对 FP64 的一个常见自动配置是 **55 尾数位**（略多于 IEEE-754 的 53，因为只需总精度不低于原生），而更激进的 39 位可再提速——代价是应用级精度下降。所以在只有 INT8 核的消费 GPU 上，ozIMMU 这类库仍是主力；在 Blackwell/Rubin 上，同样的分解由 cuBLAS 直接承担。
+- **学术界沿 Ozaki-II / 融合内核继续走**。两个方向值得留意：一是 **Ozaki-II 的严格误差分析**（Uchino、Ozaki、Imamura，arXiv:2602.02549），它给出确定性误差界，并据此估计"达到某精度需要多少次低精度乘法"——正好补齐 Ozaki 一族"指数分布宽时精度骤降"的定量刻画；二是 **EmuGEMM**（arXiv:2606.25453），在 Hopper/Blackwell 上把两个 Ozaki 方案的中间结果**融合到寄存器里**、避免反复落全局内存，以 Scheme I 达到 1639 Top/s（Hopper）和 3654 Top/s（Blackwell，均约 8 成 INT8 峰值），并在大矩阵上比 cuBLAS TF32 快 1.4×（Hopper）/1.7×（Blackwell），用 Scheme II 处理复数时比 cuBLAS ZGEMM 快 2.3×（Hopper）/5.5×（Blackwell）。这都说明"低精度核仿高精度"还在往**更高带宽利用率、更强误差控制**两个方向演进。
 
 ### 代码示例
 
@@ -178,55 +179,48 @@ import numpy as np
 
 def ozaki_split(M, base=7, s=4):
     """把矩阵 M 按行切成 s 个 INT8 片，并返回行共享指数 e。
-    每片元素是 int8 定点值；行 i 的整片共享缩放 e[i]。"""
-    m, _ = M.shape
+    每片元素是 int8 定点值；行 i 的整片共享缩放 e[i]。
+    做法是 MSB->LSB 的定点数字提取：先按行归一到 [-1,1]，
+    每片取当前最高 7 位（权 2^{-p·base}·e），余量左移 base 位交给下一片。"""
     e = (2 ** np.ceil(np.log2(np.max(np.abs(M), axis=1) + 1e-300)))  # 行共享指数
+    v = M / e[:, None]                                             # 归一化到 [-1,1]
     limbs = []
-    R = M.copy()
-    for p in range(s - 1):
-        # 把 R 按行缩放到 [e_i * 2^7) 量级区间，再取整到 int8（截断为7位）
-        scale = e[:, None] * (2.0 ** (base * (s - p - 1)))       # 每行不同
-        Q = np.clip(np.round(R / scale), -127, 127).astype(np.int8)
+    for p in range(s):
+        # 当前最高 7 位：round 取整到 int8（权 2^{-p·7}·e）
+        Q = np.clip(np.round(v), -127, 127).astype(np.int8)
         limbs.append(Q)
-        R = R - Q.astype(np.float64) * scale
-    # 最后一片：余量也压进 int8（并同样按 e 缩放取整）
-    scale = e[:, None]
-    last = np.clip(np.round(R / scale), -127, 127).astype(np.int8)
-    limbs.append(last)
+        v = (v - Q.astype(np.float64)) * (2.0 ** base)             # 余量左移 7 位供下一片
     return limbs, e
 
 def ozaki_gemm(A, B, s=4):
     """用 int8 张量核（int32 累加）仿真 C = A@B，返回浮点结果。"""
     Alims, eA = ozaki_split(A.astype(np.float64), s=s)
-    Blims, eB = ozaki_split(B.T.astype(np.float64), s=s)   # 对 B^T 的每行(即B的每列)取共享指数
+    Blims, eB = ozaki_split(B.T.astype(np.float64), s=s)           # 对 B^T 的每行(即B的每列)取共享指数
     C = np.zeros((A.shape[0], B.shape[1]), dtype=np.float64)
     for i in range(s):
-        for j in range(s - i):
+        for j in range(s):
             # INT8 x INT8 -> int32 累加（整数精确）
-            Ctmp = (Alims[i].astype(np.int32) @ Blims[j].astype(np.int32)).astype(np.float64)
-            # 按位权 & 行/列共享指数合成
-            scale = (2.0 ** (-(i + j) * 7)) * eA[:, None] * eB[None, :]
-            C += Ctmp * scale
+            # Blims[j] 的下标是 [j,t]，要对 k 内积需转置：sum_t Alims[i][:,t]·Blims[j][t,:]
+            Ctmp = (Alims[i].astype(np.int32) @ Blims[j].T.astype(np.int32)).astype(np.float64)
+            # 按位权 & 行/列共享指数合成：i+j 是两片各自位权之和
+            C += Ctmp * (2.0 ** (-(i + j) * 7)) * eA[:, None] * eB[None, :]
     return C
 
 np.random.seed(0)
 A = np.random.uniform(-1, 1, (8, 8))
 B = np.random.uniform(-1, 1, (8, 8))
 ref = A.astype(np.float64) @ B.astype(np.float64)      # 高精度参考
-got = ozaki_gemm(A, B, s=4)
-
-rel = np.abs(got - ref) / (np.abs(ref) + 1e-300)
-print("Ozaki-int8 结果 vs fp64 参考：")
-print("  最大相对误差 = %.3e" % rel.max())
-print("  平均相对误差 = %.3e" % rel.mean())
+for s in (4, 8):
+    got = ozaki_gemm(A, B, s=s)
+    rel = np.linalg.norm(got - ref) / np.linalg.norm(ref)   # 弗氏范数相对误差（与 17-matmul 口径一致）
+    print("s = %d  rel_err = %.3e" % (s, rel))
 ```
 
-运行你会看到最大相对误差在 $10^{-7}$ 量级（接近 FP32 水平，且这里只用了 4 片、每片 7 位、指数范围很窄）。若把片数加到 8，可进一步逼近 FP64。把这个拆分/合成逻辑换成 CUDA kernel，把 `np.matmul` 换成 `cublasGemmEx` 的 INT8 模式，就是真实的 ozIMMU。
+运行你会看到：用 4 片（28 bits）时相对误差在 $10^{-7}$ 量级（接近 FP32 水平，且这里指数范围很窄）；把片数加到 8（56 bits），误差降到 $10^{-15}$，逼近 FP64。把这个拆分/合成逻辑换成 CUDA kernel，把 `np.matmul` 换成 `cublasGemmEx` 的 INT8 模式，就是真实的 ozIMMU。
 
 ```text
-Ozaki-int8 结果 vs fp64 参考：
-  最大相对误差 ≈ 1e-7
-  平均相对误差 ≈ 1e-8
+s = 4  rel_err = 3.915e-07
+s = 8  rel_err = 1.548e-15
 ```
 
 ### 一些 tips
@@ -241,7 +235,7 @@ Ozaki-int8 结果 vs fp64 参考：
 
 - 基础：[[learning/precision/08-int8|INT8：AI 推理的量化基石]]、[[learning/precision/12-fp32|FP32：单精度浮点]]、[[learning/precision/13-fp64|FP64：双精度浮点]]
 - 对称思路：[[learning/precision/15-fp128|FP128：四精度浮点]]（谈到 double-double 的 elementwise 拆分，与这里的 shared-place 拆分对照）、[[learning/precision/09-fp16|FP16：半精度浮点]]（FP16-Tensor-Core 版 Ozaki 的载体）
-- 论文：[DGEMM on Integer Matrix Multiplication Unit](https://arxiv.org/abs/2306.11975)（Ootomo, Ozaki, Yokota, IJHPCA 2024）；Ozaki scheme 的 CRS 扩展见 [Ozaki Scheme II](https://arxiv.org/abs/2504.08009)。
+- 论文：[DGEMM on Integer Matrix Multiplication Unit](https://arxiv.org/abs/2306.11975)（Ootomo, Ozaki, Yokota, IJHPCA 2024）；Ozaki scheme 的 CRT 扩展见 [Ozaki Scheme II](https://arxiv.org/abs/2504.08009)、其严格误差分析见 [Error Analysis of Matrix Multiplication Emulation Using Ozaki-II Scheme](https://arxiv.org/abs/2602.02549)；融合内核实现见 [EmuGEMM](https://arxiv.org/abs/2606.25453)。
 
 回到[[learning/precision/01-overview|精度总览]]。
 
@@ -249,3 +243,7 @@ Ozaki-int8 结果 vs fp64 参考：
 
 - DGEMM on Integer Matrix Multiplication Unit（Ozaki scheme，arXiv:2306.11975）：<https://arxiv.org/abs/2306.11975>
 - Ozaki Scheme II: A GEMM-oriented emulation of floating-point matrix multiplication using an integer modular technique（arXiv:2504.08009）：<https://arxiv.org/abs/2504.08009>
+- Error Analysis of Matrix Multiplication Emulation Using Ozaki-II Scheme（arXiv:2602.02549）：<https://arxiv.org/abs/2602.02549>
+- EmuGEMM: Fused Tensor Core Kernels for Precision Emulation in Matrix Multiplication（arXiv:2606.25453）：<https://arxiv.org/abs/2606.25453>
+- Unlocking Tensor Core Performance with Floating Point Emulation in cuBLAS（NVIDIA Technical Blog，确认 cuBLAS Fixed-Point=Ozaki + BF16x9 + ADP 框架）：<https://developer.nvidia.com/blog/unlocking-tensor-core-performance-with-floating-point-emulation-in-cublas/>
+- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.0/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>

@@ -140,7 +140,7 @@ for v in (1.0, 1024.0):
 - [[learning/precision/07-mxfp8|MXFP8：OCP 微缩放 FP8]]，给 FP8 加块共享指数。
 - [[learning/precision/08-int8|INT8：整数量化]]，定点网格，W8A8 量化的根基。
 
-这一组里有几篇来自 **OCP（Open Compute Project）**：一个开放硬件 / 标准组织。它在 2023 年 9 月发布的 **MX（Microscaling，微缩放）** 规范，把低精度格式统一成"每 32 个元素共享一个 8 bit 块尺度（E8M0）"的家族：[[learning/precision/03-mxfp4|MXFP4]]（E2M1）、[[learning/precision/04-fp6|MXFP6]]（E2M3 / E3M2）、[[learning/precision/07-mxfp8|MXFP8]]（E4M3 / E5M2）。这个家族是低精度矩阵乘里"块缩放"路线（见 [[learning/precision/17-matmul|低精度矩阵乘]]）的根基：它改变了"谁负责缩放"，从而决定动态范围能撑多宽。**硬件上**，NVIDIA Blackwell 的第五代张量核原生执行这三种 MX 格式，Rubin（增强第五代）沿用同一套精度并新增模拟 FP32/FP64；而 Hopper / Ampere 不支持（最低只能到 FP8）。
+这一组里有几篇来自 **OCP（Open Compute Project）**：一个开放硬件 / 标准组织。它在 2023 年 9 月发布的 **MX（Microscaling，微缩放）** 规范，把低精度格式统一成"每 32 个元素共享一个 8 bit 块尺度（E8M0）"的家族：[[learning/precision/03-mxfp4|MXFP4]]（E2M1）、[[learning/precision/04-fp6|MXFP6]]（E2M3 / E3M2）、[[learning/precision/07-mxfp8|MXFP8]]（E4M3 / E5M2）。这个家族是低精度矩阵乘里"块缩放"路线（见 [[learning/precision/17-matmul|低精度矩阵乘]]）的根基：它改变了"谁负责缩放"，从而决定动态范围能撑多宽。**硬件上**，NVIDIA Blackwell 的第五代张量核原生执行这三种 MX 格式，Rubin（第六代，Blackwell 的下一代）沿用同一套精度并新增模拟 FP32/FP64；而 Hopper / Ampere 不支持（最低只能到 FP8）。
 
 三种位宽共用同一套块结构，只有元素密度不同：
 
@@ -177,7 +177,7 @@ for v in (1.0, 1024.0):
 
 标准与论文：
 
-- IEEE 754（浮点算术标准，binary16/32/64/128）：<https://en.wikipedia.org/wiki/IEEE_754>
+- IEEE 754（浮点算术标准，binary16/32/64/128；现行版本为 2019 年修订，下一版预计 2029）：<https://en.wikipedia.org/wiki/IEEE_754>
 - OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
 - Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
 - FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>

@@ -89,7 +89,7 @@ $s$ 称为缩放因子（scale）。$s$ 怎么取，直接决定误差有多大�
 
 ### 3. Ozaki / 误差自由分解：用 int8 拿 fp32 精度
 
-[[learning/precision/16-ozaki-scheme|Ozaki Scheme]] 把一个数**拆成一串 int8 残差**，每个残差都是精确的（误差自由变换），再用 int8 张量核把这些残差矩阵乘起来，最终合成接近 fp32 的结果。它用 int8 的吞吐拿到 fp32 的精度，代价是计算量增大（残差个数倍）。**这个思路已被 NVIDIA 吸收进 cuBLAS**：cuBLAS 的 **BF16x9** 算法把 FP32 拆成 3 个 BF16 分量、在 Blackwell（CC 10.0/10.3，CUDA 12.9+）上仿真 FP32；cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享缩放因子合成。软件版就是这种误差自由分解——在只有 int8 核的旧硬件上靠手写实现，在 Blackwell/Rubin 上由 cuBLAS 直接承担。
+[[learning/precision/16-ozaki-scheme|Ozaki Scheme]] 把一个数**拆成一串 int8 残差**，每个残差都是精确的（误差自由变换），再用 int8 张量核把这些残差矩阵乘起来，最终合成接近 fp32 的结果。它用 int8 的吞吐拿到 fp32 的精度，代价是计算量增大（残差个数倍）。**这个思路已被 NVIDIA 吸收进 cuBLAS**：cuBLAS 的 **BF16x9** 算法把 FP32 拆成 3 个 BF16 分量、在 Blackwell（CC 10.0/10.3，CUDA 12.9+）上仿真 FP32（静态分解，一把刀覆盖所有 normal/subnormal FP32）；cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享缩放因子合成。与 BF16x9 不同，Ozaki 方案是**数据相关的**：因为对齐指数后用固定点表示，需要的"尾数位数"取决于输入，且必须 ≥ 53 位才能不差于原生 FP64。所以 cuBLAS 内置了一个 **ADP（automatic dynamic precision）** 框架：先分析输入判断能否安全仿真，再自动配置仿真参数、对不划算的小问题回退到原生算法——把"到底拆几片"这个麻烦从用户手里接走。软件版就是这种误差自由分解——在只有 int8 核的旧硬件上靠手写实现，在 Blackwell/Rubin 上由 cuBLAS 直接承担。
 
 - 适用：需要 fp32 / fp64 精度但又想在低精度张量核上跑的 GEMM（科学计算、参考实现）。在 Blackwell/Rubin 上，simulated 高精度由硬件/库承担；在只有 INT8 核的旧硬件上则靠手写 Ozaki。
 
@@ -250,3 +250,5 @@ print(f"fp8 matmul relative error: {rel_err:.4f}")   # 通常为 1e-2 量级，�
 - DGEMM on Integer Matrix Multiplication Unit（Ozaki scheme，arXiv:2306.11975）：<https://arxiv.org/abs/2306.11975>
 - NVIDIA Transformer Engine（张量核心低精度）：<https://github.com/NVIDIA/TransformerEngine>
 - CUTLASS：高性能 GEMM 内核模板（K-tiling / split-K / 累加与归约顺序）：<https://github.com/NVIDIA/cutlass>
+- Unlocking Tensor Core Performance with Floating Point Emulation in cuBLAS（NVIDIA Technical Blog，确认 cuBLAS BF16x9=FP32 仿真 / Fixed-Point=Ozaki 方案并内建 ADP 框架）：<https://developer.nvidia.com/blog/unlocking-tensor-core-performance-with-floating-point-emulation-in-cublas/>
+- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.0/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>
