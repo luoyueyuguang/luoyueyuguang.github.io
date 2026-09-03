@@ -85,6 +85,8 @@ for (num_splits = 1; ...; num_splits++) {
 
 **但是**：如果 M 块已经能填满 SM（`total_mblocks >= 0.8*num_SMs`），就不为波次效率而 split——除非单个 KV 头大到装不进 L2（那样非得拆 KV 不可，否则 cache 疯狂 miss）。这就是"占用率优先、cache 兜底"的策略。
 
+**为什么"wave 效率"这么敏感**：Hopper 上一个 CTA 几乎吃光 SMEM。H100 每个 SM 约 228KB，FA3 留 ~3KB 给 LSE / dPsum / mbarrier 后，张量缓冲还能用约 **224KB**，一个 CTA 就是这样一个大 tile。于是 `num_SMs` 既是可并发 CTA 的上限，又正好是"最后一波是否满载"的分母——`total_mblocks`（乘以 split 数）越接近 SM 数的整数倍，最后的零头越小，空转越少。这也是为什么 `total_mblocks >= 0.8*num_SMs` 时干脆不再为波次而 split：SM 已经被 tile 占满，再切只在给 partial 波次添乱。
+
 ## Pack-GQA 启发式
 
 `should_pack_gqa`：GQA 每组的多个 query head 共享 KV。**如果不打包**，每个 head 独立做一个小 M 块，`seqlen_q` 不是 kBlockM 的倍数时末尾浪费一块；**打包**后把 `seqlen_q * qhead_per_khead` 当成一个长 M 维度，跨 head 一起切块：
@@ -106,7 +108,7 @@ return nopack_gqa_efficiency < 0.9 * pack_gqa_efficiency;
 启动这一层逻辑很直白：**grid 是 (M 块, head×split, batch) 三维；tile scheduler 用 FastDivmod 把 CTA 编号拆成坐标；split-KV 看波次效率和 L2；pack-GQA 看切块浪费；因果就把 tile 按工作量重排。** 它不在 kernel 里，却决定了整个 GPU 怎么被占满、最后一批 CTA 空不空转。
 
 ## Reference
-
 - flash-attention 仓库（hopper/flash_fwd_launch_template.h、hopper/tile_scheduler.hpp、hopper/heuristics.h）：<https://github.com/Dao-AILab/flash-attention>
+- SM90 调参笔记（SMEM 预算、CTA 每 SM 数）：<https://github.com/Dao-AILab/flash-attention/blob/main/AI/SM90_BLOCK_SIZE_TUNING.md>
 - CUTLASS 的 tile scheduler / cluster launch：<https://github.com/NVIDIA/cutlass>
 - FlashAttention-2（sequence-length 并行与 work partitioning 动机）：<https://arxiv.org/abs/2307.08691>

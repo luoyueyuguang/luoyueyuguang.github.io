@@ -79,6 +79,8 @@ MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 R
 
 **编译时间**就是这样爆炸的。这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/08-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
 
+而且现在这套 CuTe-DSL 打法已经收敛成独立的 `flash-attn-4` 发行版（`pip install flash-attn-4`），`flash_attn/cute/interface.py` 里把 sm80/sm90/sm100/sm120 的 forward/backward、MLA forward/backward、combine、block-sparse 全部从一个包分派出去——对 Blackwell 而言，C++ 那套"一个 `.cu` 一个实例化"的爆炸被换成了 JIT 编译的单一 Python 包，`interface.py` 开头就写着 "[2025-07-04] Version in Cute-DSL, for Hopper and Blackwell"。
+
 ## 运行时怎么选
 
 launcher（`flash_fwd_launch_template.h` 的 `run_flash_fwd`）在运行时按 `(head_dim, dtype, seqlen, causal, varlen, paged, ...)` **switch** 到对应的实例化函数。这就是一个巨大的 `if/switch` 分派表。编译期把分支消掉，运行期只跑一种。
@@ -107,6 +109,7 @@ FA 的"变体"是**编译期模板参数的笛卡尔积**：架构 × dtype × h
 
 ## Reference
 
-- flash-attention 仓库（csrc/flash_attn/src/*.cu、hopper/instantiations/、hopper/flash_fwd_combine_kernel.h）：<https://github.com/Dao-AILab/flash-attention>
+- flash-attention 仓库（csrc/flash_attn/src/*.cu、hopper/instantiations/、flash_attn/cute/interface.py）：<https://github.com/Dao-AILab/flash-attention>
+- `flash-attn-4` PyPI 发行版（CuTe-DSL，sm80–sm120 单包分派）：<https://pypi.org/project/flash-attn-4/>
 - CUTLASS cuTe（模板化 MMA / tile）：<https://github.com/NVIDIA/cutlass>
 - FlashAttention-4（CuTe-DSL、JIT 编译）：<https://arxiv.org/abs/2603.05451>

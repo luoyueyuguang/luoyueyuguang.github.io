@@ -127,6 +127,8 @@ FA1 证明了 IO 复杂度。设 SRAM 大小 `$ M $` 满足 `$ d \le M \le Nd $`
 
 标准实现要把 `$ N \times N $` 的 `$ S $`、`$ P $` 写 HBM，光是这两个就是 `$ \Theta(N^2) $`。FA1 的 `$ d^2 / M $` 一项在 `$ d \in [64, 128] $`、`$ M \approx 100 \text{KB} $` 时远小于 1，所以 HBM 访问从平方级掉到次二次。
 
+而且这不只是"比标准快"——**这个复杂度对精确 attention 而言是下界**。FA1 的 Proposition 3 证明：对 `$ M \in [d, Nd] $` 的任意 SRAM 大小，都不存在一个精确 attention 算法能把 HBM 访问做到 `$ o(N^2 d^2 M^{-1}) $`。换句话说，在精确计算的前提下，这份 IO 复杂度是**渐近最优**的，能做的最多就是贡献一个常数因子。
+
 论文里 GPT-2 medium（seq 1024、head dim 64、16 heads、batch 64）的实测直接印证：
 
 | | GFLOPs | HBM R/W（GB） | Runtime（ms） |

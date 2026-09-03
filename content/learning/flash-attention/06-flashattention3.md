@@ -98,6 +98,18 @@ FP8（E4M3）只有 3 位尾数、4 位指数，误差大。而且大模型普�
 
 对比一下，H100 的 FP8 密集峰值约 1979 TFLOPS，1.2 PFLOPs/s 已到约 6 成，FP16 的 740 TFLOPs/s 到 989 TFLOPS 峰值的约 75%。FA3 把 attention 从"HBM 拖后腿"拉到了"接近算力上限"。
 
+论文还用固定配置 `{batch=4, seqlen=8448, nheads=16, hdim=128}` 单独做了消融（Table 2），把三招里的两招分别拆掉，看谁贡献大：
+
+| 配置 | 时间 | TFLOPs/s |
+| --- | ---: | ---: |
+| 三招全开（最优） | 3.538 ms | 661 |
+| 只留 warp specialization（去掉 GEMM-softmax 重叠） | 4.021 ms | 582 |
+| 只留 GEMM-softmax 重叠（去掉 warp specialization） | 4.105 ms | 570 |
+
+warp specialization 单独值约 661→582 那一档，GEMM-softmax 重叠单独值约 570 那一档：两者叠加不是简单相加，但它们各自都从"570"这个无重叠基线往"661"这个全开峰值推。
+
+> **2026-09 增补：** FA3 这篇（2407.08608）仍是 Hopper 的基准，论文结论没变；但 Blackwell 上"把 exp 藏进 tensor core"这套前提失效了——B200 的 tensor core 吞吐翻倍后，瓶颈换成共享内存流量和指数单元，后续工作见 [[learning/flash-attention/08-flashattention4|FA4]]（arXiv:2603.05451）。
+
 ## 一句话
 
 FA3 是"把 attention 里所有能重叠的都重叠"：producer/consumer 分开让 TMA 和 WGMMA 重叠，双 warpgroup pingpong 让 softmax 的 exp 和 GEMM 重叠，2 级流水线让同一个 warpgroup 内的 GEMM 和 softmax 重叠，FP8 用块量化 + Hadamard 打散把低精度误差压回去。它把 attention 从"内存受限"推进到"几乎纯算力受限"。
@@ -105,6 +117,7 @@ FA3 是"把 attention 里所有能重叠的都重叠"：producer/consumer 分开
 ## Reference
 
 - FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision（arXiv:2407.08608）：<https://arxiv.org/abs/2407.08608>
+- FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling（arXiv:2603.05451，Blackwell 后继）：<https://arxiv.org/abs/2603.05451>
 - 官方代码（hopper/ 目录）：<https://github.com/Dao-AILab/flash-attention>
 - NVIDIA CUTLASS（TMA / WGMMA / warp specialization 基础）：<https://github.com/NVIDIA/cutlass>
 - QuIP / QuIP#（随机正交矩阵打散离群值）：<https://arxiv.org/abs/2307.13304>

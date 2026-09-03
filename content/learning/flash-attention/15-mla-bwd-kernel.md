@@ -1,4 +1,4 @@
-[[learning/flash-attention/13-mla|MLA 前向]] 讲了算法和 absorbed 思路，这一篇讲反向。MLA 反向的**梯度链和普通 attention 一样**（重算 `$ S $`、`$ P = e^{S-L} $`、`$ dS = P \circ (dP - D) $`，再得 dQ/dK/dV），**但 FA 仓库把它拆成了三个 kernel**，因为 `$ dS $` 是共享中间量，而 dQ、dK、dV 需要的 `$ dS $` 布局各不相同。
+[[learning/flash-attention/13-mla|MLA 前向]] 讲了算法和 absorbed 思路，这一篇讲反向。MLA 反向的**梯度链和普通 attention 一样**（重算 `$ S $`、`$ P = e^{S-L} $`、`$ dS = P \circ (dP - D) $`，再得 dQ/dK/dV），**但 FA 仓库把它拆成了三个 kernel**，因为 `$ dS $` 是共享中间量，而 dQ、dK、dV 需要的 `$ dS $` 布局各不相同。注意这是 FA 仓库对**稠密 MLA** 的反向实现；DeepSeek-V3.2 的 token 级稀疏 DSA 是 [[learning/flash-attention/13-mla|另一套 FlashMLA]] 核（DeepSeek 自己维护），不在这里。
 
 ## 反向梯度链（和普通 attention 同源）
 
@@ -79,4 +79,5 @@ MLA 反向就是"普通 FA 反向 + 拆成三个核"：主核重算 `$ S, P $` �
 
 - flash-attention 仓库（flash_attn/cute/flash_bwd_mla_sm100.py、flash_bwd_mla_dq_dqv_sm100.py、flash_bwd_mla_dk_sm100.py）：<https://github.com/Dao-AILab/flash-attention>
 - DeepSeek-V2 MLA 论文：<https://arxiv.org/abs/2405.04434>
+- DeepSeek-V3.2-Exp / FlashMLA（DSA 稀疏核，与本文的稠密 MLA 反向不同）：<https://github.com/deepseek-ai/FlashMLA>
 - FlashAttention 反向算法（dS/dQ/dK/dV，arXiv:2205.14135）：<https://arxiv.org/abs/2205.14135>

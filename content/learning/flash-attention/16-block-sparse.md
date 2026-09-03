@@ -36,6 +36,8 @@ $$
 
 对长序列，`$ N $` 巨大时这两种都能把 IO 从二次降到近线性。
 
+但要分清 block-sparse 省的是什么：它省的是**计算和 IO**（跳过零块），**不是显存**。FA 和 block-sparse FA 的显存占用都是线性的——两者都不物化 `$ S, P $`，只存 `$ O $` 和 softmax 统计量（FA1 是 `$ (m, \ell) $`，FA2 起合并成一个 `$ L $`；论文里两者的 memory footprint 相同）。所以它和 [[learning/flash-attention/13-mla|MLA]] 那种"压缩 KV 省显存"是两条不同的路：block-sparse 省**算**，MLA 省**存**；前者靠稀疏跳过一部分，后者靠低秩把整块变小。
+
 ## 稀疏模式：butterfly
 
 论文下游实验用的是**固定的 butterfly 稀疏模式**（来自 Pixelated 那篇 `dao2021pixelated`）。butterfly 是"稀疏矩阵 → 两两块相乘再加"的结构，已经被证明能**逼近任意稀疏度**，而且天然适合 FA 的分块。选它是为了"固定模式可复用 + 表达力够 + 能落成现成 kernel"。

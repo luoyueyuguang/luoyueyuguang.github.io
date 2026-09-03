@@ -48,6 +48,8 @@ $$
 
 FA1 的并行方式："1 个 thread block 处理 1 个 (batch, head) 的整个 sequence"，总共 `$ \text{batch} \times \text{head} $` 个 block。A100 有 108 个 SM，这个数大于 80 时能填满。但**长序列通常 batch 小**（比如用 1M context 训一个模型，batch 可能只有一两条），这个时候 `$ \text{batch} \times \text{head} $` 远小于 SM 数，大量 SM 空置。
 
+举个例：一个 batch 64、16 heads 的 GPT 式配置，`$ 64 \times 16 = 1024 $` 个 block，108 个 SM 能吃饱；但换成 batch=1、16 heads 的长上下文，就只剩 `$ 1 \times 16 = 16 $` 个 block，绝大多数 SM 全程闲置。
+
 FA2 的思路：**再沿序列维切一刀。**
 
 - **forward**：outer loop 已经是"遍历行块 `$ i $`"，行块之间完全独立（每个行块只用自己的 `$ Q_i $` 和全部 `$ K, V $`）。FA2 把不同行块调度到不同 thread block，不通信。这是"embarrassingly parallel"。
@@ -102,5 +104,5 @@ FA2 原生支持 MQA（multi-query attention）和 GQA（grouped-query attention
 
 - FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning（arXiv:2307.08691）：<https://arxiv.org/abs/2307.08691>
 - 官方代码：<https://github.com/Dao-AILab/flash-attention>
-- Triton 版 fused attention 教程（Phil Tillet 最先给出 split-Q / 序列并行）：<https://github.com/openai/triton/blob/main/python/tutorials/06-fused-attention.py>
+- Triton 版 fused attention 教程（Phil Tillet 最先给出 split-Q / 序列并行）：<https://github.com/triton-lang/triton/blob/main/python/tutorials/06-fused-attention.py>
 - 前作 FlashAttention（arXiv:2205.14135）：<https://arxiv.org/abs/2205.14135>

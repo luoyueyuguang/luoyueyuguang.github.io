@@ -135,5 +135,5 @@ Triton 版把 FA 的核心结构压缩到了 30 多行：**一个程序块一段
 ## Reference
 
 - flash-attention 仓库（flash_attn/flash_attn_triton_og.py、flash_attn_triton.py）：<https://github.com/Dao-AILab/flash-attention>
-- Triton fused attention 教程（Phil Tillet）：<https://github.com/openai/triton/blob/main/python/tutorials/06-fused-attention.py>
+- Triton fused attention 教程（Phil Tillet）：<https://github.com/triton-lang/triton/blob/main/python/tutorials/06-fused-attention.py>
 - FlashAttention 论文（forward）；FlashAttention-2 论文（算法微调）：<https://arxiv.org/abs/2205.14135>

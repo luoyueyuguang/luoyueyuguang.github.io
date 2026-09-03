@@ -17,6 +17,8 @@ $$
 
 `$ k^C $`（content key）走 `$ c^{KV} $`，`$ k^R $`（rope key）走 `$ h_t $` 直接算。**content 部分是共享的、可压缩的；rope 部分本身量小，单独存。** 这就是 MLA 的"解耦"设计。
 
+拿 DeepSeek-V3 的真实数字算一笔（`config_671B.json`：`n_heads=128`、`kv_lora_rank=512`、`qk_nope_head_dim=128`、`qk_rope_head_dim=64`、`v_head_dim=128`）：若用 MHA，每 token 存 K、V 即 `$ n_h (d^{\text{QK}} + d^V) = 128\,(192+128) = 40960 $` 个元素；MLA 每 token 只存 `$ d_c + n_h d_R = 512 + 128 \times 64 = 8704 $` 个。约 **4.7×** 的压缩——这就是 MLA 用一点计算换来的长上下文能力。
+
 ## Query 也压
 
 Query 同样压：
@@ -76,8 +78,12 @@ is_deepseek_shape = head_dim == 192 and head_dim_v == 128
 is_deepseek_mla_absorbed_shape = (head_dim == 64 or head_dim == head_dim_v) and head_dim_v == 512
 ```
 
-- `(192, 128)`：DeepSeek V2/V3 的原生形状（content 192 + rope 128，或 192 的 QK 维）。
+- `(192, 128)`：DeepSeek V2/V3 的原生形状。`head_dim=192` 是 QK 维 = content（nope）128 + rope 64（DeepSeek-V3 `qk_nope_head_dim=128`、`qk_rope_head_dim=64`），`head_dim_v=128` 是 V 维。
 - `(64, 512)` / `(head_dim, 512)`：**absorbed** 模式，`$ d_h=64 $`、`$ d_c=512 $`（大 latent、小 head），用 `$ P W^{UV} $` 吸收 value 投影。
+
+## 到 V3.2，MLA 被替换了吗？
+
+没有——**MLA 仍是 DeepSeek 的稠密注意力底座**。2025-09 发布的 **DeepSeek-V3.2-Exp** 在 MLA 之上**叠加**了 DeepSeek Sparse Attention（DSA）：用一个小的 lightning indexer 把 token 级稀疏当作"哪块 KV 要看"的选择器，主注意力仍走 MLA 的 latent。所以本文讲的 latent 压缩与 absorbed 技巧在 V3.2 里原样成立，只是外面套了一层稀疏。反过来的例子是 DeepSeek 自己的 **FlashMLA**（和 FA 仓库的 MLA 是两套实现）：它有稠密 MLA decode 核（H800 上 memory-bound 到 3000 GB/s、compute-bound 到 660 TFLOPS）和 DSA 稀疏核（FP8 KV decode 410 TFLOPS，B200 上到 350 TFLOPS），进而在 V3.2 上做到稀疏 prefill 640 TFLOPS（H800）/1450 TFLOPS（B200）。这些数字是 DeepSeek 的核，不是 FA 仓库 `flash_attn/cute` 里那套；两者别混。目前能看到的最新 DeepSeek（V3.2 一系）仍是把稀疏**叠加**在 MLA 上，并未替换 MLA 本身——MLA 这门"压缩 KV cache"的技术底座没被换掉。
 
 ## 一句话
 
@@ -87,6 +93,9 @@ MLA 不是"更快"，是"更省 KV cache"：把 key/value 压成一个 latent `$
 
 - DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model（MLA 论文）：<https://arxiv.org/abs/2405.04434>
 - DeepSeek-V3 技术报告（MLA 应用与蒸馏）：<https://arxiv.org/abs/2412.19437>
+- DeepSeek-V3 MLA 超参（config_671B.json：kv_lora_rank / qk_nope_head_dim / qk_rope_head_dim / v_head_dim / n_heads）：<https://github.com/deepseek-ai/DeepSeek-V3/blob/main/inference/configs/config_671B.json>
+- DeepSeek-V3.2-Exp（DSA 叠加在 MLA 之上）：<https://github.com/deepseek-ai/DeepSeek-V3.2-Exp>
+- FlashMLA（DeepSeek 自带 MLA/DSA 核，与 FA 仓库实现不同）：<https://github.com/deepseek-ai/FlashMLA>
 - flash-attention 仓库（flash_attn/cute/flash_fwd_mla_sm100.py 等）：<https://github.com/Dao-AILab/flash-attention>
 - vLLM 的 MLA "absorbed" 实现（投影吸收原理）：<https://github.com/vllm-project/vllm>
 - RoFormer（rotary 的 block-diagonal 性质）：<https://arxiv.org/abs/2104.09864>

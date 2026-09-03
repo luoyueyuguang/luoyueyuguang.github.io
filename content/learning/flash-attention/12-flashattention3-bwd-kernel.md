@@ -113,6 +113,14 @@ if constexpr (dQacc_use_TMA) {           // head dim < 256
 
 `ShuffleLSE` / `ShuffledPsum`（head dim ≤64 时）用 `__shfl_sync` 把 L 和 D 从"某个线程"广播给同 warp，省掉从 smem 读统计量那一跳，因为 `$ d \le 64 $` 时一个 warp 够装。
 
+"针对 head dim 挑 tiling 配置"具体到 C++ FA3 的常见取值（非因果）：
+
+| head dim | 反向 tiling | 寄存器/线程 | 为什么 |
+| --- | --- | ---: | --- |
+| 128 | `tile_m=80, tile_n=128`，`SdP_swap=T, dKV_swap=F, dQ_swap=T` | 208 | `tile_m=80` 不是 64 的倍数，靠 swap 把 M 维换成能整除 64 的那一面 |
+| 192 | 3 个 MMA warpgroup，`tile_m=64, tile_n=96` | 128 | 3 WG 才有足够 M 向并行，代价是每线程寄存器被压到 128，`tile_n` 只好缩 |
+| 256 | 走 `Slice_dQKV_Mma`（上文） | — | 累加器太大，分片降峰值 |
+
 ## 一句话
 
 FA3 反向逐行读下来，数学就是 [[learning/flash-attention/04-backward-kernel|FA2 反向]]，但实现上多了三层：**warp specialization 让 TMA 搬 Q/dO 和 MMA 重叠**、**`tiled_mma_SdP` 一个 tiling 复用算 S 和 dP**、**dQ 的原子（或 TMA reduce）按 `m_block` 累加**。它把 04 那套"重算 + 三个梯度 GEMM"搬到了 Hopper，并针对 head dim 64/128/256 分别挑 tiling 配置。
@@ -120,6 +128,7 @@ FA3 反向逐行读下来，数学就是 [[learning/flash-attention/04-backward-
 ## Reference
 
 - flash-attention 仓库（hopper/mainloop_bwd_sm90_tma_gmma_ws.hpp、flash_bwd_kernel_sm90.h）：<https://github.com/Dao-AILab/flash-attention>
+- SM90 调参笔记（反向 tile/swap/warpgroup 配置、寄存器预算）：<https://github.com/Dao-AILab/flash-attention/blob/main/AI/SM90_BLOCK_SIZE_TUNING.md>
 - FlashAttention-3 论文（arXiv:2407.08608）：<https://arxiv.org/abs/2407.08608>
 - FlashAttention 论文（backward 算法，arXiv:2205.14135）：<https://arxiv.org/abs/2205.14135>
 - PTX ISA（WGMMA、TMA、named barrier、atomic）：<https://docs.nvidia.com/cuda/parallel-thread-execution/>
