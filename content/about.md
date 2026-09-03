@@ -8,6 +8,9 @@ date: 2026-01-21
 ## GitHub
 
 - [luoyueyuguang](https://github.com/luoyueyuguang)
+
+## 个人简历
+
 - [resume](https://github.com/luoyueyuguang/resume/releases/download/latest/resume-zh_CN.pdf)
 
 ## 导航
