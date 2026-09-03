@@ -27,8 +27,88 @@
     },
     "learning/flash-attention/01-flash-attention": {
       "title": "Flash Attention",
-      "date": "2026-02-09",
+      "date": "2026-09-02",
       "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/02-online-softmax": {
+      "title": "在线 softmax 与分块：FlashAttention 的核心算法",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "algorithm"]
+    },
+    "learning/flash-attention/03-forward-kernel": {
+      "title": "FlashAttention 前向内核逐行读",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/04-backward-kernel": {
+      "title": "FlashAttention 反向内核逐行读：用重算换显存",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/05-flashattention2": {
+      "title": "FlashAttention-2：并行与核内分工",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/06-flashattention3": {
+      "title": "FlashAttention-3：TMA、异步与低精度",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/07-flashattention3-kernel": {
+      "title": "FlashAttention-3 前向内核逐行读（Hopper）",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/12-flashattention3-bwd-kernel": {
+      "title": "FlashAttention-3 反向内核逐行读（Hopper）",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/13-mla": {
+      "title": "MLA：压缩 KV 的 Latent Attention（DeepSeek）",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda", "mla"]
+    },
+    "learning/flash-attention/14-launch-scheduling": {
+      "title": "调度与启动层：grid 与 tile 是怎么排的",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda", "scheduling"]
+    },
+    "learning/flash-attention/15-mla-bwd-kernel": {
+      "title": "MLA 反向内核：三个拆分后的梯度核",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda", "mla"]
+    },
+    "learning/flash-attention/16-block-sparse": {
+      "title": "Block-sparse FlashAttention：按块跳过",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda", "sparse"]
+    },
+    "learning/flash-attention/17-variants": {
+      "title": "变体与实例化：几百个 kernel 是怎么来的",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/08-flashattention4": {
+      "title": "FlashAttention-4：为 Blackwell 的非对称缩放而设计",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/09-flashattention4-kernel": {
+      "title": "FlashAttention-4 前向内核逐行读（CuTe-DSL）",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/10-flashattention4-bwd-kernel": {
+      "title": "FlashAttention-4 反向内核逐行读（CuTe-DSL）",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda"]
+    },
+    "learning/flash-attention/11-triton-reference": {
+      "title": "Triton 参考实现：FlashAttention 前向内核逐行读",
+      "date": "2026-09-02",
+      "tags": ["learning", "attention", "cuda", "triton"]
     },
     "learning/roofline": {
       "title": "Roofline 模型",

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400" role="img" aria-labelledby="title desc">
+  <title id="title">FlashAttention tiling</title>
+  <desc id="desc">Q is split into row blocks and K/V into column blocks. A thread block loads one Q block and iterates over key blocks, keeping intermediate S, P and O in SRAM.</desc>
+  <defs>
+    <marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L8 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="900" height="400" rx="22" fill="#f8fafc"/>
+  <text x="450" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#111827">分块：Q 行块 × K/V 列块</text>
+  <text x="450" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">一个 thread block 处理一个 Q 行块，沿 K/V 列块走一遍，S、P、O 都留在 SRAM</text>
+
+  <!-- Q column (row blocks) -->
+  <g transform="translate(80 120)">
+    <rect x="0" y="0" width="120" height="44" rx="8" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+    <rect x="0" y="52" width="120" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8" stroke-width="2"/>
+    <rect x="0" y="104" width="120" height="44" rx="8" fill="#eef2ff" stroke="#a5b4fc" stroke-width="2"/>
+    <rect x="0" y="156" width="120" height="44" rx="8" fill="#eef2ff" stroke="#a5b4fc" stroke-width="2"/>
+    <text x="60" y="26" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#3730a3">Q_1</text>
+    <text x="60" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#3730a3">Q_2</text>
+    <text x="60" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#475569">…</text>
+    <text x="60" y="178" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#475569">Q_i</text>
+    <text x="60" y="228" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">行块 T_r</text>
+  </g>
+
+  <!-- K/V row (column blocks) -->
+  <g transform="translate(240 120)">
+    <rect x="0" y="0" width="60" height="120" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+    <rect x="68" y="0" width="60" height="120" rx="8" fill="#a7f3d0" stroke="#34d399" stroke-width="2"/>
+    <rect x="136" y="0" width="60" height="120" rx="8" fill="#6ee7b7" stroke="#10b981" stroke-width="2"/>
+    <rect x="204" y="0" width="60" height="120" rx="8" fill="#a7f3d0" stroke="#34d399" stroke-width="2"/>
+    <rect x="272" y="0" width="60" height="120" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+    <text x="30" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 30 62)">K_1 V_1</text>
+    <text x="98" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 98 62)">K_2 V_2</text>
+    <text x="166" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 166 62)">K_j V_j</text>
+    <text x="234" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 234 62)">K_4 V_4</text>
+    <text x="302" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 302 62)">K_5 V_5</text>
+    <text x="150" y="146" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#94a3b8">列块 T_c</text>
+  </g>
+
+  <!-- output block -->
+  <g transform="translate(560 120)">
+    <rect x="0" y="0" width="150" height="80" rx="10" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2"/>
+    <text x="75" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#075985">O_i（B_r×d）</text>
+    <text x="75" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">存回 HBM</text>
+    <rect x="0" y="104" width="150" height="46" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+    <text x="75" y="124" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e">L_i（logsumexp）</text>
+    <text x="75" y="141" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">给反向用</text>
+  </g>
+
+  <!-- loop -->
+  <g transform="translate(240 250)">
+    <rect x="0" y="0" width="200" height="66" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="100" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#334155">内层循环 j=1..T_c</text>
+    <text x="100" y="47" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">S_ij = Q_i·K_jᵀ，softmax，P_ij·V_j</text>
+    <line x1="155" y1="250" x2="215" y2="250" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  </g>
+
+  <!-- SRAM note -->
+  <g transform="translate(480 250)">
+    <rect x="0" y="0" width="330" height="66" rx="12" fill="#ecfccb" stroke="#84cc16" stroke-width="2"/>
+    <text x="20" y="26" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#3f6212">S、P、O 全程留在 SRAM（约 192 KB）</text>
+    <text x="20" y="48" font-family="Arial, sans-serif" font-size="12" fill="#4d7c0f">只在这一个 kernel 的进出碰 HBM</text>
+  </g>
+</svg>

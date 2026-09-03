@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420" role="img" aria-labelledby="title desc">
+  <title id="title">Online softmax merge</title>
+  <desc id="desc">The softmax of one row is computed block by block. Each new block's scores are rescaled to the running max and merged into the running accumulator.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L8 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="920" height="420" rx="22" fill="#f8fafc"/>
+  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">在线 softmax：一块一块合并</text>
+  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">标准实现要等整行算完才知道 max；在线版只维护 m、ℓ、$O，随块更新</text>
+
+  <!-- top row: blocks of scores -->
+  <g transform="translate(70 130)">
+    <rect x="0" y="0" width="110" height="60" rx="12" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+    <rect x="126" y="0" width="110" height="60" rx="12" fill="#e0e7ff" stroke="#818cf8" stroke-width="2"/>
+    <rect x="252" y="0" width="110" height="60" rx="12" fill="#eef2ff" stroke="#a5b4fc" stroke-width="2"/>
+    <circle cx="432" cy="30" r="5" fill="#94a3b8"/>
+    <circle cx="452" cy="30" r="5" fill="#94a3b8"/>
+    <circle cx="472" cy="30" r="5" fill="#94a3b8"/>
+    <rect x="500" y="0" width="110" height="60" rx="12" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+    <text x="55" y="37" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#3730a3">S 块1</text>
+    <text x="181" y="37" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#3730a3">S 块2</text>
+    <text x="307" y="37" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="600" fill="#475569">S 块3</text>
+    <text x="555" y="37" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#3730a3">S 块j</text>
+    <text x="270" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">每个块的分数逐行扫，一次只处理一个块</text>
+  </g>
+
+  <!-- running state -->
+  <g transform="translate(70 270)">
+    <rect x="0" y="0" width="360" height="110" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="22" y="32" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">运行中的状态</text>
+    <text x="22" y="60" font-family="Arial, sans-serif" font-size="15" fill="#334155">m = 行最大值（当前已扫块）</text>
+    <text x="22" y="84" font-family="Arial, sans-serif" font-size="15" fill="#334155">ℓ = 指数和（已归一化到当前 m）</text>
+    <text x="22" y="105" font-family="Arial, sans-serif" font-size="15" fill="#334155">$O = 未归一化的输出累计</text>
+  </g>
+
+  <!-- merge box -->
+  <g transform="translate(476 270)">
+    <rect x="0" y="0" width="374" height="110" rx="14" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+    <text x="20" y="32" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#854d0e">合并一个块</text>
+    <text x="20" y="60" font-family="Arial, sans-serif" font-size="15" fill="#713f12">m_new = max(m, 块行最大)</text>
+    <text x="20" y="84" font-family="Arial, sans-serif" font-size="15" fill="#713f12">ℓ_new = e^(m_old−m_new)·ℓ + 块指数和</text>
+    <text x="20" y="105" font-family="Arial, sans-serif" font-size="15" fill="#713f12">$O = e^(m_old−m_new)·$O + e^(S−m_new)·V</text>
+  </g>
+
+  <!-- final step -->
+  <g transform="translate(70 410)">
+    <text x="160" y="0" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">扫完所有块：O = $O / ℓ，L = m + log ℓ</text>
+  </g>
+
+  <line x1="250" y1="235" x2="250" y2="266" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="663" y1="235" x2="663" y2="266" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+</svg>

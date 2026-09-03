@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 960 440" role="img" aria-labelledby="title desc">
+  <title id="title">FA1 split-K vs FA2 split-Q warp partitioning</title>
+  <desc id="desc">FA1 splits K and V across warps and needs a shared-memory reduction; FA2 splits Q across warps so each warp produces its own output block with no communication.</desc>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L8 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="960" height="440" rx="22" fill="#f8fafc"/>
+  <text x="480" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#111827">warp 分工：split-K 还是 split-Q</text>
+
+  <!-- FA1 split-K panel -->
+  <g transform="translate(30 78)">
+    <rect x="0" y="0" width="430" height="320" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="215" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#111827">FA1：split-K</text>
+    <text x="215" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">K、V 切给 warp；每个 warp 算 P·V 的偏和</text>
+
+    <!-- Q shared across warps -->
+    <rect x="30" y="76" width="120" height="44" rx="8" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+    <text x="90" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#3730a3">Q（全 warp 共享）</text>
+
+    <!-- K/V split into 4 column slices -->
+    <g transform="translate(190 70)">
+      <rect x="0" y="0" width="54" height="180" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+      <rect x="62" y="0" width="54" height="180" rx="8" fill="#a7f3d0" stroke="#34d399" stroke-width="2"/>
+      <rect x="124" y="0" width="54" height="180" rx="8" fill="#6ee7b7" stroke="#10b981" stroke-width="2"/>
+      <rect x="186" y="0" width="54" height="180" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+      <text x="27" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 27 95)">K1V1</text>
+      <text x="89" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 89 95)">K2V2</text>
+      <text x="151" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 151 95)">K3V3</text>
+      <text x="213" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46" transform="rotate(90 213 95)">K4V4</text>
+    </g>
+
+    <!-- partial sums -->
+    <rect x="190" y="270" width="212" height="34" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+    <text x="296" y="289" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#92400e">4 个偏和 → 写回 smem → 求和</text>
+  </g>
+
+  <!-- FA2 split-Q panel -->
+  <g transform="translate(500 78)">
+    <rect x="0" y="0" width="430" height="320" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="215" y="30" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#111827">FA2：split-Q</text>
+    <text x="215" y="52" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Q 切给 warp；每个 warp 独立算自己的输出块</text>
+
+    <!-- Q split into 4 row slices -->
+    <g transform="translate(30 70)">
+      <rect x="0" y="0" width="150" height="42" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+      <rect x="0" y="48" width="150" height="42" rx="8" fill="#a7f3d0" stroke="#34d399" stroke-width="2"/>
+      <rect x="0" y="96" width="150" height="42" rx="8" fill="#6ee7b7" stroke="#10b981" stroke-width="2"/>
+      <rect x="0" y="144" width="150" height="42" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+      <text x="75" y="25" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">Q 块 1</text>
+      <text x="75" y="73" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">Q 块 2</text>
+      <text x="75" y="121" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">Q 块 3</text>
+      <text x="75" y="169" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#065f46">Q 块 4</text>
+    </g>
+
+    <!-- K,V shared -->
+    <rect x="236" y="70" width="160" height="118" rx="8" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
+    <text x="316" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#3730a3">K、V（全 warp 共享）</text>
+    <text x="316" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">所有 warp 都可读</text>
+    <text x="316" y="162" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">每个 warp 算完整 S 与 O</text>
+
+    <!-- outputs -->
+    <rect x="236" y="222" width="160" height="58" rx="8" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2"/>
+    <text x="316" y="246" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#075985">O 块 1..4 独立完成</text>
+    <text x="316" y="268" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">warp 之间零通信</text>
+  </g>
+
+  <text x="480" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">代价：split-Q 需要每个 warp 能放下整块 $Q（寄存器），FA2 因此把 Q 留在寄存器里</text>
+</svg>

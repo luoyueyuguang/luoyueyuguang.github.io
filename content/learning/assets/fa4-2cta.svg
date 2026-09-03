@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="400" viewBox="0 0 920 400" role="img" aria-labelledby="title desc">
+  <title id="title">FA4 2-CTA MMA for dQ</title>
+  <desc id="desc">Two CTAs each hold half of the dS tile. They exchange half of dS via DSMEM so each CTA forms an (M/2 x 2N) operand for a CTA-pair UMMA with a doubled reduction, writing half of dQ.</desc>
+  <defs>
+    <marker id="a" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2 L8 6 L2 10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="920" height="400" rx="22" fill="#f8fafc"/>
+  <text x="460" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#111827">反向 dQ 的 2-CTA MMA</text>
+  <text x="460" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">两个 CTA 组成一个更大的 tile：各持一块 dS，用 DSMEM 交换补全，跑 CTA-pair UMMA，归约减半</text>
+
+  <!-- CTA0 -->
+  <g transform="translate(60 120)">
+    <rect x="0" y="0" width="370" height="150" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="20" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">CTA 0</text>
+    <!-- dS tiles -->
+    <rect x="20" y="46" width="150" height="54" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+    <rect x="180" y="46" width="150" height="54" rx="8" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="95" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46">dS 上半块 × N</text>
+    <text x="255" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">dS 下半块</text>
+    <!-- dQ half -->
+    <rect x="20" y="112" width="310" height="26" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2"/>
+    <text x="175" y="129" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#075985">写 dQ 上半块（归约减半）</text>
+  </g>
+
+  <!-- CTA1 -->
+  <g transform="translate(490 120)">
+    <rect x="0" y="0" width="370" height="150" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+    <text x="20" y="28" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">CTA 1</text>
+    <rect x="20" y="46" width="150" height="54" rx="8" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+    <rect x="180" y="46" width="150" height="54" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+    <text x="95" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#64748b">dS 上半块</text>
+    <text x="255" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#065f46">dS 下半块 × N</text>
+    <rect x="20" y="112" width="310" height="26" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2"/>
+    <text x="175" y="129" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#075985">写 dQ 下半块（归约减半）</text>
+  </g>
+
+  <!-- DSMEM exchange -->
+  <g transform="translate(0 292)">
+    <rect x="200" y="0" width="520" height="56" rx="12" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+    <text x="460" y="24" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#854d0e">DSMEM：各把对方缺的那块 dS 补进来</text>
+    <text x="460" y="45" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#713f12">每个 CTA 凑成 (M/2 × 2N) 的 operand，跑 CTA-pair UMMA（加倍归约）</text>
+  </g>
+
+  <text x="460" y="372" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">效果：operand B 的共享内存流量约减半，全局 atomic 归约次数减半</text>
+</svg>
