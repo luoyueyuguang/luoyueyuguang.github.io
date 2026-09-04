@@ -129,6 +129,64 @@ blockquote {
   border-left-color: var(--dark);
 }
 
+/* 表格：加外框、表头底色、斑马纹，让表格在正文里更醒目（深浅模式均适配） */
+/* 仅屏幕启用；打印时回落到 base 的 border-collapse: collapse */
+@media screen {
+article .table-container {
+  margin: 1.25rem 0;
+  border-radius: 8px;
+}
+
+article .table-container > table {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--lightgray);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+article thead th {
+  background-color: var(--highlight);
+  border-bottom: 2px solid var(--gray);
+  font-weight: 600;
+  color: var(--dark);
+}
+
+article tbody td {
+  border-bottom: 1px solid var(--lightgray);
+}
+
+article tbody tr:nth-child(even) {
+  background-color: var(--highlight);
+}
+
+article tbody tr:hover {
+  background-color: var(--highlight);
+}
+
+article tbody tr:last-child > td {
+  border-bottom: none;
+}
+
+article th,
+article td {
+  padding: 0.45rem 0.8rem;
+  text-align: left;
+  line-height: 1.6rem;
+}
+
+article thead th:first-child {
+  border-top-left-radius: 8px;
+}
+
+article thead th:last-child {
+  border-top-right-radius: 8px;
+}
+}
+
 .search > .search-button {
   border: 1px solid var(--lightgray);
   background-color: var(--light);
