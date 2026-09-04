@@ -98,7 +98,7 @@ FA1 用了三个技巧，把 HBM 访问从 $ O(N^2) $ 压到次二次：
 - FA1 把 $ S, P $ 的 $ O(N^2) $ 显存降到 $ O(N) $（多存 $ O $ 和统计量 $ (m, \ell) $，FA2 起合并为一个 $ L $），这是长序列能跑起来的前提。
 - FA2 是纯速度优化：FA1 的 forward 只到 30–50%、backward 只有 25–35% 的理论峰值算力，FA2 提到 forward 最高 73%、backward 最高 63%，训练 GPT 式模型到 225 TFLOPs/s（72% 模型 FLOPs 利用率）。
 - FA3 是 Hopper 优化 + FP8。H100 上 FA2 只有 35% 利用率，FA3 的 FP16 到 740 TFLOPs/s（75%），FP8 接近 1.2 PFLOPs/s。
-- FA4 是 Blackwell 优化。B200 上 BF16 到 1613 TFLOPs/s（71%），比 cuDNN 9.13 快 1.3×、比 Triton 快 2.7×；整个 kernel 用 CuTe-DSL（Python）写，编译快 22–32×。
+- FA4 是 Blackwell 优化。B200 上 BF16 到 1613 TFLOPs/s（71%），比 cuDNN 9.13 快 1.3×、比 Triton 快 2.7×；整个 kernel 用 CuTe-DSL（Python）写，编译快 20–30×。
 
 ## Reference
 
