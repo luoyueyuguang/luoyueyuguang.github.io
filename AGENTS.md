@@ -104,6 +104,16 @@ async function loadData() {
 - **Example**: `<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>`
 - **No npm/yarn**: Add external deps via CDN only
 
+### Math Rendering (KaTeX)
+
+The site renders math with **KaTeX** via Quartz `Plugin.Latex` (`renderEngine: "katex"`); the KaTeX CSS/JS load from the cdnjs CDN.
+
+- **Inline math** — wrap in single dollar signs: `$...$`
+- **Display math** — wrap in double dollar signs on their own lines: `$$...$$`
+- **NEVER wrap math in backticks.** `` `$...$` `` renders as literal code (with the `$` and `\command` visible) and KaTeX never runs, so the formula does not display as math. This was a site-wide bug in the flash-attention series (637 spans wrapped this way). Always write `$...$` directly in prose, table cells, and list items.
+- Keep `$` delimiters balanced on the same line; do not place `$...$` inside a code span or a backtick-wrapped title (e.g. a paper title like `Self-attention Does Not Need $O(n^2)$ Memory`).
+- If a built page shows math as raw `$...$` / `\command` text, check for stray backticks around the formula first — they swallow the `$$...$$` block too.
+
 ### URL Parameter Handling
 ```javascript
 // Parse query parameters
