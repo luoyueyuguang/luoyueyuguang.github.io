@@ -135,6 +135,6 @@ FA4 还测了 DeepSeek V3 用的 `head dim (192, 128)` 配置，也是长序列�
 - MLSys 2026 oral 页面：<https://mlsys.org/virtual/2026/oral/3759>
 - `flash-attn-4` PyPI 发行版（CuTe-DSL，Hopper + Blackwell）：<https://pypi.org/project/flash-attn-4/>
 - 官方代码（flash_attn/cute，CuTe-DSL 实现）：<https://github.com/Dao-AILab/flash-attention/tree/main/flash_attn/cute>
-- CuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/cutlass/cute_dsl>
+- CuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/CuTeDSL>
 - Blackwell tensor memory（TMEM）架构与 2-CTA MMA：<https://docs.nvidia.com/cuda/parallel-thread-execution/>
 - Cody-Waite 范围缩减 / 多项式逼近（Handbook of Floating-Point Arithmetic）：<https://hal.science/hal-00292005>

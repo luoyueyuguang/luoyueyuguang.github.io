@@ -227,6 +227,6 @@ FA4 前向的"逐行"读下来，本质还是那套在线 softmax，但**载体�
 ## Reference
 
 - flash-attention 仓库（flash_attn/cute/flash_fwd_sm100.py、cute/softmax.py、cute/utils.py）：<https://github.com/Dao-AILab/flash-attention>
-- CuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/cutlass/cute_dsl>
+- CuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/CuTeDSL>
 - FlashAttention-4 论文（arXiv:2603.05451）：<https://arxiv.org/abs/2603.05451>
 - PTX ISA（tcgen05.ld/st、fma、ex2）：<https://docs.nvidia.com/cuda/parallel-thread-execution/>

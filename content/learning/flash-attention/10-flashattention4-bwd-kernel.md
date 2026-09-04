@@ -101,4 +101,4 @@ FA4 反向的"逐行"读下来，三个关键改动都在为同一个目标服�
 - flash-attention 仓库（flash_attn/cute/flash_bwd_sm100.py）：<https://github.com/Dao-AILab/flash-attention>
 - FlashAttention-4 论文（arXiv:2603.05451，backward / 2-CTA / deterministic）：<https://arxiv.org/abs/2603.05451>
 - PTX ISA（tcgen05 CtaGroup、cp.async.bulk reduce、cluster DSMEM）：<https://docs.nvidia.com/cuda/parallel-thread-execution/>
-- CUTLASS cuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/cutlass/cute_dsl>
+- CUTLASS cuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/CuTeDSL>
