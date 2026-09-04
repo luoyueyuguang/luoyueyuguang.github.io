@@ -4,3 +4,5 @@ node_modules
 AGENTS.md
 # Markdown articles contain LaTeX underscores that Prettier can reinterpret as emphasis.
 content/**/*.md
+# Vendored / minified third-party assets (KaTeX CSS, fonts, copy-tex bundle).
+quartz/static/katex/

@@ -31,13 +31,14 @@ export const Latex: QuartzTransformerPlugin<Partial<Options>> = (opts) => {
       if (engine === "katex") {
         return {
           css: [
-            // base css
-            "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css",
+            // self-hosted base css + fonts (quartz/static/katex/) — avoids cdnjs,
+            // which is unreliable/blocked on many China networks and would break math layout
+            "/static/katex/katex.min.css",
           ],
           js: [
             {
               // fix copy behaviour: https://github.com/KaTeX/KaTeX/blob/main/contrib/copy-tex/README.md
-              src: "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/copy-tex.min.js",
+              src: "/static/katex/contrib/copy-tex.min.js",
               loadTime: "afterDOMReady",
               contentType: "external",
             },
