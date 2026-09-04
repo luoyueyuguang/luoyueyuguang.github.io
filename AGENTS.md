@@ -178,3 +178,4 @@ if (!file) {
 - Follow existing patterns exactly (color scheme, layout, naming)
 - Test changes manually in browser before completing
 - If something seems wrong, ask - the patterns here are simple and intentional
+- **Most article content is AI-generated and reviewed by hand.** Treat the prose as unverified: expect AI-writing artifacts such as inconsistent math notation (backtick-wrapped `$...$`, mixed `$...$` vs monospace symbols), formulaic transitions, redundant explanation, and occasional factual/technical drift. Before trusting a claim, cross-check it against the surrounding math and linked sources, and fix inconsistencies rather than reproduce them.
