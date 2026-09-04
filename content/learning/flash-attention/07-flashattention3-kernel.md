@@ -46,7 +46,7 @@ auto load_K = [&] (int const n_block, auto const& smem_pipe_write, auto need_seq
 ```
 
 - `pipeline_k.producer_acquire(smem_pipe_write)`：等这个 stage 有空。
-- `params.tma_load_K.with(...)`:这是一个 `SM90_TMA_LOAD` 的拷贝原子，`with` 绑定 barrier 和缓存提示。`EVICT_LAST` 是 TMA 缓存提示：把这块数据标记为「最后淘汰」（尽量留在 L2），配合 `mcast_mask_kv` 的 cluster multicast，让同 cluster 的其他 CTA 复用同一份 K/V。
+- `params.tma_load_K.with(...)`：一个 `SM90_TMA_LOAD` 拷贝原子，`with` 绑定 barrier 和缓存提示。`EVICT_LAST` 是 TMA 缓存提示：把这块数据标记为「最后淘汰」（尽量留在 L2），配合 `mcast_mask_kv` 的 cluster multicast，让同 cluster 的其他 CTA 复用同一份 K/V。
 - 真正执行是 `copy(...)`：TMA 异步拷贝，**立刻返回**。
 - `producer_get_barrier` → 这块 load 完成时让 `pipeline_k` 的 barrier 到达，consumer 那边 `consumer_wait` 就醒。
 

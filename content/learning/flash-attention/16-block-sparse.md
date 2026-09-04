@@ -19,7 +19,7 @@ $$
 `BlockSparse FlashAttention` 的算法**和 [[learning/flash-attention/02-online-softmax|FA 的算法]] 完全一样**，唯一区别是**跳过 `$ M_{ij}=0 $` 的块**。内层循环遍历 col block `$ j $` 时，先查 `$ M_{ij} $`，是 0 就 `continue`。于是：
 
 - 计算的块数 ∝ 非零块比例 `$ s $`。
-- softmax 的在线归一化照常（因为零块被跳过，softmax 分母只来自非零块，天然正确）。这其实是"因果 mask"的推广：因果就是上三角全 0 的块稀疏。
+- softmax 的在线归一化照常（因为零块被跳过，softmax 分母只来自非零块，天然正确）。这是"因果 mask"的推广：因果就是上三角全 0 的块稀疏。
 
 ## IO 复杂度：随稀疏度下降
 

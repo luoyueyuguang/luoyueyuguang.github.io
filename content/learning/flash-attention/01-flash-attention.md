@@ -1,6 +1,6 @@
 FlashAttention 系列有四篇正式论文：`FlashAttention`（NeurIPS 2022）、`FlashAttention-2`（2023）、`FlashAttention-3`（NeurIPS 2024）、`FlashAttention-4`（2026，arXiv 2603.05451）。加上一篇被它反复引用的前驱，Rabe 和 Staats 的 `Self-attention Does Not Need $O(n^2)$ Memory`。
 
-这一整套技术解决的其实只有一句话：attention 是 memory-bound 的，你算得再快也没用，数据搬不动。
+这一整套技术解决的只有一句话：attention 是 memory-bound 的，你算得再快也没用，数据搬不动。
 
 > **FlashAttention 的核心不是发明了新的数学，而是把已有的 online softmax + 分块，重构成了一个 IO-aware 的 CUDA kernel，让 attention 在 GPU 上不再被 HBM 带宽卡死。**
 

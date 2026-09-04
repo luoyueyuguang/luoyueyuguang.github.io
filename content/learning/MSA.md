@@ -2211,7 +2211,7 @@ MSA 的问题设定更靠近 attention 结构本身：
 每一层、每个 GQA group，能不能先动态选 blocks，再只对这些 blocks 做标准 attention？
 ```
 
-所以 MSA 不只是“删 KV cache”。它引入了训练中的 Index Branch、Top-K block selection、KL alignment，以及专门的 sparse attention kernel。它的稀疏模式是模型结构的一部分。
+所以 MSA 做得远比“删 KV cache”多：训练中引入了 Index Branch、Top-K block selection、KL alignment，以及专门的 sparse attention kernel；它的稀疏模式是模型结构的一部分。
 
 ### 20.2 MSA 不是用近似 softmax 替代标准 attention
 
