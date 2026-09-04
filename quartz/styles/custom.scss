@@ -173,9 +173,12 @@ blockquote {
 
   article th,
   article td {
-    padding: 0.45rem 0.8rem;
+    padding: 0.4rem 0.55rem;
     text-align: left;
     line-height: 1.6rem;
+    // 长路径 / 形状等宽内容自动换行，避免宽表格撑破内容列
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   article thead th:first-child {
