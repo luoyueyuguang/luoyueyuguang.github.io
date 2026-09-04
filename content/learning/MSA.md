@@ -58,11 +58,11 @@ Coauthor with codex 5.5
 | 符号 | 含义 | 直觉 |
 |---|---|---|
 | `N` | 序列长度 / 上下文 token 数 | 一篇长文有多少个 token |
-| `H_q` | query head 数 | 有多少个“提问视角” |
-| `H_kv` | key/value head 数 | 有多少组可被检索的信息 |
-| `G = H_q / H_kv` | 每个 KV head 对应多少个 query heads | GQA group 大小 |
-| `d_h` | 每个 head 的维度 | 每个 head 的向量宽度 |
-| `B_k` | KV block size | 一个 block 里放多少个 KV tokens |
+| $H_q$ | query head 数 | 有多少个“提问视角” |
+| $H_{kv}$ | key/value head 数 | 有多少组可被检索的信息 |
+| $G = H_q / H_kv$ | 每个 KV head 对应多少个 query heads | GQA group 大小 |
+| $d_h$ | 每个 head 的维度 | 每个 head 的向量宽度 |
+| $B_k$ | KV block size | 一个 block 里放多少个 KV tokens |
 | `k` | 每个 query/group 选多少个 KV blocks | MSA 的稀疏预算 |
 | `q2k` | query 到 KV blocks 的索引 | “这个 query 要看哪些 blocks” |
 | `k2q` | KV block 到 queries 的反向索引 | “这个 block 被哪些 queries 看中” |
@@ -99,7 +99,7 @@ Coauthor with codex 5.5
 
 如果模型每一步都对 100 万个 token 做完整注意力，成本会非常高。
 
-注意力最麻烦的地方是：每个 query token 都要和很多 key token 比较。序列长度记作 `N`，完整 causal attention 的计算量大致随 `N^2` 增长。
+注意力最麻烦的地方是：每个 query token 都要和很多 key token 比较。序列长度记作 `N`，完整 causal attention 的计算量大致随 $N^2$ 增长。
 
 可以用一个小表感受平方增长：
 
@@ -143,8 +143,8 @@ $$
 
 - `i` 是当前 query token 的位置。
 - `j` 是前文 key token 的位置。
-- `d_h` 是一个 attention head 的维度。
-- 分母 `sqrt(d_h)` 是缩放，防止分数过大。
+- $d_h$ 是一个 attention head 的维度。
+- 分母 $\sqrt{d_h}$ 是缩放，防止分数过大。
 
 算完所有分数后，模型会做 softmax：
 
@@ -217,7 +217,7 @@ $$
 o_i = \mathrm{Attn}(q_i, K[\mathcal{I}_i], V[\mathcal{I}_i])
 $$
 
-- `Index` 阶段：为当前 query 选出要看的位置集合 `I_i`。
+- `Index` 阶段：为当前 query 选出要看的位置集合 $I_i$。
 - `Attn` 阶段：只在这些被选中的位置上做标准 attention。
 
 稀疏 attention 的难点不在“少看”，而在“少看哪些”。
@@ -298,9 +298,9 @@ $$
 其中：
 
 - `X` 是当前层输入 hidden states。
-- `Q_idx` 是索引用 query。
-- `K_idx` 是索引用 key。
-- `W_q_idx` 和 `W_k_idx` 是新增参数。
+- $Q_{idx}$ 是索引用 query。
+- $K_{idx}$ 是索引用 key。
+- $W_{q,idx}$ 和 $W_{k,idx}$ 是新增参数。
 
 MSA 的 Index Branch 有两个重要形状设计：
 
@@ -314,7 +314,7 @@ $$
 
 - 每个 GQA group 有自己的 index query。
 - 所有 group 共享一个 index key。
-- `d_idx` 通常比主 attention 的规模更轻。
+- $d_{idx}$ 通常比主 attention 的规模更轻。
 
 这样 Index Branch 可以做到“每个 GQA group 单独选块”，但仍然保持轻量。
 
@@ -401,7 +401,7 @@ $$
 
 这个公式看起来长，但意思很简单：
 
-- `I_i^(r)` 是 Index Branch 选出的 blocks。
+- $I_i^{(r)}$ 是 Index Branch 选出的 blocks。
 - 从这些 blocks 里取出对应的 K/V。
 - 用普通 attention 算输出。
 
@@ -493,7 +493,7 @@ $$
 这里：
 
 - `P` 是 Main Branch 的注意力分布，作为 teacher。
-- `P_idx` 是 Index Branch 的分布，作为 student。
+- $P_{idx}$ 是 Index Branch 的分布，作为 student。
 - `stopgrad(P)` 表示不要让 KL loss 更新 teacher，只更新 student。
 
 ![KL loss 让索引分支学习主分支关注模式](/learning/assets/msa-kl-training.svg)
@@ -523,8 +523,8 @@ $$
 
 这样 KL loss 更新的主要是：
 
-- `W_q_idx`
-- `W_k_idx`
+- $W_{q,idx}$
+- $W_{k,idx}$
 
 而不是通过 `X` 影响整个模型主干。
 
@@ -556,7 +556,7 @@ $$
 F_{GQA}(N) = 2H_q d_h N^2
 $$
 
-这里核心是 `N^2`。
+这里核心是 $N^2$。
 
 MSA 的 FLOPs 分成两部分：
 
@@ -568,12 +568,12 @@ F_{MSA}(N)
 \underbrace{4H_qd_hNkB_k}_{Main\ Branch}
 $$
 
-第一项还是 `N^2`，但很轻，因为：
+第一项还是 $N^2$，但很轻，因为：
 
-- `H_kv` 远小于 `H_q`。
-- `d_idx` 是轻量索引维度。
+- $H_{kv}$ 远小于 $H_q$。
+- $d_{idx}$ 是轻量索引维度。
 
-第二项是主 attention 分支，它不再是 `N^2`，而是：
+第二项是主 attention 分支，它不再是 $N^2$，而是：
 
 $$
 N \times kB_k
@@ -740,7 +740,7 @@ $$
 \mathrm{FLOPs}/\mathrm{IO} \approx G
 $$
 
-这里 `G = H_q / H_kv`，也就是一个 KV head 对应多少个 query heads。论文主设置是：
+这里 $G = H_q / H_kv$，也就是一个 KV head 对应多少个 query heads。论文主设置是：
 
 ```text
 H_q = 64
@@ -852,9 +852,9 @@ k2q_row_ptr   = [0, 2, 2, 5]
 1. 从 `k2q_row_ptr` / `k2q_q_indices` 找到这批 query。
 2. 把这些 query 的 Q 向量 gather 出来。
 3. 用 TMA 或类似高效搬运方式把 Q/K/V tiles 放进 shared memory。
-4. 用 tensor core 做 `QK^T`，得到 attention logits。
+4. 用 tensor core 做 $QK^T$，得到 attention logits。
 5. 对当前 KV block 内部做局部 softmax。
-6. 再做 `softmax(QK^T)V`，得到这个 block 对 query 的 partial output。
+6. 再做 $\mathrm{softmax}(QK^T)\, V$，得到这个 block 对 query 的 partial output。
 7. 把 partial output 和对应 LSE 写到全局 buffer。
 
 KV-outer 下，每个 KV tile 通常只对应几个到几十个 query positions。如果一个 query position 只有 `G=16` 个 query heads，那么单独处理时，MMA 的 M 维只有 16，tensor core 吃不饱。
@@ -2182,8 +2182,8 @@ MSA 的位置可以概括成：
 MSA 的一层大概这样工作：
 
 1. 把 1M tokens 切成 blocks，每个 block 128 tokens，所以大约有 7813 个 blocks。
-2. 当前 query 在每个 GQA group 里生成一个轻量 `Q_idx`。
-3. 所有历史 token 生成轻量 `K_idx`。
+2. 当前 query 在每个 GQA group 里生成一个轻量 $Q_{idx}$。
+3. 所有历史 token 生成轻量 $K_{idx}$。
 4. Index Branch 给每个可见 token 打分。
 5. 每个 block 取最大 token score 作为 block score。
 6. 选出 Top-16 blocks，并强制包含 local block。
