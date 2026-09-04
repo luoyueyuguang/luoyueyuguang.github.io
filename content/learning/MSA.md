@@ -176,8 +176,8 @@ MSA 建在 **GQA** 上，所以先解释 GQA。
 
 假设：
 
-- Query heads 有 `H_q = 64` 个。
-- KV heads 有 `H_kv = 4` 个。
+- Query heads 有 $H_q = 64$ 个。
+- KV heads 有 $H_{kv} = 4$ 个。
 
 那么每个 KV head 服务：
 
@@ -239,7 +239,7 @@ GPU 擅长的是规则的大矩阵计算。一个 token 一个 token 地跳着�
 
 MSA 选择的是 **KV block**。
 
-假设 block size 是 `B_k = 128`，上下文被切成：
+假设 block size 是 $B_k = 128$，上下文被切成：
 
 ```text
 Block 1: token 1   - 128
@@ -276,7 +276,7 @@ $$
 - 优点：内存更连续，GPU 更容易跑快，Top-K 候选数量也变少。
 - 缺点：粒度更粗，可能一个 block 里只有几个 token 真有用，但整个 block 都会被读。
 
-论文的实验说明，在它们的设置里 `B_k = 128` 是一个比较实用的选择。附录里的 block size 消融也显示，在若干测试中把 block 从 32 增到 64 或 128，对质量影响有限，但更大的 block 更利于 kernel 效率。
+论文的实验说明，在它们的设置里 $B_k = 128$ 是一个比较实用的选择。附录里的 block size 消融也显示，在若干测试中把 block 从 32 增到 64 或 128，对质量影响有限，但更大的 block 更利于 kernel 效率。
 
 ## 6. MSA 的两个分支
 
@@ -669,7 +669,7 @@ softmax(score) A > softmax(score) B
 
 更具体地，论文的 TopK kernel 做了这些事：
 
-1. 采用论文主设置 `B_k=128`、`k=16`。
+1. 采用论文主设置 $B_k=128$、`k=16`。
 2. 一个 warp 有 32 个 lanes，每个 lane 扫描一行 block scores 的 `1/32`。
 3. 每个 lane 维护一个大小为 `k` 的局部 min-heap。
 4. heap root 缓存在 register 里，减少 shared memory 访问。
@@ -774,7 +774,7 @@ $$
 \frac{2}{3}B_k
 $$
 
-代入 `B_k=128`：
+代入 $B_k=128$：
 
 $$
 \frac{2}{3}B_k \approx 85
@@ -1038,7 +1038,7 @@ CuTe-DSL README 里还写了当前 sparse attention 的一些约束：
 - `blk_kv=128` 是公开支持路径里的关键块大小。
 - 推荐流程是先构造 `q2k_indices`，再通过 `build_k2q_csr(..., return_schedule=True)` 同时构造 CSR metadata 和 schedule，最后调用 `sparse_atten_func`。
 
-这和论文主设置高度一致：`D=128`、`B_k=128`、`k=16`、`G=16` 都是核心配置。但要注意，公开仓库 README 描述的是当前开源代码的支持边界，论文实验的 H800 kernel 和仓库当前 SM100 代码不应该被混成完全同一个二进制实现。
+这和论文主设置高度一致：`D=128`、$B_k=128$、`k=16`、`G=16` 都是核心配置。但要注意，公开仓库 README 描述的是当前开源代码的支持边界，论文实验的 H800 kernel 和仓库当前 SM100 代码不应该被混成完全同一个二进制实现。
 
 ### 15.10 把 kernel pipeline 串起来
 
@@ -1921,7 +1921,7 @@ combine.py:
 - 64 query heads。
 - 4 KV heads。
 - head dimension 128。
-- `B_k = 128`。
+- $B_k = 128$。
 - `k = 16`。
 
 上面这组 `~109B / ~6B-activated` 是论文用来做受控对照实验的模型；MiniMax 公开的 MSA 生产模型
