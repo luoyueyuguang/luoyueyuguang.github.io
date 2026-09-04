@@ -4,7 +4,7 @@ FA4 的反向比 forward 更值钱，因为 [[learning/flash-attention/08-flasha
 
 ## 5 个 MMA + TMEM 共享
 
-反向每轮做 5 个 MMA（`$ S^\top = KQ^\top $`、`$ dP^\top = V\,dO^\top $`、`$ dQ = dS\,K $`、`$ dV = P^\top dO $`、`$ dK = dS^\top Q $`）。其中 3 个是 SS（双操作数读 smem），2 个是 TS（A 从 TMEM，B 从 smem）。
+反向每轮做 5 个 MMA（$ S^\top = KQ^\top $、$ dP^\top = V\,dO^\top $、$ dQ = dS\,K $、$ dV = P^\top dO $、$ dK = dS^\top Q $）。其中 3 个是 SS（双操作数读 smem），2 个是 TS（A 从 TMEM，B 从 smem）。
 
 TMEM 只够放 4 个 128×128 累加器 tile，所以必须共享：
 
@@ -12,11 +12,11 @@ TMEM 只够放 4 个 128×128 累加器 tile，所以必须共享：
 self.tmem_dS_offset = self.tmem_dP_offset    # dS 与 dP 共用一块 TMEM
 ```
 
-这正是 [[learning/flash-attention/08-flashattention4|算法篇]] 说的：`$ S $` 和 `$ P $` 共用一个 TMEM 块，`$ dP, dS, dQ $` 共用另一个，`$ dV, dK $` 各自占剩下的不能共享。4 个 tile 摆满。
+这正是 [[learning/flash-attention/08-flashattention4|算法篇]] 说的：$ S $ 和 $ P $ 共用一个 TMEM 块，$ dP, dS, dQ $ 共用另一个，$ dV, dK $ 各自占剩下的不能共享。4 个 tile 摆满。
 
 ## 流水线：拿上一轮的 dQ/dK MMA 垫 softmax
 
-FA3 反向里，softmax 只和 `$ dP $` 的 MMA 重叠。但 [[learning/flash-attention/06-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2883 行起）让**上一轮的 `$ dQ $` 和 `$ dK $` 两个 MMA** 和当前轮的 softmax 重叠。
+FA3 反向里，softmax 只和 $ dP $ 的 MMA 重叠。但 [[learning/flash-attention/06-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2883 行起）让**上一轮的 $ dQ $ 和 $ dK $ 两个 MMA** 和当前轮的 softmax 重叠。
 
 ```python
 # compute_loop 里（伪代码化）：
@@ -28,7 +28,7 @@ FA3 反向里，softmax 只和 `$ dP $` 的 MMA 重叠。但 [[learning/flash-at
 
 ## 2-CTA MMA：dQ 的归约减半
 
-这一节是 FA4 反向最独特的地方。普通 CTA 里，`$ dQ $` 的归约轴是 `$ N $`（KV 维），每个 CTA 都要对整段 KV 做原子 add。FA4 用 Blackwell 的 **2-CTA MMA**（`tcgen05.CtaGroup.TWO`）：
+这一节是 FA4 反向最独特的地方。普通 CTA 里，$ dQ $ 的归约轴是 $ N $（KV 维），每个 CTA 都要对整段 KV 做原子 add。FA4 用 Blackwell 的 **2-CTA MMA**（`tcgen05.CtaGroup.TWO`）：
 
 ```python
 self.cta_group = tcgen05.CtaGroup.TWO if self.use_2cta_instrs else tcgen05.CtaGroup.ONE
@@ -36,11 +36,11 @@ self.cluster_shape_mn = (cluster_size, 1)     # 2 个 CTA 一组
 self.Q_stage = 1 if self.use_2cta_instrs else 2
 ```
 
-2-CTA MMA 把输出累加器在 **M 维**切成两半，两个 CTA 当一个 `$ M=256 $` 的 tile：每个 CTA 只加载并暂存**一半的 operand B**，只保留自己的累加器切片。
+2-CTA MMA 把输出累加器在 **M 维**切成两半，两个 CTA 当一个 $ M=256 $ 的 tile：每个 CTA 只加载并暂存**一半的 operand B**，只保留自己的累加器切片。
 
-**dQ 的归约轴冲突。** dQ MMA 的结构是 `$ dS\,K $`，归约方向是 `$ N $`。2-CTA MMA 只切输出（M 维），不切归约轴；但每个 CTA 又要对自己那部分行做完整归约。FA4 用 **DSMEM**（distributed shared memory）把一半的 `$ dS $` tile 塞给对侧 CTA，让每个 CTA 凑成一个 `$ (M/2 \times 2N) $` 的 operand，去跑 **CTA-pair UMMA（加倍的归约）**。这样整个 `$ N $` 的归约在 CTA pair 内并行完成。
+**dQ 的归约轴冲突。** dQ MMA 的结构是 $ dS\,K $，归约方向是 $ N $。2-CTA MMA 只切输出（M 维），不切归约轴；但每个 CTA 又要对自己那部分行做完整归约。FA4 用 **DSMEM**（distributed shared memory）把一半的 $ dS $ tile 塞给对侧 CTA，让每个 CTA 凑成一个 $ (M/2 \times 2N) $ 的 operand，去跑 **CTA-pair UMMA（加倍的归约）**。这样整个 $ N $ 的归约在 CTA pair 内并行完成。
 
-**另一半收益：dQ 的全局原子减半。** 2-CTA 下每个 CTA 只写一半 `$ dQ $` tile，到达全局的原子归约次数减半。这在 `dQacc_reduce` 里对应：
+**另一半收益：dQ 的全局原子减半。** 2-CTA 下每个 CTA 只写一半 $ dQ $ tile，到达全局的原子归约次数减半。这在 `dQacc_reduce` 里对应：
 
 ```python
 stage_offset = (
@@ -48,7 +48,7 @@ stage_offset = (
 )
 ```
 
-`cta_rank_in_cluster` 在 2-CTA 下给每个 CTA 一个偏移：CTA 0 写 stage 0、1，CTA 1 写 stage 2、3，各写 `$ dQ $` 的一半。最终写到全局用：
+`cta_rank_in_cluster` 在 2-CTA 下给每个 CTA 一个偏移：CTA 0 写 stage 0、1，CTA 1 写 stage 2、3，各写 $ dQ $ 的一半。最终写到全局用：
 
 ```python
 copy_utils.cpasync_reduce_bulk_add_f32(
@@ -62,7 +62,7 @@ copy_utils.cpasync_reduce_bulk_add_f32(
 
 ## 确定性归约：信号量锁
 
-`$ dQ $`（GQA 时还有 `$ dK,dV $`）的全局归约是**非确定性**的：多个 CTA 的 `cp.async.bulk reduce` 到达顺序不定。FA4 的确定性模式用**信号量锁**串行化：
+$ dQ $（GQA 时还有 $ dK,dV $）的全局归约是**非确定性**的：多个 CTA 的 `cp.async.bulk reduce` 到达顺序不定。FA4 的确定性模式用**信号量锁**串行化：
 
 ```python
 # 获取：等信号量等于 lock_value（即所有"更早的写者"都完成）
@@ -90,7 +90,7 @@ if const_expr(self.deterministic and stage == 0 and delay_semaphore_release):
 
 ## epilogue_dKV
 
-`epilogue_dKV`（3846 行）把 `$ dK, dV $` 的累加器从 TMEM 读出、写回全局。GQA 时多个 query head 共享一组 KV，这里要把跨 head 的 `$ dK, dV $` 求和。FA4 用 TMA 把 `$ dK/dV $` 存出去（`epilogue_dK_or_dV_tma`），配合 `use_2cta_instrs` 时同样拆分。
+`epilogue_dKV`（3846 行）把 $ dK, dV $ 的累加器从 TMEM 读出、写回全局。GQA 时多个 query head 共享一组 KV，这里要把跨 head 的 $ dK, dV $ 求和。FA4 用 TMA 把 $ dK/dV $ 存出去（`epilogue_dK_or_dV_tma`），配合 `use_2cta_instrs` 时同样拆分。
 
 ## 一句话
 

@@ -14,7 +14,7 @@ for each column block j (reverse order):
 
 **1. Tensor。** `make_tensor(指针, 形状, 步长)` 只是给一块内存描述"怎么看"，不拷贝。`gQ`、`gK`、`gV` 是全局内存里的 tile，`sQ`、`sK`、`sV` 是共享内存里的 tile。
 
-**2. 线程块只负责一个 tile。** 每个 thread block 处理"一个 batch、一个 head、一行块 `$ m $`"的输出。所以读出 `$ gQ $` 用 `local_tile` 切出 `(kBlockM, d)` 这一块，`$ gK $`、`$ gV $` 切成 `(kBlockN, d)` 的第 `$ j $` 列块。
+**2. 线程块只负责一个 tile。** 每个 thread block 处理"一个 batch、一个 head、一行块 $ m $"的输出。所以读出 $ gQ $ 用 `local_tile` 切出 `(kBlockM, d)` 这一块，$ gK $、$ gV $ 切成 `(kBlockN, d)` 的第 $ j $ 列块。
 
 ![一个 thread block 的循环：固定 Q_i，遍历 K_j / V_j](/learning/assets/fa-tiling.svg)
 
@@ -43,7 +43,7 @@ Tensor sVt = make_tensor(sV.data(), typename Kernel_traits::SmemLayoutVtranspose
 ```
 
 - `SmemLayoutQ` / `SmemLayoutKV` 是**带 swizzle 的布局**，目的是避免共享内存 bank conflict（同一个周期里多个线程撞同一个 bank）。
-- `sVt` 是 `V` 的转置视图，因为第二个 GEMM 是 `$ P \cdot V $`，P 在寄存器里按"行主序"排，V 需要按"列"读，转置一下更顺。
+- `sVt` 是 `V` 的转置视图，因为第二个 GEMM 是 $ P \cdot V $，P 在寄存器里按"行主序"排，V 需要按"列"读，转置一下更顺。
 - `Share_Q_K_smem` 为真时 `sQ` 和 `sK` 共用同一片内存（因为一个不重叠的时机用）。
 
 ## 把 tile 从 HBM 拷进 smem
@@ -62,7 +62,7 @@ Tensor tQsQ = gmem_thr_copy_QKV.partition_D(sQ);   // 目的：共享
 FLASH_NAMESPACE::copy<Is_even_MN, Is_even_K>(gmem_tiled_copy_QKV, tQgQ, tQsQ, tQcQ, tQpQ, ...);
 ```
 
-`tQcQ`、`tQpQ` 是谓词。`tQpQ(k) = ... < params.d` 表示第 `$ k $` 列是否在 `$ d $` 之内，超出 `$ d $` 的列被 mask 掉（`Is_even_K` 为假时，即 head dim 不是 128/64 的倍数）。
+`tQcQ`、`tQpQ` 是谓词。`tQpQ(k) = ... < params.d` 表示第 $ k $ 列是否在 $ d $ 之内，超出 $ d $ 的列被 mask 掉（`Is_even_K` 为假时，即 head dim 不是 128/64 的倍数）。
 
 **为什么 predicated**：`d` 不一定是 64 的倍数（如 RoPE 的 head dim = 40）。但 tensor core tile 固定是 16 的倍数，所以多出来的列要么填 0、要么不写。这就是 `Is_even_K` 存在的原因。
 
@@ -77,11 +77,11 @@ Tensor tOrVt  = thr_mma.partition_fragment_B(sVtNoSwizzle);
 Tensor acc_o = partition_fragment_C(tiled_mma, Shape<Int<kBlockM>, Int<kHeadDim>>{});
 ```
 
-- `tSrQ` 是 A 片段（`$ Q_i $`），`tSrK` 是 B 片段（`$ K_j $`），GEMM 算 `$ S = Q_i K_j^\top $`。
-- `tOrVt` 是 `$ V $` 的转置 B 片段，给第二个 GEMM（`$ P \cdot V $`）。
-- `acc_o` 是 `$ kBlockM \times d $` 的累加器（fp32），就是那个"未归一化的 `$ \widetilde{O} $`"。
+- `tSrQ` 是 A 片段（$ Q_i $），`tSrK` 是 B 片段（$ K_j $），GEMM 算 $ S = Q_i K_j^\top $。
+- `tOrVt` 是 $ V $ 的转置 B 片段，给第二个 GEMM（$ P \cdot V $）。
+- `acc_o` 是 $ kBlockM \times d $ 的累加器（fp32），就是那个"未归一化的 $ \widetilde{O} $"。
 
-**这一步就体现了 FA2 的 warp 分工。** `tSrQ` 是 A 片段，A 是按 mma 的 M 维分给 warps 的。FA2 把 `$ Q $` 切给不同 warp，每个 warp 算出自己那行块的全部 `$ \widetilde{O} $`（先算 `$ S $` 再算 `$ P \cdot V $`），**warp 之间不需要任何通信**。FA1 则相反，把 `$ K, V $` 切给 warp、`$ Q $` 共享，导致每个 warp 算出的 `$ P \cdot V $` 要写回 smem、同步、再加，这就是"split-K"开销。详见 [[learning/flash-attention/05-flashattention2|FA2]]。
+**这一步就体现了 FA2 的 warp 分工。** `tSrQ` 是 A 片段，A 是按 mma 的 M 维分给 warps 的。FA2 把 $ Q $ 切给不同 warp，每个 warp 算出自己那行块的全部 $ \widetilde{O} $（先算 $ S $ 再算 $ P \cdot V $），**warp 之间不需要任何通信**。FA1 则相反，把 $ K, V $ 切给 warp、$ Q $ 共享，导致每个 warp 算出的 $ P \cdot V $ 要写回 smem、同步、再加，这就是"split-K"开销。详见 [[learning/flash-attention/05-flashattention2|FA2]]。
 
 ## prologue：先拷第一块
 
@@ -102,7 +102,7 @@ if (Kernel_traits::Is_Q_in_regs && !Kernel_traits::Share_Q_K_smem) {
 }
 ```
 
-`Q` 一旦进了寄存器（`$ B_r \times d $` 也放得下），整个主循环就不再读它，省下每轮重复读 smem 的开销。这只有 FA2 的"Q 切给 warp"才做得出来；FA1 里 `$ Q $` 被所有 warp 共享，不能这么留在寄存器。
+`Q` 一旦进了寄存器（$ B_r \times d $ 也放得下），整个主循环就不再读它，省下每轮重复读 smem 的开销。这只有 FA2 的"Q 切给 warp"才做得出来；FA1 里 $ Q $ 被所有 warp 共享，不能这么留在寄存器。
 
 ## 主循环：S = QK^T
 
@@ -121,7 +121,7 @@ for (; n_block >= n_block_min; --n_block) {
     );
 ```
 
-- `acc_s` 是 `$ kBlockM \times kBlockN $` 的 fp32 累加器，就是 `$ S_{ij} $`。
+- `acc_s` 是 $ kBlockM \times kBlockN $ 的 fp32 累加器，就是 $ S_{ij} $。
 - `FLASH_NAMESPACE::gemm` 封装了 `mma.sync.aligned.m16n8k16` 这类指令：`tSrQ`（A，寄存器）乘 `tSrK`（B，smem），结果写进 `acc_s`（C，寄存器）。
 - `A_in_regs=Is_Q_in_regs` 告诉它 A 操作数在寄存器里还是 smem 里，省一次 `retile`。
 
@@ -155,11 +155,11 @@ __forceinline__ __device__ void softmax_rescale_o(Tensor0 &acc_s, Tensor1 &acc_o
 
 逐行对应：
 
-1. `reduce_max` 算这一块 `$ S $` 的行最大 `$ \tilde{m} $`，并和已有的 `$ m $` 合并（`zero_init=false` 时做 `max(m, new)`），即算法里的 `$ m_i^{new} = \max(m_i, \tilde{m}_{ij}) $`。
-2. `cute::copy(row_max, scores_max_prev)` 保存旧 `$ m_i $`。
-3. `scores_scale = exp2f((scores_max_prev - row_max) * softmax_scale_log2)`，就是 `$ e^{m_i - m_i^{new}} $`。**它同时乘到 `$ \ell $` 和 `$ \widetilde{O} $` 上**，这就是 FA2 的"不用对两个项都除以 `$ \ell $`"：直接攒"未缩放"的 `$ \widetilde{O} $`，最后再归一化。
-4. `scale_apply_exp2(scores, row_max, ...)`：把 `$ S $` 按新 max 做 `$ \widetilde{P} = e^{S - m} $`，即 `exp2(S * scale - m * scale)`。用 `exp2f` 而不是 `expf` 是技巧：`$ e^x = 2^{x \log_2 e} $`，写成 `exp2f(x * scale)` 编译器能合成 `ffma`（一次乘加），比 `fadd` + `fmul` 各一条省一条指令。
-5. `reduce_sum` 把 `$ \widetilde{P} $` 的行和加进 `$ \ell $`。
+1. `reduce_max` 算这一块 $ S $ 的行最大 $ \tilde{m} $，并和已有的 $ m $ 合并（`zero_init=false` 时做 `max(m, new)`），即算法里的 $ m_i^{new} = \max(m_i, \tilde{m}_{ij}) $。
+2. `cute::copy(row_max, scores_max_prev)` 保存旧 $ m_i $。
+3. `scores_scale = exp2f((scores_max_prev - row_max) * softmax_scale_log2)`，就是 $ e^{m_i - m_i^{new}} $。**它同时乘到 $ \ell $ 和 $ \widetilde{O} $ 上**，这就是 FA2 的"不用对两个项都除以 $ \ell $"：直接攒"未缩放"的 $ \widetilde{O} $，最后再归一化。
+4. `scale_apply_exp2(scores, row_max, ...)`：把 $ S $ 按新 max 做 $ \widetilde{P} = e^{S - m} $，即 `exp2(S * scale - m * scale)`。用 `exp2f` 而不是 `expf` 是技巧：$ e^x = 2^{x \log_2 e} $，写成 `exp2f(x * scale)` 编译器能合成 `ffma`（一次乘加），比 `fadd` + `fmul` 各一条省一条指令。
+5. `reduce_sum` 把 $ \widetilde{P} $ 的行和加进 $ \ell $。
 
 注意这里用 `exp2f` 而不是 `expf`：H100/A100 上特殊函数单元对 `exp2` 有原生命令，且 `exp2(a·b)` 直接是 `ffma`。这是后面 FA3 说"special function 只有 3.9 TFLOPS"的同款硬件约束。
 
@@ -172,11 +172,11 @@ Tensor tOrP = make_tensor(rP.data(), convert_layout_acc_Aregs(rP.layout()));
 FLASH_NAMESPACE::gemm_rs(acc_o, tOrP, tOrVt, tOsVt, tiled_mma, smem_tiled_copy_V, smem_thr_copy_V);
 ```
 
-- `convert_type<Element>`：tensor core 的输入是 fp16/bf16，`acc_s` 是 fp32，所以在喂给 `$ P \cdot V $` 前要把 `$ S $`（此时已经是"近似 P"）转成 fp16。这是 attention 唯一的精度损失点之一（softmax 结果存成 fp16）。
-- `convert_layout_acc_Aregs`：`acc_s` 作为 C 累加器时，每个线程持有的元素分布，和作为 A 操作数（`$ P $`）时期望的分布不一样。要重排一下，否则 mma 算错。这就是 FA3 里"FP32 累加器布局和 operand A 布局不同"需要在 FP8 用 byte-permute 解决的同一类问题。
-- `FLASH_NAMESPACE::gemm_rs` 是"register × shared" GEMM：`$ P $` 在寄存器、`$ V $` 在 smem，结果加进 `acc_o`。`rs` 后缀表示 A 从寄存器（register）、B 从共享（shared）取。
+- `convert_type<Element>`：tensor core 的输入是 fp16/bf16，`acc_s` 是 fp32，所以在喂给 $ P \cdot V $ 前要把 $ S $（此时已经是"近似 P"）转成 fp16。这是 attention 唯一的精度损失点之一（softmax 结果存成 fp16）。
+- `convert_layout_acc_Aregs`：`acc_s` 作为 C 累加器时，每个线程持有的元素分布，和作为 A 操作数（$ P $）时期望的分布不一样。要重排一下，否则 mma 算错。这就是 FA3 里"FP32 累加器布局和 operand A 布局不同"需要在 FP8 用 byte-permute 解决的同一类问题。
+- `FLASH_NAMESPACE::gemm_rs` 是"register × shared" GEMM：$ P $ 在寄存器、$ V $ 在 smem，结果加进 `acc_o`。`rs` 后缀表示 A 从寄存器（register）、B 从共享（shared）取。
 
-`acc_o` 一直攒的是未归一化的 `$ \widetilde{O} $`，这行就把它和 `$ \widetilde{P} \cdot V_j $` 相加，对应算法里的 `$ O_i \leftarrow e^{m_i^{old} - m_i^{new}} O_i + \widetilde{P}_{ij} V_j $`。
+`acc_o` 一直攒的是未归一化的 $ \widetilde{O} $，这行就把它和 $ \widetilde{P} \cdot V_j $ 相加，对应算法里的 $ O_i \leftarrow e^{m_i^{old} - m_i^{new}} O_i + \widetilde{P}_{ij} V_j $。
 
 ## epilogue：归一化 + 写回
 
@@ -196,11 +196,11 @@ for (int mi = 0; mi < size<0>(acc_o_rowcol); ++mi) {
 }
 ```
 
-- 把 `$ \widetilde{O} $` 除以累计的 `$ \ell $`（`inv_sum`），得到真正的 `$ O $`。
-- 同时算出 logsumexp `$ L = m \cdot \mathrm{scale} + \log \ell $`，存给反向用。
+- 把 $ \widetilde{O} $ 除以累计的 $ \ell $（`inv_sum`），得到真正的 $ O $。
+- 同时算出 logsumexp $ L = m \cdot \mathrm{scale} + \log \ell $，存给反向用。
 - dropout 时乘 `rp_dropout`，即 FA1 提到的"rescale at the end"。
 
-最后写回 HBM：把 `acc_o` 从寄存器转到 smem（`smem_tiled_copy_O`），再 `copy` 到 `gO`。LSE 单独写：`get_lse_tile` 定位 `softmax_lse_ptr` 的第 `$ (b, h, m) $` 块。
+最后写回 HBM：把 `acc_o` 从寄存器转到 smem（`smem_tiled_copy_O`），再 `copy` 到 `gO`。LSE 单独写：`get_lse_tile` 定位 `softmax_lse_ptr` 的第 $ (b, h, m) $ 块。
 
 ## 一个能跑的等价实现
 
@@ -239,7 +239,7 @@ print("equal:", np.allclose(flashattn_forward(Q, K, V), attention_ref(Q, K, V)))
 
 ## 小结
 
-一行行剥下来，forward kernel 就是：**从 HBM 拷块进 smem → `$ Q K^\top $` 张量核 → online softmax（`$ m, \ell $` 更新 + 重缩放 `$ \widetilde{O} $`）→ `$ P \cdot V $` 张量核 → 最后除 `$ \ell $`、写 `$ O $` 和 `$ L $`。** 全程只在进/出 kernel 时碰一次 HBM（Q/K/V 进、O/L 出），中间的 `$ S, P, \widetilde{O} $` 都留在 SRAM 和寄存器里。
+一行行剥下来，forward kernel 就是：**从 HBM 拷块进 smem → $ Q K^\top $ 张量核 → online softmax（$ m, \ell $ 更新 + 重缩放 $ \widetilde{O} $）→ $ P \cdot V $ 张量核 → 最后除 $ \ell $、写 $ O $ 和 $ L $。** 全程只在进/出 kernel 时碰一次 HBM（Q/K/V 进、O/L 出），中间的 $ S, P, \widetilde{O} $ 都留在 SRAM 和寄存器里。
 
 ## Reference
 

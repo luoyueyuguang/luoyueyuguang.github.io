@@ -17,7 +17,7 @@ def _fwd_kernel(Q, K, V, sm_scale, TMP, L, M, Out, ...,
 ```
 
 - 网格是 `(T_M, Z*H)`：`program_id(0)` 是 **行块**（哪种 query 行），`program_id(1)` 是 (batch, head)。
-- **每个程序块负责一个 `$ B_r \times d $` 的 query 块，内层扫它需要的全部 key/value 块。** 这就是"沿序列维并行"：不同行块之间完全独立，不需要通信。FA2 的 [[learning/flash-attention/05-flashattention2|序列维并行]] 就是这个结构（Tillet 最先提出，FA2 搬进 CUDA）。
+- **每个程序块负责一个 $ B_r \times d $ 的 query 块，内层扫它需要的全部 key/value 块。** 这就是"沿序列维并行"：不同行块之间完全独立，不需要通信。FA2 的 [[learning/flash-attention/05-flashattention2|序列维并行]] 就是这个结构（Tillet 最先提出，FA2 搬进 CUDA）。
 
 ```python
 off_q = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
@@ -36,7 +36,7 @@ acc = tl.zeros([BLOCK_M, BLOCK_DMODEL], dtype=tl.float32)    # 归一化的输�
 q = tl.load(q_ptrs)     # Q 只加载一次，全程留在 SRAM/寄存器
 ```
 
-`acc` 在这版 Triton 里是**每一步都归一化的**（见下文 `p_scale`），和 [[learning/flash-attention/02-online-softmax|FA1]] 的 `O` 一致。`Q` 加载一次是它的关键：整个循环里 `$ Q $` 不动，只有 K/V 在换。
+`acc` 在这版 Triton 里是**每一步都归一化的**（见下文 `p_scale`），和 [[learning/flash-attention/02-online-softmax|FA1]] 的 `O` 一致。`Q` 加载一次是它的关键：整个循环里 $ Q $ 不动，只有 K/V 在换。
 
 ## 主循环：S = QK^T
 
@@ -51,8 +51,8 @@ for start_n in range(0, (start_m + 1) * BLOCK_M, BLOCK_N):
 ```
 
 - 循环上界 `(start_m + 1) * BLOCK_M`：**因果限制**。这块 query 的最后一行是 `start_m*BLOCK_M + BLOCK_M - 1`，它只能看 `≤` 它自己的 key，所以 key 列最多扫到 `(start_m+1)*BLOCK_M`。后面那些 key 块整块跳过（约一半的块）。
-- `tl.dot(q, k, trans_b=True)`：`$ q k^\top $`，`trans_b` 表示 K 是转置乘。tensor core 指令。
-- `qk *= sm_scale`：缩放 `$ 1/\sqrt{d} $`。
+- `tl.dot(q, k, trans_b=True)`：$ q k^\top $，`trans_b` 表示 K 是转置乘。tensor core 指令。
+- `qk *= sm_scale`：缩放 $ 1/\sqrt{d} $。
 - `tl.where(...)`：因果掩码。`offs_m[:,None] >= start_n + offs_n[None,:]`（query 行 ≥ key 列）为真留 `0`，否则 `-inf`，即"只看之前的位置"。
 
 ## 在线 softmax
@@ -88,9 +88,9 @@ l_i = l_i_new
 m_i = m_i_new
 ```
 
-- `acc` 一直保持**按当前 `$ \ell $` 归一化**。所以合并时旧 `acc` 要乘 `acc_scale = l_i/l_i_new * alpha`（旧到新 `$ \ell $` 的转换 + 新旧 max 的 `$ e^{m_{old}-m_{new}} $`），新块 `$ P $` 要乘 `p_scale = beta/l_i_new`。
+- `acc` 一直保持**按当前 $ \ell $ 归一化**。所以合并时旧 `acc` 要乘 `acc_scale = l_i/l_i_new * alpha`（旧到新 $ \ell $ 的转换 + 新旧 max 的 $ e^{m_{old}-m_{new}} $），新块 $ P $ 要乘 `p_scale = beta/l_i_new`。
 - `tl.store/tl.load(t_ptrs)` 是一处 **Triton 编译器 bug 的 workaround**：注释写着"have to store and immediately load"。这属于历史遗留，不必深究。
-- `p = p.to(v.dtype)`：`$ P $` 从 fp32 转成 v 的精度（fp16/bf16）喂 tensor core。
+- `p = p.to(v.dtype)`：$ P $ 从 fp32 转成 v 的精度（fp16/bf16）喂 tensor core。
 
 ## 写回
 
@@ -103,7 +103,7 @@ tl.store(m_ptrs, m_i)
 tl.store(out_ptrs, acc)     # O
 ```
 
-写出 `$ \ell, m $`（给反向）和 `$ O $`。注意这版存的是分离的 `$ m, \ell $`，和 FA2 只存 `$ L = m + \log \ell $` 不同。
+写出 $ \ell, m $（给反向）和 $ O $。注意这版存的是分离的 $ m, \ell $，和 FA2 只存 $ L = m + \log \ell $ 不同。
 
 ## 新旧 Triton 的差别：FA1 vs FA2
 
@@ -124,7 +124,7 @@ o_scale = tl.exp(m_i - lse_i)                             # 结尾 × 1/l
 tl.store(lse_ptrs, lse_i)                                 # 只存 L
 ```
 
-- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 `$ \ell $`**：`acc_o` 攒的是未归一化的 `$ \widetilde{O} $`，结尾乘 `o_scale = e^{m_i - \text{lse}_i} = 1/\ell` 得到结果。这就是 [[learning/flash-attention/05-flashattention2|FA2 微调 1]]。
+- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 $ \ell $**：`acc_o` 攒的是未归一化的 $ \widetilde{O} $，结尾乘 `o_scale = e^{m_i - \text{lse}_i} = 1/\ell` 得到结果。这就是 [[learning/flash-attention/05-flashattention2|FA2 微调 1]]。
 - 只存 logsumexp `L`，不存 `m` 和 `l` 两个。这是 [[learning/flash-attention/05-flashattention2|FA2 微调 2]]。
 - 注意 `m_ij = tl.maximum(..., lse_i)` 用的是**上一轮的 lse_i** 当作 max 的下界（因为 `L = m + \log \ell \ge m`），多加了一层数值保护。
 

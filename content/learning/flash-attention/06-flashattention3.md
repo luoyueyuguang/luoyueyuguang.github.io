@@ -19,10 +19,10 @@ FA2 在 A100 上已经把 attention 推到接近 GEMM 的效率，但换到 H100
 
 Hopper 的 SM 支持把 4 个 warpgroup 拆成不同角色。FA3 的 CTA（一个 thread block）分成两组角色：
 
-- **producer warpgroup**：只负责发 TMA 加载 `$ Q_i, K_j, V_j $` 进共享内存，以及（FP8 时）在共享内存里把 `$ V $` 转置。
-- **consumer warpgroup**：只负责用 WGMMA 算 `$ Q K^\top $`、做 softmax、算 `$ P V $`。
+- **producer warpgroup**：只负责发 TMA 加载 $ Q_i, K_j, V_j $ 进共享内存，以及（FP8 时）在共享内存里把 $ V $ 转置。
+- **consumer warpgroup**：只负责用 WGMMA 算 $ Q K^\top $、做 softmax、算 $ P V $。
 
-两者用 **circular SMEM buffer（多级流水线）** 连接：SMEM 按 `$ s $` 个 stage 划分，producer 一次填一个 stage，consumer 一次消费一个 stage。`bar.sync` 是同步原语：consumer 消费完会"释放"某 stage 让 producer 复用。
+两者用 **circular SMEM buffer（多级流水线）** 连接：SMEM 按 $ s $ 个 stage 划分，producer 一次填一个 stage，consumer 一次消费一个 stage。`bar.sync` 是同步原语：consumer 消费完会"释放"某 stage 让 producer 复用。
 
 关键点是 **TMA 加载是异步的**（发出指令立刻返回，不阻塞）。所以 producer 可以连续发多个 stage 的加载，边发边算。算法里写的是伪代码（`For each stage... wait for consumed... issue load... commit`），真实实现用 CUTLASS 的 `pipeline_k.producer_acquire/commit` 和 `consumer_wait/release` 管理 barrier。
 
@@ -30,7 +30,7 @@ FA3 甚至可以让 producer 用 `setmaxnreg` 动态增减寄存器数：produce
 
 ## 技术 2：pingpong 调度（两个 warpgroup 轮流）
 
-单靠 warp specialization 只是让"搬数据"和"算"重叠。但 consumer 内部：`$ QK^\top $`（GEMM0）→ softmax → `$ PV $`（GEMM1），softmax 卡在中间，tensor core 会空转。
+单靠 warp specialization 只是让"搬数据"和"算"重叠。但 consumer 内部：$ QK^\top $（GEMM0）→ softmax → $ PV $（GEMM1），softmax 卡在中间，tensor core 会空转。
 
 FA3 用 **pingpong** 解决：把 consumer 再拆成两个 warpgroup。用 `bar.sync` 强制两个 warpgroup 的 GEMM 交错：
 
@@ -58,7 +58,7 @@ GEMM0(j) → softmax(j)                 （发 GEMM1(j)，不等待）
 GEMM1(j) ∥ GEMM0(j+1) → softmax(j+1) ...
 ```
 
-具体做法是**多存一份 `$ S_{next} $` 在寄存器**：算完 `$ S_j $`（GEMM0）后立刻发起 `$ P_{j-1} V_{j-1} $`（GEMM1），同时用 `$ S_{j+1} $` 算 softmax。代价是 `$ S_{next} $` 要占 `$ B_r \times B_c \times 4 $` 字节的额外寄存器，寄存器压力变大。
+具体做法是**多存一份 $ S_{next} $ 在寄存器**：算完 $ S_j $（GEMM0）后立刻发起 $ P_{j-1} V_{j-1} $（GEMM1），同时用 $ S_{j+1} $ 算 softmax。代价是 $ S_{next} $ 要占 $ B_r \times B_c \times 4 $ 字节的额外寄存器，寄存器压力变大。
 
 FA3 还测过一个 3 级版本，但需要更多寄存器，和大 block size（也耗寄存器）冲突，论文说权衡更难平衡。
 
@@ -68,7 +68,7 @@ FP8 比 FP16 麻烦在两点：**布局不兼容**和**精度差**。
 
 ### 布局：V 要转置
 
-FP8 的 WGMMA 对第二个 GEMM 要求 `$ V $` 在共享内存里**沿序列维连续（k-major）**，而模型里 `$ Q, K, V $` 通常是**沿 head 维连续（与序列维垂直）**。TMA 拷贝不能改连续维度，所以要么：
+FP8 的 WGMMA 对第二个 GEMM 要求 $ V $ 在共享内存里**沿序列维连续（k-major）**，而模型里 $ Q, K, V $ 通常是**沿 head 维连续（与序列维垂直）**。TMA 拷贝不能改连续维度，所以要么：
 1. 在全局内存做一次转置（融合见 rotary embedding 或单独 kernel），或
 2. 加载进共享内存后**在 kernel 内转置**。
 
@@ -76,14 +76,14 @@ FA3 选第 2 种：用 `LDSM`（ldmatrix）/ `STSM`（stmatrix）指令，一个
 
 ### 布局：累加器和操作数 A 的寄存器排布不同
 
-FP8 的 WGMMA，其 FP32 累加器（`acc_s`）的寄存器归属（每线程拿哪些元素）和"作为下一轮操作数 A（`$ P $`）"所需的布局不一样。这跟 [[learning/flash-attention/03-forward-kernel|FP16 forward]] 里的 `convert_layout_acc_Aregs` 是同一类问题，但 FP8 更严重，要显式用 byte-permute 把累加器里 `d0 d1 d2 d3 d4 d5 d6 d7` 重排成 `d0 d1 d4 d5 d2 d3 d6 d7`，再配合 V 转置的行置换，让 WGMMA 算出正确的输出。
+FP8 的 WGMMA，其 FP32 累加器（`acc_s`）的寄存器归属（每线程拿哪些元素）和"作为下一轮操作数 A（$ P $）"所需的布局不一样。这跟 [[learning/flash-attention/03-forward-kernel|FP16 forward]] 里的 `convert_layout_acc_Aregs` 是同一类问题，但 FP8 更严重，要显式用 byte-permute 把累加器里 `d0 d1 d2 d3 d4 d5 d6 d7` 重排成 `d0 d1 d4 d5 d2 d3 d6 d7`，再配合 V 转置的行置换，让 WGMMA 算出正确的输出。
 
 ### 精度：block quantization + incoherent processing
 
 FP8（E4M3）只有 3 位尾数、4 位指数，误差大。而且大模型普遍有离群值（outlier），把 per-tensor 的 scale 撑大，其余数值被压进很粗的格子。FA3 用两招：
 
-- **块量化（block quantization）**：不再 per-tensor，而是每个 `$ B_r \times d $`（或 `$ B_c \times d $`）块一个 scale。因为 FA3 本来就在块上操作，每个块的 `$ S $` 乘一个块 scale 几乎零成本。这个量化可以融合进 rotary embedding（memory-bound，不额外耗时）。
-- **incoherent processing（打散离群值）**：量化前把 `$ Q $` 和 `$ K $` 各乘一个随机正交矩阵 `$ \mathcal{M} $`。因为 `$ \mathcal{M} \mathcal{M}^\top = I $`，所以 `$ (Q\mathcal{M})(K\mathcal{M})^\top = Q K^\top $`，**不改变 attention 输出**。但 `$ Q\mathcal{M} $` 的每个元素是 `$ Q $` 各元素的一个随机线性组合，离群值被"摊平"，量化误差变小。实践中 `$ \mathcal{M} $` 取"随机 ±1 对角阵 × Hadamard 矩阵"，可以 `$ O(d \log d) $` 乘，还能融合进 rotary embedding。
+- **块量化（block quantization）**：不再 per-tensor，而是每个 $ B_r \times d $（或 $ B_c \times d $）块一个 scale。因为 FA3 本来就在块上操作，每个块的 $ S $ 乘一个块 scale 几乎零成本。这个量化可以融合进 rotary embedding（memory-bound，不额外耗时）。
+- **incoherent processing（打散离群值）**：量化前把 $ Q $ 和 $ K $ 各乘一个随机正交矩阵 $ \mathcal{M} $。因为 $ \mathcal{M} \mathcal{M}^\top = I $，所以 $ (Q\mathcal{M})(K\mathcal{M})^\top = Q K^\top $，**不改变 attention 输出**。但 $ Q\mathcal{M} $ 的每个元素是 $ Q $ 各元素的一个随机线性组合，离群值被"摊平"，量化误差变小。实践中 $ \mathcal{M} $ 取"随机 ±1 对角阵 × Hadamard 矩阵"，可以 $ O(d \log d) $ 乘，还能融合进 rotary embedding。
 
 论文验证这两招把 FP8 attention 的数值误差压低 **2.6×**。
 

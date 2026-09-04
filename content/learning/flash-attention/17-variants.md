@@ -87,7 +87,7 @@ launcher（`flash_fwd_launch_template.h` 的 `run_flash_fwd`）在运行时按 `
 
 ## split-KV 的 combine 内核
 
-split-KV 时（长序列 / 小 batch，KV 拆给多个 CTA），每个 CTA 只算一段 KV，产出**partial `$ O $` 和 partial logsumexp `$ L $`**。`flash_fwd_combine_kernel.h` 把它合并：
+split-KV 时（长序列 / 小 batch，KV 拆给多个 CTA），每个 CTA 只算一段 KV，产出**partial $ O $ 和 partial logsumexp $ L $**。`flash_fwd_combine_kernel.h` 把它合并：
 
 ```cpp
 using ShapeOPartial = cute::Shape<int32_t, int32_t, int32_t, int32_t, int32_t>;   // (seqlen, d, num_splits, head, batch)
