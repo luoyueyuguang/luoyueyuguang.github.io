@@ -79,24 +79,24 @@ $$
 
 这里：
 
-- `x_t` 是当前 token 的输入。
-- `h_{t-1}` 是读到上一个 token 后留下来的状态。
-- `h_t` 是读完当前 token 后的新状态。
-- `f` 是一个神经网络更新函数。
+- $x_t$ 是当前 token 的输入。
+- $h_{t-1}$ 是读到上一个 token 后留下来的状态。
+- $h_t$ 是读完当前 token 后的新状态。
+- $f$ 是一个神经网络更新函数。
 
-可以把 `h_t` 想成“读到当前位置时，模型脑子里压缩出来的笔记”。
+可以把 $h_t$ 想成“读到当前位置时，模型脑子里压缩出来的笔记”。
 
 RNN 的优点：
 
-- 每一步只需要一个状态 `h`。
+- 每一步只需要一个状态 $h$。
 - 内存不会随着序列长度无限增长。
-- 处理第 `t` 个 token 时，不需要重新扫描所有历史 token。
+- 处理第 $t$ 个 token 时，不需要重新扫描所有历史 token。
 
 但 RNN 也有一个老问题：
 
 > 一个向量状态太小，历史信息被反复压缩，容易忘。
 
-比如前文 10 万 token 之前出现了一个变量定义，后文才问这个变量的类型。朴素 RNN 要把这个信息一直藏在 `h_t` 里，中间经过很多次更新，很容易被冲掉。
+比如前文 10 万 token 之前出现了一个变量定义，后文才问这个变量的类型。朴素 RNN 要把这个信息一直藏在 $h_t$ 里，中间经过很多次更新，很容易被冲掉。
 
 所以 RNN 的核心矛盾是：
 
@@ -139,7 +139,7 @@ $$
 | RNN         | 一个隐藏状态           | 便宜，但容易忘          |
 | Transformer | 每个 token 的 KV cache | 准，但 cache 随长度增长 |
 
-如果上下文有 `N` 个 token，KV cache 也大致随 `N` 增长。prefill 阶段的完整 attention 还会有接近 `N^2` 的交互。
+如果上下文有 $N$ 个 token，KV cache 也大致随 $N$ 增长。prefill 阶段的完整 attention 还会有接近 $N^2$ 的交互。
 
 ![Attention 和循环状态的区别](/learning/assets/gdn-attention-vs-recurrence.svg)
 
@@ -167,7 +167,7 @@ $$
 \phi(q)^T \phi(k)
 $$
 
-这里 `phi` 是一个特征映射函数。
+这里 $\phi$ 是一个特征映射函数。
 
 这样 attention 输出可以近似写成：
 
@@ -197,9 +197,9 @@ o_t =
 \frac{\phi(q_t)^T S_t}{\phi(q_t)^T z_t}
 $$
 
-这就是 “Transformers are RNNs” 这类工作的核心观察：某些 attention 可以写成 RNN 风格的状态更新。历史从 `N` 个 KV 条目，变成一个矩阵 `S_t` 和一个向量 `z_t`。
+这就是 “Transformers are RNNs” 这类工作的核心观察：某些 attention 可以写成 RNN 风格的状态更新。历史从 $N$ 个 KV 条目，变成一个矩阵 $S_t$ 和一个向量 $z_t$。
 
-这个矩阵 `S_t` 是：
+这个矩阵 $S_t$ 是：
 
 > 一个从 key 到 value 的可学习映射表。
 
@@ -207,7 +207,7 @@ $$
 
 ## 4. Fast Weight Memory：状态矩阵像一张临时字典
 
-为了理解 DeltaNet 和 GDN，最好把 `S_t` 看成一张临时字典：
+为了理解 DeltaNet 和 GDN，最好把 $S_t$ 看成一张临时字典：
 
 ```text
 key  -> value
@@ -225,7 +225,7 @@ $$
 S_t = S_{t-1} + k_t v_t^T
 $$
 
-这里为了写得简单，我省略 `phi`，直接用 `k_t`。不同论文里会把状态写成 `S` 或 `W`，也会因为行向量/列向量约定不同，把外积写成 `k_t v_t^T` 或 `v_t k_t^T`。本文的原则是：**状态矩阵要能用 key 读出 value**。
+这里为了写得简单，我省略 $\phi$，直接用 $k_t$。不同论文里会把状态写成 $S$ 或 $W$，也会因为行向量/列向量约定不同，把外积写成 $k_t v_t^T$ 或 $v_t k_t^T$。本文的原则是：**状态矩阵要能用 key 读出 value**。
 
 这很像在字典里追加一条记忆。但问题是：如果相似的 key 出现多次，简单相加会把很多 value 混在一起。
 
@@ -301,12 +301,12 @@ $$
 
 这里：
 
-- `S_{t-1}` 是旧记忆。
-- `k_t` 是当前 key。
-- `v_t` 是当前要写入的 value。
-- `S_{t-1} k_t` 是旧记忆对这个 key 的预测。
-- `v_t - S_{t-1} k_t` 是旧记忆还差多少。
-- `beta_t` 是写入强度，相当于学习率或写门。
+- $S_{t-1}$ 是旧记忆。
+- $k_t$ 是当前 key。
+- $v_t$ 是当前要写入的 value。
+- $S_{t-1} k_t$ 是旧记忆对这个 key 的预测。
+- $v_t - S_{t-1} k_t$ 是旧记忆还差多少。
+- $\beta_t$ 是写入强度，相当于学习率或写门。
 
 ![Delta rule 的读、算残差、写回](/learning/assets/gdn-delta-update.svg)
 
@@ -380,8 +380,8 @@ $$
 
 这里：
 
-- `alpha_t` 是遗忘门，决定旧状态保留多少。
-- `beta_t` 是写入门，决定这次 delta 写入多强。
+- $\alpha_t$ 是遗忘门，决定旧状态保留多少。
+- $\beta_t$ 是写入门，决定这次 delta 写入多强。
 - $v_t - \tilde{S}_{t-1} k_t$ 是在遗忘后的状态上计算出来的残差。
 
 论文里的等价写法更接近：
@@ -392,27 +392,27 @@ S_{t-1}\left(\alpha_t(I-\beta_t k_t k_t^T)\right)
 + \beta_t v_t k_t^T
 $$
 
-这个式子看起来更复杂，但含义和上面的三步一致：先按 `alpha_t` 控制旧状态，再用 delta rule 对当前 key 的映射做定向编辑。本文使用简化式，是为了让第一次接触的读者先抓住记忆更新逻辑。
+这个式子看起来更复杂，但含义和上面的三步一致：先按 $\alpha_t$ 控制旧状态，再用 delta rule 对当前 key 的映射做定向编辑。本文使用简化式，是为了让第一次接触的读者先抓住记忆更新逻辑。
 
-如果 `alpha_t` 接近 1：
+如果 $\alpha_t$ 接近 1：
 
 ```text
 旧记忆大多保留。
 ```
 
-如果 `alpha_t` 接近 0：
+如果 $\alpha_t$ 接近 0：
 
 ```text
 旧记忆被快速擦掉。
 ```
 
-如果 `beta_t` 大：
+如果 $\beta_t$ 大：
 
 ```text
 当前 token 对状态改写很强。
 ```
 
-如果 `beta_t` 小：
+如果 $\beta_t$ 小：
 
 ```text
 当前 token 只轻微影响状态。
@@ -420,7 +420,7 @@ $$
 
 ![Gated DeltaNet 的遗忘门和 delta 写入](/learning/assets/gdn-gated-update.svg)
 
-> 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；`alpha`、`beta` 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。本文上面的图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
+> 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；$\alpha$、$\beta$ 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。本文上面的图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
 
 GDN 的核心是：
 
@@ -438,7 +438,7 @@ Mamba2 的重要思想是：很多 SSM、linear attention、attention-like 模�
 
 从实现角度看，Mamba2 这类模型重视两件事：
 
-- **线性复杂度**：处理长度为 `N` 的序列，计算量尽量随 `N` 线性增长。
+- **线性复杂度**：处理长度为 $N$ 的序列，计算量尽量随 $N$ 线性增长。
 - **硬件友好训练**：虽然递推看起来是一步一步的，但训练时要能 chunk-wise / parallel scan，否则 GPU 利用率会很差。
 
 GDN 沿着这条路继续走：
@@ -526,7 +526,7 @@ GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 tok
 
 这说明 GDN 的工程判断要更细：
 
-- 长上下文下，它避免了 KV cache 随 `N` 增长。
+- 长上下文下，它避免了 KV cache 随 $N$ 增长。
 - 但每步固定状态本身也不小。
 - 实际速度取决于硬件、batch size、状态维度、kernel fusion 和数据驻留策略。
 
@@ -544,7 +544,7 @@ GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 tok
 
 | 方法             | 历史怎么存                    | 优点                                 | 主要问题                                 |
 | ---------------- | ----------------------------- | ------------------------------------ | ---------------------------------------- |
-| RNN              | 一个向量 `h_t`                | 内存固定，推理简单                   | 记忆容量小，长距离回忆弱                 |
+| RNN              | 一个向量 $h_t$                | 内存固定，推理简单                   | 记忆容量小，长距离回忆弱                 |
 | LSTM / GRU       | 带门控的向量状态              | 比朴素 RNN 更会保留/遗忘             | 状态仍是向量，表达受限                   |
 | Transformer      | 所有历史 KV cache             | 精确检索，效果强                     | cache 随上下文增长，attention prefill 贵 |
 | Linear Attention | 固定矩阵状态                  | 线性复杂度，可写成 recurrence        | 简单加法写入容易混淆记忆                 |
@@ -561,7 +561,7 @@ Transformer 的关键优势是精确访问历史。
 
 GDN 的关键优势是固定状态。
 
-历史信息被压进状态矩阵里。生成第 `t` 个 token 时，不需要保留长度为 `t` 的 KV cache。代价是：历史已经被压缩，不是所有细节都能原样恢复。
+历史信息被压进状态矩阵里。生成第 $t$ 个 token 时，不需要保留长度为 $t$ 的 KV cache。代价是：历史已经被压缩，不是所有细节都能原样恢复。
 
 ```text
 Transformer 更像开卷查原文；
@@ -688,7 +688,7 @@ delta = target - old_read
 
 然后写入修正量。
 
-如果门控判断旧定义已经过时，`alpha_t` 会让旧状态快速衰减。这样后面读到：
+如果门控判断旧定义已经过时，$\alpha_t$ 会让旧状态快速衰减。这样后面读到：
 
 ```python
 client = Client(timeout=timeout)
