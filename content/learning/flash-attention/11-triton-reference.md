@@ -124,9 +124,9 @@ o_scale = tl.exp(m_i - lse_i)                             # 结尾 × 1/l
 tl.store(lse_ptrs, lse_i)                                 # 只存 L
 ```
 
-- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 $ \ell $**：`acc_o` 攒的是未归一化的 $ \widetilde{O} $，结尾乘 `o_scale = e^{m_i - \text{lse}_i} = 1/\ell` 得到结果。这就是 [[learning/flash-attention/05-flashattention2|FA2 微调 1]]。
+- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 $ \ell $**：`acc_o` 攒的是未归一化的 $ \widetilde{O} $，结尾乘 $o_scale = e^{m_i - \text{lse}_i} = 1/\ell$ 得到结果。这就是 [[learning/flash-attention/05-flashattention2|FA2 微调 1]]。
 - 只存 logsumexp `L`，不存 `m` 和 `l` 两个。这是 [[learning/flash-attention/05-flashattention2|FA2 微调 2]]。
-- 注意 `m_ij = tl.maximum(..., lse_i)` 用的是**上一轮的 lse_i** 当作 max 的下界（因为 `L = m + \log \ell \ge m`），多加了一层数值保护。
+- 注意 `m_ij = tl.maximum(..., lse_i)` 用的是**上一轮的 lse_i** 当作 max 的下界（因为 $L = m + \log \ell \ge m$），多加了一层数值保护。
 
 ## 一句话
 

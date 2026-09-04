@@ -64,7 +64,7 @@ for (; m_block >= m_block_min; --m_block) {
 
 ## dS = P ∘ (dP − D)
 
-`dP = dO V^\top` 用第二个 GEMM（`acc_dp`）算，然后就地做 `pointwise_mult`：
+$dP = dO V^\top$ 用第二个 GEMM（`acc_dp`）算，然后就地做 `pointwise_mult`：
 
 ```cpp
 // dP = dO · V^T
