@@ -68,7 +68,7 @@ mV:  (b, s_k, h_k, dv)   # value
 
 - `mQ` / `mQv` 是**两个不同投影的 Q**（一个走 QK content 得分，一个走 Qv）。`tiled_mma_QK`（$ Q \cdot K^\top $）和 `tiled_mma_QvV`（$ Q \cdot V $，或 absorbed 时的 $ Q \cdot c^{KV} $）分开算，正是 content/rope 解耦在 kernel 里的映射。
 - `has_qk`：**QK 是否直接算**。MLA 有个"吸收"路径：当 $ Q $ 和 $ K $ 都是投影后的 content 时，可以直接 QK；而非 absorbed 时 QK 走 `tiled_mma_QK`，V 部分走 `tiled_mma_PVt`。
-- `h_k`（KV head 数）很小，通常 `1`：**所有 query head 共享同一组 latent KV**。这是 MQA 式的做法，因为 $ c^{KV} $ 本来就是"全 head 共享一份"（注意 `W^{DKV} h_t` 没有 head 维）。
+- `h_k`（KV head 数）很小，通常 `1`：**所有 query head 共享同一组 latent KV**。这是 MQA 式的做法，因为 $ c^{KV} $ 本来就是"全 head 共享一份"（注意 $W^{DKV} h_t$ 没有 head 维）。
 - 三个 MMA：`tiled_mma_QK`、`tiled_mma_QvV`、`tiled_mma_PVt`，对应"content score + rope score + output"。
 
 `flash_attn/cute/interface.py` 里给了两个关键形状模式：

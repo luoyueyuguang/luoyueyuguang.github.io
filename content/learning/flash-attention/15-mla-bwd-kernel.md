@@ -28,7 +28,7 @@ $$
 | `flash_bwd_mla_dq_dqv_sm100.py` | `dQdQvGemmKernel` | $ dQ = dS\,K $ 和 $ dQv = dS\,V $ |
 | `flash_bwd_mla_dk_sm100.py` | `dKGemmKernel` | $ dK = dS^\top Q $ |
 
-**拆分的原因**是 $ dS $ 作为 A 操作数时，dQ 要配 $ K $（`dS · K`）、dQv 要配 $ V $（`dS · V`）、dK 要配 $ Q $（$dS^\top Q$）。三者的归约维和 B 操作数不同，硬塞进一个核会让 MMA 模板爆炸、寄存器也扛不住，所以拆开，各自喂不同的 `tiled_mma`。
+**拆分的原因**是 $ dS $ 作为 A 操作数时，dQ 要配 $ K $（$dS \cdot K$）、dQv 要配 $ V $（$dS \cdot V$）、dK 要配 $ Q $（$dS^\top Q$）。三者的归约维和 B 操作数不同，硬塞进一个核会让 MMA 模板爆炸、寄存器也扛不住，所以拆开，各自喂不同的 `tiled_mma`。
 
 ## dQdQvGemmKernel：dS 的 TMA multicast
 
@@ -73,7 +73,7 @@ self.tiled_mma_dK = utils.sm100.make_trivial_tiled_mma(..., self.mma_tiler_dK[:2
 
 ## 一句话
 
-MLA 反向就是"普通 FA 反向 + 拆成三个核"：主核重算 $ S, P $ 得 $ dS $（顺带 $ dV $），`dQdQvGemmKernel` 用 `dS·K`、`dS·V` 得 $ dQ, dQv $（dS 走 TMA multicast），`dKGemmKernel` 用 $dS^\top Q$ 得 dim-major 的 $ dK $。拆开是因为 $ dS $ 对三个梯度的布局要求不同；而 $ W^{UK}, W^{UV}, W^{UQ} $ 的梯度在模型线性层反向，不在这个 kernel 里。
+MLA 反向就是"普通 FA 反向 + 拆成三个核"：主核重算 $ S, P $ 得 $ dS $（顺带 $ dV $），`dQdQvGemmKernel` 用 $dS \cdot K$、$dS \cdot V$ 得 $ dQ, dQv $（dS 走 TMA multicast），`dKGemmKernel` 用 $dS^\top Q$ 得 dim-major 的 $ dK $。拆开是因为 $ dS $ 对三个梯度的布局要求不同；而 $ W^{UK}, W^{UV}, W^{UQ} $ 的梯度在模型线性层反向，不在这个 kernel 里。
 
 ## Reference
 

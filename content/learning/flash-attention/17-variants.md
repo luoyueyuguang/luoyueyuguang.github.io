@@ -101,7 +101,7 @@ L_{\text{final}} = \log\sum_s e^{L_s}, \qquad
 O = \sum_s e^{L_s - L_{\text{final}}}\, O_s
 $$
 
-`O_s` 是第 `s` 个 split 的未归一化累积，`L_s` 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化。**这就是 [[learning/flash-attention/09-flashattention4-kernel|FA4]] 里 `flash_fwd_combine` 的对应，也是 split-KV 的收尾。**
+$O_s$ 是第 `s` 个 split 的未归一化累积，$L_s$ 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化。**这就是 [[learning/flash-attention/09-flashattention4-kernel|FA4]] 里 `flash_fwd_combine` 的对应，也是 split-KV 的收尾。**
 
 ## 一句话
 

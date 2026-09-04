@@ -211,10 +211,10 @@ shl.b32 x_rounded_e, x_rounded_i, 23;   // floor(x) 移进指数字段
 add.s32 out_i, x_rounded_e, frac_ex_i;  // 加上 2^{frac} 的尾数位
 ```
 
-- `add 2^23+2^22`：把 `x` 的整数部分挤进尾数的低段（`2^22` 保证 round-down 的舍入），`add.rm` 是向下取整。
+- `add 2^23+2^22`：把 `x` 的整数部分挤进尾数的低段（$2^{22}$ 保证 round-down 的舍入），`add.rm` 是向下取整。
 - `x_frac = x - floor(x)`：`[0,1)`。
-- `POLY_EX2[3] = (1.0, 0.69515, 0.22756, 0.07712)`，Horner 法用 `fma_packed_f32x2` 算 `2^{frac}`。
-- `shl 23` + `add`：把 floor(x) 变成指数、把 `2^{frac}` 的尾数拼上，得到 `2^x` 的 IEEE 位模式。
+- `POLY_EX2[3] = (1.0, 0.69515, 0.22756, 0.07712)`，Horner 法用 `fma_packed_f32x2` 算 $2^{frac}$。
+- `shl 23` + `add`：把 floor(x) 变成指数、把 $2^{frac}$ 的尾数拼上，得到 $2^x$ 的 IEEE 位模式。
 
 ## correction_loop / correction_rescale
 
