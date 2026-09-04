@@ -248,6 +248,14 @@ a {
       grid-area: page-footer;
     }
 
+    & .center {
+      // prevent grid blow-out: a long unbreakable code line / url / table would
+      // otherwise force the 1fr track (and page) wider than the viewport
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+
     & .center,
     & footer {
       margin-left: auto;
