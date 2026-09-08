@@ -1,4 +1,4 @@
-[[learning/flash-attention/03-forward-kernel|FA1/FA2 的 CUDA 内核]] 用了大量 cuTe/CUTLASS 抽象（`partition_fragment_A`、`SmemLayoutQ`、cp.async），对没读过 CUTLASS 的人几乎是天书。仓库里另有一版 **Triton 实现** `flash_attn/flash_attn_triton_og.py`，只用 `tl.dot` / `tl.max` / `tl.exp` 这几个原语，把同一个算法写得清清楚楚。这一篇逐行读它，你就能真的看懂 [[learning/flash-attention/02-online-softmax|在线 softmax]] 怎么落到代码。
+[[learning/flash-attention/04-forward-kernel|FA1/FA2 的 CUDA 内核]] 用了大量 cuTe/CUTLASS 抽象（`partition_fragment_A`、`SmemLayoutQ`、cp.async），对没读过 CUTLASS 的人几乎是天书。仓库里另有一版 **Triton 实现** `flash_attn/flash_attn_triton_og.py`，只用 `tl.dot` / `tl.max` / `tl.exp` 这几个原语，把同一个算法写得清清楚楚。这一篇逐行读它，你就能真的看懂 [[learning/flash-attention/02-online-softmax|online softmax]] 怎么落到代码。
 
 > **Triton 的价值不是快，是"可读"。** 它把"一个程序块负责一段 query 行、内层循环扫 key/value 块"这个结构直接写了出来。FA2 论文里"沿序列维并行、把 Q 切给 warp"的思路，最初就来自 Tillet 的 Triton 教程。
 
@@ -17,7 +17,7 @@ def _fwd_kernel(Q, K, V, sm_scale, TMP, L, M, Out, ...,
 ```
 
 - 网格是 `(T_M, Z*H)`：`program_id(0)` 是 **行块**（哪种 query 行），`program_id(1)` 是 (batch, head)。
-- **每个程序块负责一个 $ B_r \times d $ 的 query 块，内层扫它需要的全部 key/value 块。** 这就是"沿序列维并行"：不同行块之间完全独立，不需要通信。FA2 的 [[learning/flash-attention/05-flashattention2|序列维并行]] 就是这个结构（Tillet 最先提出，FA2 搬进 CUDA）。
+- **每个程序块负责一个 $ B_r \times d $ 的 query 块，内层扫它需要的全部 key/value 块。** 这就是"沿序列维并行"：不同行块之间完全独立，不需要通信。FA2 的 [[learning/flash-attention/06-flashattention2|序列维并行]] 就是这个结构（Tillet 最先提出，FA2 搬进 CUDA）。
 
 ```python
 off_q = off_hz * stride_qh + offs_m[:, None] * stride_qm + offs_d[None, :] * stride_qk
@@ -55,7 +55,7 @@ for start_n in range(0, (start_m + 1) * BLOCK_M, BLOCK_N):
 - `qk *= sm_scale`：缩放 $ 1/\sqrt{d} $。
 - `tl.where(...)`：因果掩码。`offs_m[:,None] >= start_n + offs_n[None,:]`（query 行 ≥ key 列）为真留 `0`，否则 `-inf`，即"只看之前的位置"。
 
-## 在线 softmax
+## online softmax
 
 ```python
 m_ij = tl.max(qk, 1)                     # 这一块的 row max
@@ -124,13 +124,13 @@ o_scale = tl.exp(m_i - lse_i)                             # 结尾 × 1/l
 tl.store(lse_ptrs, lse_i)                                 # 只存 L
 ```
 
-- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 $ \ell $**：`acc_o` 攒的是未归一化的 $ \widetilde{O} $，结尾乘 $o_scale = e^{m_i - \text{lse}_i} = 1/\ell$ 得到结果。这就是 [[learning/flash-attention/05-flashattention2|FA2 微调 1]]。
-- 只存 logsumexp `L`，不存 `m` 和 `l` 两个。这是 [[learning/flash-attention/05-flashattention2|FA2 微调 2]]。
+- 新版**每步仍会按 max 变化重缩** `acc_o`（`acc_o_scale`），但**不再除 $ \ell $**：`acc_o` 攒的是未归一化的 $ \widetilde{O} $，结尾乘 $o_scale = e^{m_i - \text{lse}_i} = 1/\ell$ 得到结果。这就是 [[learning/flash-attention/06-flashattention2|FA2 微调 1]]。
+- 只存 logsumexp `L`，不存 `m` 和 `l` 两个。这是 [[learning/flash-attention/06-flashattention2|FA2 微调 2]]。
 - 注意 `m_ij = tl.maximum(..., lse_i)` 用的是**上一轮的 lse_i** 当作 max 的下界（因为 $L = m + \log \ell \ge m$），多加了一层数值保护。
 
 ## 一句话
 
-Triton 版把 FA 的核心结构压缩到了 30 多行：**一个程序块一段 query 行，`tl.dot` 算 QK^T，`tl.max/tl.exp/tl.sum` 做在线 softmax，`tl.dot` 算 P·V，`m/l` 两个统计量从头攒到尾。** 它比 cuTe 版少了几层抽象，但算法分毫不差。想读懂任何一个版本的 flash attention，先读懂这 30 行。
+Triton 版把 FA 的核心结构压缩到了 30 多行：**一个程序块一段 query 行，`tl.dot` 算 QK^T，`tl.max/tl.exp/tl.sum` 做online softmax，`tl.dot` 算 P·V，`m/l` 两个统计量从头攒到尾。** 它比 cuTe 版少了几层抽象，但算法分毫不差。想读懂任何一个版本的 flash attention，先读懂这 30 行。
 
 ## Reference
 

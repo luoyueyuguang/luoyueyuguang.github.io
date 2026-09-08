@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="490" viewBox="0 0 900 490" role="img" aria-labelledby="title desc">
+  <title id="title">Roofline model</title>
+  <desc id="desc">Log-log roofline for A100 FP16: performance is bounded by the smaller of the compute ceiling and the memory ceiling. Attention sits far left in the memory-bound region; FlashAttention raises the arithmetic intensity into the compute-bound region.</desc>
+  <rect width="900" height="490" rx="22" fill="#f8fafc"/>
+  <text x="450" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="23" font-weight="700" fill="#111827">Roofline：性能被算力或带宽两者之一卡住</text>
+  <text x="450" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">A100 为例，FP16 tensor core 峰值 312 TFLOPS，HBM 峰值带宽约 1.9 TB/s</text>
+
+  <!-- plot area -->
+  <g>
+    <rect x="90" y="110" width="620" height="300" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+
+    <!-- gridlines -->
+    <g stroke="#e2e8f0" stroke-width="1">
+      <line x1="90" y1="410" x2="710" y2="410"/>
+      <line x1="90" y1="335" x2="710" y2="335"/>
+      <line x1="90" y1="260" x2="710" y2="260"/>
+      <line x1="90" y1="185" x2="710" y2="185"/>
+      <line x1="90" y1="110" x2="90" y2="410"/>
+      <line x1="296" y1="110" x2="296" y2="410"/>
+      <line x1="503" y1="110" x2="503" y2="410"/>
+    </g>
+
+    <!-- achievable region -->
+    <polygon points="90,314 548,148 710,148 710,410 90,410" fill="#f1f5f9"/>
+
+    <!-- memory ceiling (diagonal) -->
+    <line x1="90" y1="314" x2="548" y2="148" stroke="#2563eb" stroke-width="3"/>
+    <!-- compute ceiling (horizontal) -->
+    <line x1="548" y1="148" x2="710" y2="148" stroke="#dc2626" stroke-width="3"/>
+    <!-- ridge vertical -->
+    <line x1="548" y1="110" x2="548" y2="410" stroke="#64748b" stroke-width="2" stroke-dasharray="6 4"/>
+
+    <!-- region labels -->
+    <text x="250" y="338" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#1d4ed8">内存受限（memory-bound）</text>
+    <text x="250" y="364" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">带宽拖后腿，算力吃不饱</text>
+    <text x="630" y="338" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#dc2626">算力受限（compute-bound）</text>
+    <text x="630" y="364" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">带宽不再是瓶颈</text>
+
+    <!-- ridge annotation -->
+    <text x="548" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#475569">ridge≈R_peak/B_peak≈164</text>
+
+    <!-- naive attention point -->
+    <circle cx="401" cy="201" r="7" fill="#d97706" stroke="#7c2d12" stroke-width="2"/>
+    <text x="401" y="182" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#b45309">朴素 attention</text>
+    <text x="401" y="228" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#b45309">强度 ~32，被 HBM 带宽卡住</text>
+
+    <!-- FA point -->
+    <circle cx="650" cy="148" r="7" fill="#16a34a" stroke="#14532d" stroke-width="2"/>
+    <text x="650" y="176" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#15803d">FlashAttention</text>
+    <text x="650" y="196" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#15803d">改由算力限制</text>
+
+    <!-- arrow: naive -> FA -->
+    <line x1="420" y1="201" x2="630" y2="152" stroke="#475569" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+    <text x="540" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#475569">减少 N² 次 HBM 读写 → 强度右移</text>
+
+    <!-- axis labels -->
+    <text x="400" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#334155">算术强度 intensity（FLOPs/byte）</text>
+    <text x="30" y="260" text-anchor="middle" transform="rotate(-90 30 260)" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#334155">可达性能（FLOPs/s，log）</text>
+
+    <!-- axis ticks -->
+    <text x="90" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1</text>
+    <text x="296" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">10</text>
+    <text x="503" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">100</text>
+    <text x="710" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1000</text>
+    <text x="80" y="414" text-anchor="end" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1e11</text>
+    <text x="80" y="339" text-anchor="end" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1e12</text>
+    <text x="80" y="264" text-anchor="end" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1e13</text>
+    <text x="80" y="189" text-anchor="end" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1e14</text>
+    <text x="80" y="114" text-anchor="end" font-family="Arial, sans-serif" font-size="11" fill="#64748b">1e15</text>
+  </g>
+
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M2 2 L8 5 L2 8 Z" fill="#475569"/>
+    </marker>
+  </defs>
+</svg>

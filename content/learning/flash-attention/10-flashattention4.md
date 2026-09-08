@@ -98,7 +98,7 @@ $$
 
 ## 全部用 CuTe-DSL（Python）写
 
-FA4 的一个亮点是**没有任何 CUDA C++**：整个 kernel 用 **CuTe-DSL**（CuTe 的 Python 嵌入）写，编译器下沉到 PTX，再过 `ptxas` 出 SASS。编程模型和 CUTLASS C++ 同构，保留完全表达能力，还有自定义 PTX 逃生口。想对照着看它怎么落到 CuTe-DSL 代码，前向读 [[learning/flash-attention/09-flashattention4-kernel|FA4 前向内核逐行读]]，反向读 [[learning/flash-attention/10-flashattention4-bwd-kernel|FA4 反向内核逐行读]]。
+FA4 的一个亮点是**没有任何 CUDA C++**：整个 kernel 用 **CuTe-DSL**（CuTe 的 Python 嵌入）写，编译器下沉到 PTX，再过 `ptxas` 出 SASS。编程模型和 CUTLASS C++ 同构，保留完全表达能力，还有自定义 PTX 逃生口。想对照着看它怎么落到 CuTe-DSL 代码，前向读 [[learning/flash-attention/11-flashattention4-kernel|FA4 前向内核逐行读]]，反向读 [[learning/flash-attention/12-flashattention4-bwd-kernel|FA4 反向内核逐行读]]。
 
 **编译时间**是关键收益（传统 C++ 模板在 FA2/FA3 要预编译几百个变体）：
 

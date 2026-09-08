@@ -1,4 +1,4 @@
-[[learning/flash-attention/08-flashattention4|FA4 算法]] 讲了思路，这一篇真的逐行读 FA4 的前向内核。它在仓库 `flash_attn/cute/flash_fwd_sm100.py`，是 **CuTe-DSL（Python 嵌入）**，不是 C++。`@cute.jit` 装饰的函数会被下沉成 PTX，再经 `ptxas` 出 SASS。
+[[learning/flash-attention/10-flashattention4|FA4 算法]] 讲了思路，这一篇真的逐行读 FA4 的前向内核。它在仓库 `flash_attn/cute/flash_fwd_sm100.py`，是 **CuTe-DSL（Python 嵌入）**，不是 C++。`@cute.jit` 装饰的函数会被下沉成 PTX，再经 `ptxas` 出 SASS。
 
 上一篇说过 FA4 有四个 warp 组：`softmax×2`、`correction`、`mma/TMA`。这一篇从配置往下读，直到 `ex2_emulation_2` 那个多项式位技巧。
 
@@ -66,7 +66,7 @@ while work_tile.is_valid_tile:
 
 ## softmax_step：一步 softmax
 
-这是 FA4 的"行"级核心，和 [[learning/flash-attention/03-forward-kernel|FA1/FA2 的 softmax_rescale_o]] 对应，但换成了 cell 循环加 TMEM。
+这是 FA4 的"行"级核心，和 [[learning/flash-attention/04-forward-kernel|FA1/FA2 的 softmax_rescale_o]] 对应，但换成了 cell 循环加 TMEM。
 
 **① 等 S 到位。**
 
@@ -118,7 +118,7 @@ if const_expr(self.rescale_threshold > 0.0):
         acc_scale = 1.0                                        # 不重缩放
 ```
 
-`rescale_threshold=8.0`（FP16/BF16）时，`m_new - m_old`（log2 单位）小于约 8 就**不重缩**，`acc_scale=1.0`。这就是 [[learning/flash-attention/08-flashattention4|条件缩放]]。
+`rescale_threshold=8.0`（FP16/BF16）时，`m_new - m_old`（log2 单位）小于约 8 就**不重缩**，`acc_scale=1.0`。这就是 [[learning/flash-attention/10-flashattention4|条件缩放]]。
 
 **④ 把 acc_scale 交给 correction warpgroup。**
 
@@ -222,7 +222,7 @@ add.s32 out_i, x_rounded_e, frac_ex_i;  // 加上 2^{frac} 的尾数位
 
 ## 一句话
 
-FA4 前向的"逐行"读下来，本质还是那套在线 softmax，但**载体全换了**：累加器在 TMEM（不是寄存器）、行 max 用硬件 `ld.red` 省软件归约、exp2 按 `ex2_emu_freq` 部分走多项式、$ P $ 分块写回边写边喂 MMA、$ O $ 重缩丢给 correction warpgroup。每一条都是为了躲开 Blackwell 上"没涨的 exp 单元"和"爬升的共享内存流量"。
+FA4 前向的"逐行"读下来，本质还是那套online softmax，但**载体全换了**：累加器在 TMEM（不是寄存器）、行 max 用硬件 `ld.red` 省软件归约、exp2 按 `ex2_emu_freq` 部分走多项式、$ P $ 分块写回边写边喂 MMA、$ O $ 重缩丢给 correction warpgroup。每一条都是为了躲开 Blackwell 上"没涨的 exp 单元"和"爬升的共享内存流量"。
 
 ## Reference
 

@@ -81,7 +81,7 @@ Tensor acc_o = partition_fragment_C(tiled_mma, Shape<Int<kBlockM>, Int<kHeadDim>
 - `tOrVt` 是 $ V $ 的转置 B 片段，给第二个 GEMM（$ P \cdot V $）。
 - `acc_o` 是 $ kBlockM \times d $ 的累加器（fp32），就是那个"未归一化的 $ \widetilde{O} $"。
 
-**这一步就体现了 FA2 的 warp 分工。** `tSrQ` 是 A 片段，A 是按 mma 的 M 维分给 warps 的。FA2 把 $ Q $ 切给不同 warp，每个 warp 算出自己那行块的全部 $ \widetilde{O} $（先算 $ S $ 再算 $ P \cdot V $），**warp 之间不需要任何通信**。FA1 则相反，把 $ K, V $ 切给 warp、$ Q $ 共享，导致每个 warp 算出的 $ P \cdot V $ 要写回 smem、同步、再加，这就是"split-K"开销。详见 [[learning/flash-attention/05-flashattention2|FA2]]。
+**这一步就体现了 FA2 的 warp 分工。** `tSrQ` 是 A 片段，A 是按 mma 的 M 维分给 warps 的。FA2 把 $ Q $ 切给不同 warp，每个 warp 算出自己那行块的全部 $ \widetilde{O} $（先算 $ S $ 再算 $ P \cdot V $），**warp 之间不需要任何通信**。FA1 则相反，把 $ K, V $ 切给 warp、$ Q $ 共享，导致每个 warp 算出的 $ P \cdot V $ 要写回 smem、同步、再加，这就是"split-K"开销。详见 [[learning/flash-attention/06-flashattention2|FA2]]。
 
 ## prologue：先拷第一块
 
@@ -125,7 +125,7 @@ for (; n_block >= n_block_min; --n_block) {
 - `FLASH_NAMESPACE::gemm` 封装了 `mma.sync.aligned.m16n8k16` 这类指令：`tSrQ`（A，寄存器）乘 `tSrK`（B，smem），结果写进 `acc_s`（C，寄存器）。
 - `A_in_regs=Is_Q_in_regs` 告诉它 A 操作数在寄存器里还是 smem 里，省一次 `retile`。
 
-## 在线 softmax + 重缩放 O
+## online softmax + 重缩放 O
 
 之前读的是 `flash_fwd_kernel.h`，softmax 的实现在 `csrc/flash_attn/src/softmax.h` 的 `Softmax::softmax_rescale_o`。这正好对应 [[learning/flash-attention/02-online-softmax|算法]] 的第 11–13 行：
 
@@ -204,7 +204,7 @@ for (int mi = 0; mi < size<0>(acc_o_rowcol); ++mi) {
 
 ## 一个能跑的等价实现
 
-用 Python 把上面主循环的数学等价写出来，验证累计逻辑（FP16 舍入不模拟，只验在线 softmax）：
+用 Python 把上面主循环的数学等价写出来，验证累计逻辑（FP16 舍入不模拟，只验online softmax）：
 
 ```python
 import numpy as np

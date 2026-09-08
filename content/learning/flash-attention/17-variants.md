@@ -34,7 +34,7 @@ inline __device__ void compute_attn_1rowblock(...)
 
 ## dtype 变体
 
-实例化命名里直接体现：`flash_fwd_hdim128_{fp16|bf16|e4m3|e5m2}_sm90.cu`。FA4 还支持**更高精度**（在低精度核上模拟），这是 [[learning/flash-attention/08-flashattention4|FA4]] 提到的。dtype 决定：
+实例化命名里直接体现：`flash_fwd_hdim128_{fp16|bf16|e4m3|e5m2}_sm90.cu`。FA4 还支持**更高精度**（在低精度核上模拟），这是 [[learning/flash-attention/10-flashattention4|FA4]] 提到的。dtype 决定：
 
 - 喂给 MMA 的操作数位宽（16-bit vs 8-bit）。
 - 是否要额外 descaled（FP8 的块 scale，`ptr_q_descale` 等）。
@@ -77,7 +77,7 @@ MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 R
 
 命名是 `op_hdim{dtype}_{features}_{arch}.cu`。`hopper/instantiations/` 里更细：`flash_fwd_hdimdiff_fp16_split_softcap_sm90.cu`、`flash_fwd_hdimall_bf16_packgqa_sm90.cu`……这里 `hdimdiff`/`hdimall` 是"head dim 由 kernel 内分派"的变体（省得为每个 hdim 都编一份），`split`/`softcap`/`packgqa` 是特性。统计一下：`hopper/instantiations/` 有 **451 个**文件，其中 310 个 sm90、140 个 sm80。
 
-**编译时间**就是这样爆炸的。这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/08-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
+**编译时间**就是这样爆炸的。这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/10-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
 
 而且现在这套 CuTe-DSL 打法已经收敛成独立的 `flash-attn-4` 发行版（`pip install flash-attn-4`），`flash_attn/cute/interface.py` 里把 sm80/sm90/sm100/sm120 的 forward/backward、MLA forward/backward、combine、block-sparse 全部从一个包分派出去——对 Blackwell 而言，C++ 那套"一个 `.cu` 一个实例化"的爆炸被换成了 JIT 编译的单一 Python 包，`interface.py` 开头就写着 "[2025-07-04] Version in Cute-DSL, for Hopper and Blackwell"。
 
@@ -101,7 +101,7 @@ L_{\text{final}} = \log\sum_s e^{L_s}, \qquad
 O = \sum_s e^{L_s - L_{\text{final}}}\, O_s
 $$
 
-$O_s$ 是第 `s` 个 split 的未归一化累积，$L_s$ 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化。**这就是 [[learning/flash-attention/09-flashattention4-kernel|FA4]] 里 `flash_fwd_combine` 的对应，也是 split-KV 的收尾。**
+$O_s$ 是第 `s` 个 split 的未归一化累积，$L_s$ 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化。**这就是 [[learning/flash-attention/11-flashattention4-kernel|FA4]] 里 `flash_fwd_combine` 的对应，也是 split-KV 的收尾。**
 
 ## 一句话
 

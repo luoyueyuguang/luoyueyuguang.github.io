@@ -30,9 +30,9 @@ $$
 O = \mathrm{diag}\big(\ell^{(\mathrm{last})}\big)^{-1} \widetilde{O}^{(\mathrm{last})}
 $$
 
-> **论文那行 $ \widetilde{O}^{(2)} = \mathrm{diag}(\ell^{(1)})^{-1} O^{(1)} + \dots $ 容易读错。** 如果 $ O^{(1)} $ 是 FA1 那种已归一化输出，还原到未归一化要**乘** $ \ell^{(1)} $（写成 $ \mathrm{diag}(\ell^{(1)}) $），而且合并因子是 $ e^{m^{(1)} - m^{(2)}} $ 而非其逆。拿它在文中的 2-block 例子里 $ e^{s^{(1)}-m}V^{(1)} + e^{s^{(2)}-m}V^{(2)} $ 反推就能对上。论文这里的 $ \diag(\cdot)^{-1} $ 是符号笔误；正确递推见 [[learning/flash-attention/02-online-softmax|在线 softmax 与分块]] 的合并式。
+> **论文那行 $ \widetilde{O}^{(2)} = \mathrm{diag}(\ell^{(1)})^{-1} O^{(1)} + \dots $ 容易读错。** 如果 $ O^{(1)} $ 是 FA1 那种已归一化输出，还原到未归一化要**乘** $ \ell^{(1)} $（写成 $ \mathrm{diag}(\ell^{(1)}) $），而且合并因子是 $ e^{m^{(1)} - m^{(2)}} $ 而非其逆。拿它在文中的 2-block 例子里 $ e^{s^{(1)}-m}V^{(1)} + e^{s^{(2)}-m}V^{(2)} $ 反推就能对上。论文这里的 $ \diag(\cdot)^{-1} $ 是符号笔误；正确递推见 [[learning/flash-attention/02-online-softmax|online softmax 与分块]] 的合并式。
 
-代码上对应 [[learning/flash-attention/03-forward-kernel|forward kernel]] 里的 `softmax_rescale_o`：它只乘 `scores_scale`（$ e^{m_{old} - m_{new}} $），不除 $ \ell $。省掉的是每个 block 一次的对角矩阵乘（$ d $ 个元素乘 $ \ell $）+ 一次除法。循环里 $ T_c $ 次，累计下来可观。
+代码上对应 [[learning/flash-attention/04-forward-kernel|forward kernel]] 里的 `softmax_rescale_o`：它只乘 `scores_scale`（$ e^{m_{old} - m_{new}} $），不除 $ \ell $。省掉的是每个 block 一次的对角矩阵乘（$ d $ 个元素乘 $ \ell $）+ 一次除法。循环里 $ T_c $ 次，累计下来可观。
 
 ## 算法微调 2：只存 logsumexp
 
@@ -42,7 +42,7 @@ $$
 L = m + \log \ell
 $$
 
-因为 $ P = e^{S - L} $（推导见 [[learning/flash-attention/04-backward-kernel|反向内核]]）。于是反向只需读 $ L $，不用读两个向量。这既是省显存（$ O(N) $ → 还是 $ O(N) $，但少一个），也是省一次 HBM 读取。
+因为 $ P = e^{S - L} $（推导见 [[learning/flash-attention/05-backward-kernel|反向内核]]）。于是反向只需读 $ L $，不用读两个向量。这既是省显存（$ O(N) $ → 还是 $ O(N) $，但少一个），也是省一次 HBM 读取。
 
 ## 序列维并行
 
@@ -53,7 +53,7 @@ FA1 的并行方式："1 个 thread block 处理 1 个 (batch, head) 的整个 s
 FA2 的思路：**再沿序列维切一刀。**
 
 - **forward**：outer loop 已经是"遍历行块 $ i $"，行块之间完全独立（每个行块只用自己的 $ Q_i $ 和全部 $ K, V $）。FA2 把不同行块调度到不同 thread block，不通信。这是"embarrassingly parallel"。
-- **backward**：反向的共享计算是 $ dQ $（要跨列块累加）。FA2 让每个 thread block 管一段**列块**（$ K_j, V_j $），$ dK, dV $ 各自独立累加，$ dQ $ 用 **atomic add** 合并（见 [[learning/flash-attention/04-backward-kernel|反向内核]] 的 `atomicAdd` 那段）。
+- **backward**：反向的共享计算是 $ dQ $（要跨列块累加）。FA2 让每个 thread block 管一段**列块**（$ K_j, V_j $），$ dK, dV $ 各自独立累加，$ dQ $ 用 **atomic add** 合并（见 [[learning/flash-attention/05-backward-kernel|反向内核]] 的 `atomicAdd` 那段）。
 
 这个把 sequence 维也并行化的想法，最早来自 Phil Tillet 的 Triton 实现，FA2 把它搬进了 CUDA。
 
@@ -77,7 +77,7 @@ FA2 正向 warp 分工：
 
 ![FA1 split-K 与 FA2 split-Q 的 warp 分工对比](/learning/assets/fa2-warp-partition.svg)
 
-代码层面，FA2 让 $ Q $ 留在寄存器（`Is_Q_in_regs`），每个 warp 有自己那行块 $ Q $ 的片段 `tSrQ`。这就是 [[learning/flash-attention/03-forward-kernel|forward kernel]] 里那个 `if (Is_Q_in_regs) ... tSrQ_copy_view` 的来历。
+代码层面，FA2 让 $ Q $ 留在寄存器（`Is_Q_in_regs`），每个 warp 有自己那行块 $ Q $ 的片段 `tSrQ`。这就是 [[learning/flash-attention/04-forward-kernel|forward kernel]] 里那个 `if (Is_Q_in_regs) ... tSrQ_copy_view` 的来历。
 
 **代价**：$ Q $ 切给 warp 意味着每个 warp 要能独立算完整 attention（包括 softmax 的行 max / 行和），所以 $ B_r $ 不能太大，否则寄存器不够。FA2 实测块大小常取 $ \{64, 128\} \times \{64, 128\} $，按 head dim 和设备共享内存调。
 

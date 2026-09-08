@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="440" viewBox="0 0 940 440" role="img" aria-labelledby="title desc">
+  <title id="title">GPU 存储层次与访存延迟</title>
+  <desc id="desc">从 SM 往外看，存储依次是寄存器（线程私有，最快）→ 共享内存 SRAM（block 共享）→ HBM（grid 共享，最慢），访存延迟越来越高。寄存器文件虽 256 KB/SM 但按线程私有、单线程约 1 KB；attention 分块的 S、P、O 放共享内存。</desc>
+  <rect width="940" height="440" rx="22" fill="#f8fafc"/>
+  <text x="470" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111827">从 SM 往外看：访存延迟越来越高</text>
+  <text x="470" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">寄存器 → 共享内存 → HBM，越往外延迟越高、容量越大（以 A100 为例）</text>
+
+  <!-- group annotations -->
+  <line x1="40" y1="118" x2="580" y2="118" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="660" y1="118" x2="900" y2="118" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="310" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#475569">SM 内部（片上）</text>
+  <text x="780" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#475569">SM 外部（片外）</text>
+
+  <!-- registers -->
+  <g transform="translate(40 160)">
+    <rect x="0" y="0" width="220" height="170" rx="12" fill="#fecaca" stroke="#dc2626" stroke-width="2"/>
+    <text x="110" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#7f1d1d">寄存器</text>
+    <text x="110" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#7f1d1d">线程私有</text>
+    <text x="110" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#7f1d1d">最快 · ≈1 KB/线程</text>
+    <text x="110" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#b91c1c">（文件 256 KB/SM）</text>
+    <text x="110" y="146" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#b91c1c">延迟最低</text>
+  </g>
+
+  <!-- shared memory -->
+  <g transform="translate(340 160)">
+    <rect x="0" y="0" width="240" height="170" rx="12" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+    <text x="120" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#78350f">共享内存 SRAM</text>
+    <text x="120" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#78350f">block 共享</text>
+    <text x="120" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#78350f">164 KB/SM · ≈19 TB/s</text>
+    <text x="120" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#b45309">整块可寻址</text>
+    <text x="120" y="146" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#b45309">S、P、O 的分块放这里</text>
+  </g>
+
+  <!-- HBM -->
+  <g transform="translate(660 160)">
+    <rect x="0" y="0" width="240" height="170" rx="12" fill="#bfdbfe" stroke="#2563eb" stroke-width="2"/>
+    <text x="120" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1e3a8a">HBM 全局内存</text>
+    <text x="120" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1e3a8a">grid 共享</text>
+    <text x="120" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#1e3a8a">40–80 GB · 1.5–2.0 TB/s</text>
+    <text x="120" y="146" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#1d4ed8">最慢 · 延迟最高</text>
+  </g>
+
+  <!-- arrows between boxes -->
+  <line x1="262" y1="245" x2="336" y2="245" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="582" y1="245" x2="656" y2="245" stroke="#64748b" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- latency arrow -->
+  <line x1="40" y1="378" x2="898" y2="378" stroke="#94a3b8" stroke-width="2" marker-end="url(#a)"/>
+  <text x="470" y="408" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#475569">访存延迟越来越高</text>
+
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M2 2 L8 5 L2 8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+</svg>

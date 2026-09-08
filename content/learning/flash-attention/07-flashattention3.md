@@ -2,7 +2,7 @@ FA2 在 A100 上已经把 attention 推到接近 GEMM 的效率，但换到 H100
 
 > **FA3 的核心问题是"重叠"。** 数据搬移（TMA）、矩阵乘（WGMMA）、softmax 的指数函数分别用不同的硬件单元，FA2 让它们串行。FA3 用 warp specialization + 双 warpgroup + 多级 SMEM 缓冲，把这三件事错开，让 tensor core 一直忙着。
 
-想对着代码逐行读，前向见 [[learning/flash-attention/07-flashattention3-kernel|FA3 前向内核逐行读]]，反向见 [[learning/flash-attention/12-flashattention3-bwd-kernel|FA3 反向内核逐行读]]。
+想对着代码逐行读，前向见 [[learning/flash-attention/08-flashattention3-kernel|FA3 前向内核逐行读]]，反向见 [[learning/flash-attention/09-flashattention3-bwd-kernel|FA3 反向内核逐行读]]。
 
 ## 为什么 H100 上 exp 是瓶颈
 
@@ -76,7 +76,7 @@ FA3 选第 2 种：用 `LDSM`（ldmatrix）/ `STSM`（stmatrix）指令，一个
 
 ### 布局：累加器和操作数 A 的寄存器排布不同
 
-FP8 的 WGMMA，其 FP32 累加器（`acc_s`）的寄存器归属（每线程拿哪些元素）和"作为下一轮操作数 A（$ P $）"所需的布局不一样。这跟 [[learning/flash-attention/03-forward-kernel|FP16 forward]] 里的 `convert_layout_acc_Aregs` 是同一类问题，但 FP8 更严重，要显式用 byte-permute 把累加器里 `d0 d1 d2 d3 d4 d5 d6 d7` 重排成 `d0 d1 d4 d5 d2 d3 d6 d7`，再配合 V 转置的行置换，让 WGMMA 算出正确的输出。
+FP8 的 WGMMA，其 FP32 累加器（`acc_s`）的寄存器归属（每线程拿哪些元素）和"作为下一轮操作数 A（$ P $）"所需的布局不一样。这跟 [[learning/flash-attention/04-forward-kernel|FP16 forward]] 里的 `convert_layout_acc_Aregs` 是同一类问题，但 FP8 更严重，要显式用 byte-permute 把累加器里 `d0 d1 d2 d3 d4 d5 d6 d7` 重排成 `d0 d1 d4 d5 d2 d3 d6 d7`，再配合 V 转置的行置换，让 WGMMA 算出正确的输出。
 
 ### 精度：block quantization + incoherent processing
 
@@ -108,7 +108,7 @@ FP8（E4M3）只有 3 位尾数、4 位指数，误差大。而且大模型普�
 
 warp specialization 单独值约 661→582 那一档，GEMM-softmax 重叠单独值约 570 那一档：两者叠加不是简单相加，但它们各自都从"570"这个无重叠基线往"661"这个全开峰值推。
 
-> **2026-09 增补：** FA3 这篇（2407.08608）仍是 Hopper 的基准，论文结论没变；但 Blackwell 上"把 exp 藏进 tensor core"这套前提失效了——B200 的 tensor core 吞吐翻倍后，瓶颈换成共享内存流量和指数单元，后续工作见 [[learning/flash-attention/08-flashattention4|FA4]]（arXiv:2603.05451）。
+> **2026-09 增补：** FA3 这篇（2407.08608）仍是 Hopper 的基准，论文结论没变；但 Blackwell 上"把 exp 藏进 tensor core"这套前提失效了——B200 的 tensor core 吞吐翻倍后，瓶颈换成共享内存流量和指数单元，后续工作见 [[learning/flash-attention/10-flashattention4|FA4]]（arXiv:2603.05451）。
 
 ## 一句话
 

@@ -7,8 +7,8 @@
     </marker>
   </defs>
   <rect width="920" height="420" rx="22" fill="#f8fafc"/>
-  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">在线 softmax：一块一块合并</text>
-  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">标准实现要等整行算完才知道 max；在线版只维护 m、ℓ、$O，随块更新</text>
+  <text x="460" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">online softmax：一块一块合并</text>
+  <text x="460" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" fill="#64748b">标准实现要等整行算完才知道 max；在线版只维护 m、ℓ、Õ，随块更新</text>
 
   <!-- top row: blocks of scores -->
   <g transform="translate(70 130)">
@@ -32,7 +32,7 @@
     <text x="22" y="32" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#111827">运行中的状态</text>
     <text x="22" y="60" font-family="Arial, sans-serif" font-size="15" fill="#334155">m = 行最大值（当前已扫块）</text>
     <text x="22" y="84" font-family="Arial, sans-serif" font-size="15" fill="#334155">ℓ = 指数和（已归一化到当前 m）</text>
-    <text x="22" y="105" font-family="Arial, sans-serif" font-size="15" fill="#334155">$O = 未归一化的输出累计</text>
+    <text x="22" y="105" font-family="Arial, sans-serif" font-size="15" fill="#334155">Õ = 未归一化的输出累计</text>
   </g>
 
   <!-- merge box -->
@@ -41,12 +41,12 @@
     <text x="20" y="32" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#854d0e">合并一个块</text>
     <text x="20" y="60" font-family="Arial, sans-serif" font-size="15" fill="#713f12">m_new = max(m, 块行最大)</text>
     <text x="20" y="84" font-family="Arial, sans-serif" font-size="15" fill="#713f12">ℓ_new = e^(m_old−m_new)·ℓ + 块指数和</text>
-    <text x="20" y="105" font-family="Arial, sans-serif" font-size="15" fill="#713f12">$O = e^(m_old−m_new)·$O + e^(S−m_new)·V</text>
+    <text x="20" y="105" font-family="Arial, sans-serif" font-size="15" fill="#713f12">Õ = e^(m_old−m_new)·Õ + e^(S−m_new)·V</text>
   </g>
 
   <!-- final step -->
   <g transform="translate(70 410)">
-    <text x="160" y="0" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">扫完所有块：O = $O / ℓ，L = m + log ℓ</text>
+    <text x="160" y="0" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">扫完所有块：O = Õ / ℓ，L = m + log ℓ</text>
   </g>
 
   <line x1="250" y1="235" x2="250" y2="266" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>

@@ -30,7 +30,7 @@ $$
 P = \mathrm{softmax}(S) = \frac{e^{S - m}}{\ell} = e^{S - (m + \log \ell)} = e^{S - L}
 $$
 
-所以**每个 block 重算出 $ S = QK^\top $ 后，直接 $ e^{S - L} $ 就是 $ P $**，不需要再存 $ m, \ell $ 两个。这就是 [[learning/flash-attention/05-flashattention2|FA2]] 说的"只存 logsumexp，不存 max 和 sum 两个"。FA1 还要存 $ m, \ell $，FA2 把它俩合并成 $ L $。
+所以**每个 block 重算出 $ S = QK^\top $ 后，直接 $ e^{S - L} $ 就是 $ P $**，不需要再存 $ m, \ell $ 两个。这就是 [[learning/flash-attention/06-flashattention2|FA2]] 说的"只存 logsumexp，不存 max 和 sum 两个"。FA1 还要存 $ m, \ell $，FA2 把它俩合并成 $ L $。
 
 `flash_attn/ops/` 里有一个 `flash_attn_backward` 的前置 kernel `flash_bwd_preprocess_kernel.h`，专门算 $ D $。它读 $ O $ 和 $ dO $，逐 token 求 $ \sum_d dO_{i,d} O_{i,d} $，写出 `softmax_d`（就是 $ D $）。这个 kernel 只有 elementwise + reduction，是 memory-bound 的，单独跑一次也很快。
 
@@ -118,11 +118,11 @@ if (!Seq_parallel) {
 }
 ```
 
-这就是 [[learning/flash-attention/05-flashattention2|FA2]] 说的"反向按列块并行，用 atomic add 在 block 之间合并 $ dQ $"。
+这就是 [[learning/flash-attention/06-flashattention2|FA2]] 说的"反向按列块并行，用 atomic add 在 block 之间合并 $ dQ $"。
 
 ## 为什么重算反而更快
 
-论文里 GPT-2 medium 那个微基准（见 [[learning/flash-attention/02-online-softmax|在线 softmax 与分块]]）：反向把 $ S, P $ 落在 SRAM 里重算，HBM 读写从标准实现的 40.3 GB 掉到 4.4 GB（这里是 forward + backward 合计），总时间 41.7 ms → 7.3 ms。虽然 FLOPs 变多（66.6 → 75.2 GFLOPs），但 attention 是 memory-bound，**省的 36 GB HBM 读写远远值回多出来的几十 GFLOPs。**
+论文里 GPT-2 medium 那个微基准（见 [[learning/flash-attention/02-online-softmax|online softmax 与分块]]）：反向把 $ S, P $ 落在 SRAM 里重算，HBM 读写从标准实现的 40.3 GB 掉到 4.4 GB（这里是 forward + backward 合计），总时间 41.7 ms → 7.3 ms。虽然 FLOPs 变多（66.6 → 75.2 GFLOPs），但 attention 是 memory-bound，**省的 36 GB HBM 读写远远值回多出来的几十 GFLOPs。**
 
 用一句话收尾这个系列的后向：**forward 用 $ O, L $ 换掉 $ S, P $ 的 $ O(N^2) $ 显存；backward 用 $ L $ 和 $ D $ 现场重算 $ P $，把重算的 FLOPs 花在 SRAM 里，换来 HBM 访问从 $ \Theta(N^2) $ 降到 $ \Theta(N^2 d^2 / M) $。**
 

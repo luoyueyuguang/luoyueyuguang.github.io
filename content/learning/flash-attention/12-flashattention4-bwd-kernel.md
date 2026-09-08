@@ -1,6 +1,6 @@
-FA4 的反向比 forward 更值钱，因为 [[learning/flash-attention/08-flashattention4|算法篇]] 里提到的"2-CTA MMA、DSMEM 换 dS、确定性归约"全在这个 kernel 里。它在 `flash_attn/cute/flash_bwd_sm100.py`，类 `FlashAttentionBackwardSm100`。
+FA4 的反向比 forward 更值钱，因为 [[learning/flash-attention/10-flashattention4|算法篇]] 里提到的"2-CTA MMA、DSMEM 换 dS、确定性归约"全在这个 kernel 里。它在 `flash_attn/cute/flash_bwd_sm100.py`，类 `FlashAttentionBackwardSm100`。
 
-上一轮我读的是 [[learning/flash-attention/09-flashattention4-kernel|前向]]，这轮补反向。反向的核心不是"重算 S / 算梯度"，FA3 早就做了；FA4 的新东西是**怎么在 Blackwell 上把 5 个 MMA 和非 MMA 操作重叠，以及怎么把 dQ 的全局原子归约减半再做成确定性的**。
+上一轮我读的是 [[learning/flash-attention/11-flashattention4-kernel|前向]]，这轮补反向。反向的核心不是"重算 S / 算梯度"，FA3 早就做了；FA4 的新东西是**怎么在 Blackwell 上把 5 个 MMA 和非 MMA 操作重叠，以及怎么把 dQ 的全局原子归约减半再做成确定性的**。
 
 ## 5 个 MMA + TMEM 共享
 
@@ -12,11 +12,11 @@ TMEM 只够放 4 个 128×128 累加器 tile，所以必须共享：
 self.tmem_dS_offset = self.tmem_dP_offset    # dS 与 dP 共用一块 TMEM
 ```
 
-这正是 [[learning/flash-attention/08-flashattention4|算法篇]] 说的：$ S $ 和 $ P $ 共用一个 TMEM 块，$ dP, dS, dQ $ 共用另一个，$ dV, dK $ 各自占剩下的不能共享。4 个 tile 摆满。
+这正是 [[learning/flash-attention/10-flashattention4|算法篇]] 说的：$ S $ 和 $ P $ 共用一个 TMEM 块，$ dP, dS, dQ $ 共用另一个，$ dV, dK $ 各自占剩下的不能共享。4 个 tile 摆满。
 
 ## 流水线：拿上一轮的 dQ/dK MMA 垫 softmax
 
-FA3 反向里，softmax 只和 $ dP $ 的 MMA 重叠。但 [[learning/flash-attention/06-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2883 行起）让**上一轮的 $ dQ $ 和 $ dK $ 两个 MMA** 和当前轮的 softmax 重叠。
+FA3 反向里，softmax 只和 $ dP $ 的 MMA 重叠。但 [[learning/flash-attention/07-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2883 行起）让**上一轮的 $ dQ $ 和 $ dK $ 两个 MMA** 和当前轮的 softmax 重叠。
 
 ```python
 # compute_loop 里（伪代码化）：

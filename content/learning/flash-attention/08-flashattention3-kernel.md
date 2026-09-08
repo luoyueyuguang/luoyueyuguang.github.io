@@ -1,4 +1,4 @@
-[[learning/flash-attention/06-flashattention3|FA3 算法篇]] 讲了 warp specialization、pingpong、2 级流水线，这一篇真的逐行读 Hopper 前向内核。文件是 `hopper/mainloop_fwd_sm90_tma_gmma_ws.hpp` 的 `CollectiveMainloopFwdSm90::mma`（consumer 端），加上 `load`（producer 端）。
+[[learning/flash-attention/07-flashattention3|FA3 算法篇]] 讲了 warp specialization、pingpong、2 级流水线，这一篇真的逐行读 Hopper 前向内核。文件是 `hopper/mainloop_fwd_sm90_tma_gmma_ws.hpp` 的 `CollectiveMainloopFwdSm90::mma`（consumer 端），加上 `load`（producer 端）。
 
 先说明：FA3 用的是 Hopper 的两样新家伙。**TMA**（`SM90_TMA_LOAD`）批量异步拷贝，**WGMMA**（`tiled_mma`）异步张量核 GEMM。它俩都是"发出即返回"，所以能靠 `pipeline.consumer_wait / producer_acquire` 这类 barrier 把"搬"和"算"叠起来。
 
@@ -30,7 +30,7 @@ Tensor tOsP = wg_mma_pv.partition_fragment_A(sP);
 - `warp_group_idx`：当前线程属于哪个 warpgroup。Fa3 的 mma（consumer）warpgroup 数由 tiling 决定，常见为 2 个做 pingpong；producer 是独立的：FP16 用 TMA 时是 1 个 warp（`NumProducerThreads = cutlass::NumThreadsPerWarp`），FP8 要转置 V 时是 1 个 warpgroup（`NumThreadsPerWarpGroup`）。
 - `tiled_mma_qk` 是 $ QK^\top $ 的 WGMMA，`tiled_mma_pv` 是 $ P V $ 的 WGMMA。`tSrQ`（A 片段）、`tSrK`（B 片段）喂 $ QK^\top $，`tOrV` + `tOsP` 喂 $ PV $。
 
-因为 producer 只发 TMA、几乎不占寄存器，FA3 用 `setmaxnreg` 把寄存器预算从 producer 匀给 consumer 的 MMA warpgroup。Hopper 下来就是 "用几个 MMA warpgroup" 直接决定每线程的寄存器天花板：2 个 warpgroup 时每线程 240 个、扣 24 个固定开销后约 **216 个可用**；3 个时压到 160 个、扣 32 个后约 **128 个可用**。所以多一个 warpgroup 意味着更大的 `tile_m`（[[learning/flash-attention/06-flashattention3|算法篇]] 说的 pingpong 好处），但每线程能用的寄存器变少——这就是"pingpong 和大 block size 都耗寄存器、权衡更难"的落地数字。
+因为 producer 只发 TMA、几乎不占寄存器，FA3 用 `setmaxnreg` 把寄存器预算从 producer 匀给 consumer 的 MMA warpgroup。Hopper 下来就是 "用几个 MMA warpgroup" 直接决定每线程的寄存器天花板：2 个 warpgroup 时每线程 240 个、扣 24 个固定开销后约 **216 个可用**；3 个时压到 160 个、扣 32 个后约 **128 个可用**。所以多一个 warpgroup 意味着更大的 `tile_m`（[[learning/flash-attention/07-flashattention3|算法篇]] 说的 pingpong 好处），但每线程能用的寄存器变少——这就是"pingpong 和大 block size 都耗寄存器、权衡更难"的落地数字。
 
 ## producer：TMA 加载
 
@@ -81,7 +81,7 @@ auto fwd_step = [&](int const n_block, auto mask_fn, auto check_inf_type) {
     mask_fn(tSrS, n_block);               // 因果 / local mask（用 `scores` 的 identity 做 predication）
 
     cute::copy(softmax.template max_get_scale</*Is_first=*/false, Check_inf>(tSrS), scores_scale);
-    softmax.template online_softmax</*Is_first=*/false, Check_inf>(tSrS);   // 在线 softmax：m、l 更新 + 重缩 O
+    softmax.template online_softmax</*Is_first=*/false, Check_inf>(tSrS);   // online softmax：m、l 更新 + 重缩 O
     ...
     convert_type_out(make_tensor(tSrS.data(), tOrP.layout()), tOrP);       // fp32 S → fp16/bf16 P
     if (!MmaPV_is_RS) { write_P_to_smem(tOrP); }
@@ -90,7 +90,7 @@ auto fwd_step = [&](int const n_block, auto mask_fn, auto check_inf_type) {
 };
 ```
 
-逐行对应的算法（[[learning/flash-attention/06-flashattention3|算法篇]] 的 2 级流水线）：
+逐行对应的算法（[[learning/flash-attention/07-flashattention3|算法篇]] 的 2 级流水线）：
 
 1. `++smem_pipe_read`：推进 K 的流水线 stage。
 2. `consumer_wait(pipeline_k, smem_pipe_read)`：等这块 K 的 TMA 拷贝完成。
@@ -117,7 +117,7 @@ auto fwd_step = [&](int const n_block, auto mask_fn, auto check_inf_type) {
 
 ## FP8 的额外一脚
 
-`if (Is_FP8 && !V_colmajor) { flash::permute_Cregs_fp8(tSrS); }` 和 `permute_Aregs_fp8(tOrP)`：这就是 [[learning/flash-attention/06-flashattention3|FA3 算法篇]] 说的"FP32 累加器布局和 operand A 布局不同，要 byte-permute"。FP8 时 $ S $ 从累加器（C 布局）转成 $ P $（A 布局）之前，必须重排寄存器里的元素顺序，否则 WGMMA 算错。
+`if (Is_FP8 && !V_colmajor) { flash::permute_Cregs_fp8(tSrS); }` 和 `permute_Aregs_fp8(tOrP)`：这就是 [[learning/flash-attention/07-flashattention3|FA3 算法篇]] 说的"FP32 累加器布局和 operand A 布局不同，要 byte-permute"。FP8 时 $ S $ 从累加器（C 布局）转成 $ P $（A 布局）之前，必须重排寄存器里的元素顺序，否则 WGMMA 算错。
 
 - `write_P_to_smem` / `arrive_on_P_write_barrier` 用的是 `FwdNamedBarriers::PEmpty / PFull`，配合 `LargeHeadDimV`（`kHeadDimV > 256`，源码第 61 行）时 $ P $ 太大放不下寄存器，必须走 smem，所以多一层 named barrier 同步。
 

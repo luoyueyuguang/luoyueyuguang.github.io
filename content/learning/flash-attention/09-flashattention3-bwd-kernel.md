@@ -1,4 +1,4 @@
-[[learning/flash-attention/04-backward-kernel|FA1/FA2 反向]] 讲的是数学和 Ampere 内核，这一篇读 **FA3 的 Hopper 反向内核** `hopper/mainloop_bwd_sm90_tma_gmma_ws.hpp` 的 `CollectiveMainloopBwdSm90`。数学和 04 一模一样（还是 $ P = e^{S-L} $、$ dS = P \circ (dP - D) $、dQ/dK/dV 三个 GEMM），但 FA3 把它塞进了 warp specialization，并且**复用同一个 MMA tiling 同时算 S 和 dP**。
+[[learning/flash-attention/05-backward-kernel|FA1/FA2 反向]] 讲的是数学和 Ampere 内核，这一篇读 **FA3 的 Hopper 反向内核** `hopper/mainloop_bwd_sm90_tma_gmma_ws.hpp` 的 `CollectiveMainloopBwdSm90`。数学和 04 一模一样（还是 $ P = e^{S-L} $、$ dS = P \circ (dP - D) $、dQ/dK/dV 三个 GEMM），但 FA3 把它塞进了 warp specialization，并且**复用同一个 MMA tiling 同时算 S 和 dP**。
 
 ## 与 FA2 反向的差别
 
@@ -56,8 +56,8 @@ for (int mi ...) {
 }
 ```
 
-- `exp2f(scores * scale_log2 - lse_scaled)`：$ e^{S - L} = P $。用 `exp2f` 是因为前向在 [[learning/flash-attention/03-forward-kernel|softmax_rescale_o]] 里也这么干，$ e^x = 2^{x\log_2 e} $ 能合成 `ffma`。
-- `dS = P ⊙ (dP − D)`：和 [[learning/flash-attention/04-backward-kernel|FA2 反向]] 的 `pointwise_mult` 一模一样。`dP_sum_cur` 是 $ D = \mathrm{rowsum}(dO \circ O) $。
+- `exp2f(scores * scale_log2 - lse_scaled)`：$ e^{S - L} = P $。用 `exp2f` 是因为前向在 [[learning/flash-attention/04-forward-kernel|softmax_rescale_o]] 里也这么干，$ e^x = 2^{x\log_2 e} $ 能合成 `ffma`。
+- `dS = P ⊙ (dP − D)`：和 [[learning/flash-attention/05-backward-kernel|FA2 反向]] 的 `pointwise_mult` 一模一样。`dP_sum_cur` 是 $ D = \mathrm{rowsum}(dO \circ O) $。
 - softcap 时 `dS *= dtanh`：softmax 的链式法则多一项 $ dtanh $（`tanh` 的导）。
 
 ## P、dS 转精度 + 三个梯度 GEMM
@@ -89,7 +89,7 @@ if constexpr (!Slice_dQKV_Mma) {
 
 ## dQ 的原子归约（或 TMA reduce）
 
-`dQ` 需要在一个 `m_block` 的范围内累加（按 [[learning/flash-attention/04-backward-kernel|FA2 反向]] 的说法，反向按列块并行，dQ 靠原子加合并）：
+`dQ` 需要在一个 `m_block` 的范围内累加（按 [[learning/flash-attention/05-backward-kernel|FA2 反向]] 的说法，反向按列块并行，dQ 靠原子加合并）：
 
 ```cpp
 if constexpr (dQacc_use_TMA) {           // head dim < 256
@@ -109,7 +109,7 @@ if constexpr (dQacc_use_TMA) {           // head dim < 256
 
 ## hdim 256：Slice_dQKV_Mma
 
-`Slice_dQKV_Mma` 分支只在 `kHeadDim == 256 && !dQacc_use_TMA && dQ_swapAB && AtomLayoutMdQ==1 && NumMmaWarpGroups==2` 时走。它把 `dQ` / `dKV` 的 MMA 按 `M_slice` 拆成两半（`M_slice=0/1`），中间穿插写 smem，**降低寄存器峰值**（head dim 256 时累加器太大，不分片会 spill）。这就是 [[learning/flash-attention/06-flashattention3|FA3 算法篇]] 说的"寄存器压力和大 block size 的权衡"在反向的实现。
+`Slice_dQKV_Mma` 分支只在 `kHeadDim == 256 && !dQacc_use_TMA && dQ_swapAB && AtomLayoutMdQ==1 && NumMmaWarpGroups==2` 时走。它把 `dQ` / `dKV` 的 MMA 按 `M_slice` 拆成两半（`M_slice=0/1`），中间穿插写 smem，**降低寄存器峰值**（head dim 256 时累加器太大，不分片会 spill）。这就是 [[learning/flash-attention/07-flashattention3|FA3 算法篇]] 说的"寄存器压力和大 block size 的权衡"在反向的实现。
 
 `ShuffleLSE` / `ShuffledPsum`（head dim ≤64 时）用 `__shfl_sync` 把 L 和 D 从"某个线程"广播给同 warp，省掉从 smem 读统计量那一跳，因为 $ d \le 64 $ 时一个 warp 够装。
 
@@ -123,7 +123,7 @@ if constexpr (dQacc_use_TMA) {           // head dim < 256
 
 ## 一句话
 
-FA3 反向逐行读下来，数学就是 [[learning/flash-attention/04-backward-kernel|FA2 反向]]，但实现上多了三层：**warp specialization 让 TMA 搬 Q/dO 和 MMA 重叠**、**`tiled_mma_SdP` 一个 tiling 复用算 S 和 dP**、**dQ 的原子（或 TMA reduce）按 `m_block` 累加**。它把 04 那套"重算 + 三个梯度 GEMM"搬到了 Hopper，并针对 head dim 64/128/256 分别挑 tiling 配置。
+FA3 反向逐行读下来，数学就是 [[learning/flash-attention/05-backward-kernel|FA2 反向]]，但实现上多了三层：**warp specialization 让 TMA 搬 Q/dO 和 MMA 重叠**、**`tiled_mma_SdP` 一个 tiling 复用算 S 和 dP**、**dQ 的原子（或 TMA reduce）按 `m_block` 累加**。它把 04 那套"重算 + 三个梯度 GEMM"搬到了 Hopper，并针对 head dim 64/128/256 分别挑 tiling 配置。
 
 ## Reference
 

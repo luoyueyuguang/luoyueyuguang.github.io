@@ -1,4 +1,4 @@
-前面讲的全是"一块怎么算"（kernel 内部）。这一篇往上一格：**GPU 上到底启动多少个 CTA、每个 CTA 分到哪一块**。也就是 `flash_fwd_launch_template.h`（决定 grid/block 形状）和 `hopper/tile_scheduler.hpp`（把 CTA 索引映射到 work）加 `hopper/heuristics.h`（决定 split 数）。这三层决定的是**占用率和负载均衡**，正是 [[learning/flash-attention/05-flashattention2|FA2]] 说的"work partitioning"的启动端。
+前面讲的全是"一块怎么算"（kernel 内部）。这一篇往上一格：**GPU 上到底启动多少个 CTA、每个 CTA 分到哪一块**。也就是 `flash_fwd_launch_template.h`（决定 grid/block 形状）和 `hopper/tile_scheduler.hpp`（把 CTA 索引映射到 work）加 `hopper/heuristics.h`（决定 split 数）。这三层决定的是**占用率和负载均衡**，正是 [[learning/flash-attention/06-flashattention2|FA2]] 说的"work partitioning"的启动端。
 
 ## grid 形状：三维 (M, head, batch)
 
@@ -101,7 +101,7 @@ return nopack_gqa_efficiency < 0.9 * pack_gqa_efficiency;
 
 ## 因果 / local 的 tile 重排
 
-因果时每个 `m_block` 要扫的 KV 块数不一样（靠前的行扫得少，靠后的扫得多）。如果按顺序调度，前面的 CTA 先做完、后面的 CTA 拖到很晚，**负载不均**。`tile_scheduler.hpp` 里专门为因果/local 设计的调度器（非 varlen 用 `DynamicPersistentTileScheduler`，varlen 用 `VarlenDynamicPersistentTileScheduler`）**按"预计工作量"给 tile 排序**——工作量大的先排：`DynamicPersistentTileScheduler` 里就是 LPT（`block = divisor - 1 - block`，注释写着 "Longest-processing-time-first"），让扫得最长的行块先被处理。这和 [[learning/flash-attention/10-flashattention4-bwd-kernel|FA4 反向]] 写的是同一类思想：先处理"最长"的块，让所有 CTA 尽量同时收工。varlen 版本由 `LPT`/`Sort` 模板参数（launch 端设 `LPT = Is_causal || Is_local`、`Sort = !Is_local`）决定排序。
+因果时每个 `m_block` 要扫的 KV 块数不一样（靠前的行扫得少，靠后的扫得多）。如果按顺序调度，前面的 CTA 先做完、后面的 CTA 拖到很晚，**负载不均**。`tile_scheduler.hpp` 里专门为因果/local 设计的调度器（非 varlen 用 `DynamicPersistentTileScheduler`，varlen 用 `VarlenDynamicPersistentTileScheduler`）**按"预计工作量"给 tile 排序**——工作量大的先排：`DynamicPersistentTileScheduler` 里就是 LPT（`block = divisor - 1 - block`，注释写着 "Longest-processing-time-first"），让扫得最长的行块先被处理。这和 [[learning/flash-attention/12-flashattention4-bwd-kernel|FA4 反向]] 写的是同一类思想：先处理"最长"的块，让所有 CTA 尽量同时收工。varlen 版本由 `LPT`/`Sort` 模板参数（launch 端设 `LPT = Is_causal || Is_local`、`Sort = !Is_local`）决定排序。
 
 ## 一句话
 

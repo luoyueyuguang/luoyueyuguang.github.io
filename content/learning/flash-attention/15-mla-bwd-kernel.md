@@ -16,7 +16,7 @@ $$
 dQ = dS\, K, \qquad dV = P^\top dO, \qquad dK = dS^\top Q
 $$
 
-和 [[learning/flash-attention/04-backward-kernel|FA 反向]] 一模一样。区别只在 MLA 的 $ Q, K, V $ 都是 latent 展开的、且全 head 共享 $ c^{KV} $。所以 $ dQ, dK, dV $ 是**对展开后的 content 张量的梯度**，之后还要流回 $ W^{UQ}, W^{UK}, W^{UV} $（那一步在模型的线性层反向里做，不在 attention kernel 内）。
+和 [[learning/flash-attention/05-backward-kernel|FA 反向]] 一模一样。区别只在 MLA 的 $ Q, K, V $ 都是 latent 展开的、且全 head 共享 $ c^{KV} $。所以 $ dQ, dK, dV $ 是**对展开后的 content 张量的梯度**，之后还要流回 $ W^{UQ}, W^{UK}, W^{UV} $（那一步在模型的线性层反向里做，不在 attention kernel 内）。
 
 ## 仓库的三个 kernel
 
@@ -69,7 +69,7 @@ self.tiled_mma_dK = utils.sm100.make_trivial_tiled_mma(..., self.mma_tiler_dK[:2
 
 ## dV 在主核里
 
-主核 `FlashAttentionSparseMLABackwardSm100` 里 $ dV $ 用的是 $ tiled_mma $ 配合 `tmem_offsets_dV`（`self.tmem_offsets_dV = [offset_dV0, offset_dV1]`），`num_stages_dV = 2`（== hdimv splits），`num_epi_stages_dV = 8`。$ dV = P^\top dO $ 走 `tiled_mma`，累加器拆成两块（`tile_dV = (tile_n, 32)`）分阶段写。它和 $ dS $ 的 softmax 重叠，复用 [[learning/flash-attention/10-flashattention4-bwd-kernel|FA4 反向]] 那套 TMEM 管理。
+主核 `FlashAttentionSparseMLABackwardSm100` 里 $ dV $ 用的是 $ tiled_mma $ 配合 `tmem_offsets_dV`（`self.tmem_offsets_dV = [offset_dV0, offset_dV1]`），`num_stages_dV = 2`（== hdimv splits），`num_epi_stages_dV = 8`。$ dV = P^\top dO $ 走 `tiled_mma`，累加器拆成两块（`tile_dV = (tile_n, 32)`）分阶段写。它和 $ dS $ 的 softmax 重叠，复用 [[learning/flash-attention/12-flashattention4-bwd-kernel|FA4 反向]] 那套 TMEM 管理。
 
 ## 一句话
 

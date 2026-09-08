@@ -55,7 +55,7 @@ $$
 `flash_attn/cute/` 里是 CuTe-DSL 的 MLA 实现（反向拆成三个核，见 [[learning/flash-attention/15-mla-bwd-kernel|MLA 反向内核]]）：
 
 - `flash_fwd_mla_sm100.py`（前向，3160 行）、`flash_bwd_mla_sm100.py`、`flash_bwd_mla_dq_dqv_sm100.py`、`flash_bwd_mla_dk_sm100.py`（反向拆成 dQ/dV 和 dK 两块）。
-- 它在结构上**复用了 FA4 前向那套**（`softmax_loop`、`softmax_step`、`correction_loop`、`mma`），所以 [[learning/flash-attention/09-flashattention4-kernel|FA4 前向内核逐行读]] 里的 TMEM/流水线/exp2 模拟都适用。
+- 它在结构上**复用了 FA4 前向那套**（`softmax_loop`、`softmax_step`、`correction_loop`、`mma`），所以 [[learning/flash-attention/11-flashattention4-kernel|FA4 前向内核逐行读]] 里的 TMEM/流水线/exp2 模拟都适用。
 
 和普通 FA4 前向的差别，看一眼它的调用签名就知道：
 

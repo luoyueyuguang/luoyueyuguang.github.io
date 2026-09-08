@@ -60,7 +60,7 @@ mask 在 PyTorch 侧用块稀疏布局表达（每行非零块数 + 列索引）
 
 ## 一句话
 
-block-sparse FA 把"精确的 FA"改成"按块稀疏的近似"：**掩码必须块形式，非零块照常跑在线 softmax，零块跳过，IO 复杂度乘非零比例 $ s $**。它是 FA1 论文"除 IO-aware 外的另一半贡献"，也是后续围绕稀疏做长上下文（[[learning/flash-attention/13-mla|MLA]] 的压缩、各种 block-sparse 路线）的起点。
+block-sparse FA 把"精确的 FA"改成"按块稀疏的近似"：**掩码必须块形式，非零块照常跑online softmax，零块跳过，IO 复杂度乘非零比例 $ s $**。它是 FA1 论文"除 IO-aware 外的另一半贡献"，也是后续围绕稀疏做长上下文（[[learning/flash-attention/13-mla|MLA]] 的压缩、各种 block-sparse 路线）的起点。
 
 ## Reference
 

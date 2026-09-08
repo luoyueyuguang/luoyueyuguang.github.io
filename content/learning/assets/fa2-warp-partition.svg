@@ -66,5 +66,5 @@
     <text x="316" y="268" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748b">warp 之间零通信</text>
   </g>
 
-  <text x="480" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">代价：split-Q 需要每个 warp 能放下整块 $Q（寄存器），FA2 因此把 Q 留在寄存器里</text>
+  <text x="480" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#64748b">代价：split-Q 需要每个 warp 能放下整块 Q（寄存器），FA2 因此把 Q 留在寄存器里</text>
 </svg>
