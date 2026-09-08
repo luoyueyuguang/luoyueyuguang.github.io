@@ -114,6 +114,16 @@ The site renders math with **KaTeX** via Quartz `Plugin.Latex` (`renderEngine: "
 - Keep `$` delimiters balanced on the same line; do not place `$...$` inside a code span or a backtick-wrapped title (e.g. a paper title like `Self-attention Does Not Need $O(n^2)$ Memory`).
 - If a built page shows math as raw `$...$` / `\command` text, check for stray backticks around the formula first — they swallow the `$$...$$` block too.
 
+### Figures（图片与引用）
+
+- **优先使用现有/官方图**（论文、官方文档、官方博客），不要为了美观重画论文或官方的关键概念图。
+- **任何从外部来源借用的图片**，必须在其下方标注来源，格式：
+  `> 图源：<来源名>（<链接或出处>）`
+  示例：`> 图源：Dao-AILab《FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness》（arXiv:2205.14135）Figure 1`
+- **自绘示意图**（自定义 SVG 等）在下方标注：`> 自绘示意图`。
+- 图片放在 `content/<section>/assets/`，用站点路径引用（如 `/learning/assets/...`）。
+- 图片下方的说明文字遵循 KaTeX 约定，不要用反引号包 `$...$`。
+
 ### URL Parameter Handling
 ```javascript
 // Parse query parameters
