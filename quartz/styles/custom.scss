@@ -212,3 +212,156 @@ blockquote {
     margin-top: 1.5rem;
   }
 }
+
+/* 打印 / 导出 PDF：只保留笔记正文，隐藏侧栏、导航、页脚等页面外壳 */
+@media print {
+  @page {
+    margin: 1.6cm 1.8cm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #111 !important;
+  }
+
+  #quartz-root.page {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* 隐藏页面外壳 */
+  #quartz-body .left.sidebar,
+  #quartz-body .right.sidebar,
+  #quartz-body .page-footer,
+  #quartz-body header,
+  #quartz-body > footer,
+  #quartz-body .breadcrumb-container,
+  #quartz-body .tags,
+  #quartz-body .backlinks,
+  #quartz-body .toc,
+  #quartz-body .search,
+  #quartz-body .graph,
+  #quartz-body .spacer,
+  #quartz-body .center > hr,
+  #quartz-body .run-button,
+  #quartz-body .code-output,
+  #quartz-body .clipboard-button,
+  #quartz-body .download-pdf-wrap {
+    display: none !important;
+  }
+
+  /* 正文全宽铺满 */
+  #quartz-body {
+    display: block !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #quartz-body .center {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #quartz-body .page-header {
+    margin: 0 0 0.8rem 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 标题与日期保留，但去掉装饰 */
+  .article-title {
+    margin-top: 0 !important;
+    font-size: 22pt !important;
+  }
+
+  .content-meta {
+    color: #444 !important;
+  }
+
+  #quartz-body .center > article {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11.5pt;
+    line-height: 1.65;
+  }
+
+  /* 正文一律黑字、去背景，便于纸面阅读 */
+  article,
+  article p,
+  article li,
+  article strong,
+  article em,
+  article a,
+  article .katex,
+  article .math,
+  article blockquote,
+  article th,
+  article td {
+    color: #111 !important;
+    background-color: transparent !important;
+  }
+
+  article a {
+    color: #1d4ed8 !important;
+    text-decoration: underline;
+  }
+
+  article pre,
+  article code,
+  article blockquote,
+  article .callout,
+  article .highlight {
+    background-color: #ffffff !important;
+    border-color: #ddd !important;
+    color: #111 !important;
+  }
+
+  article pre {
+    white-space: pre-wrap !important;
+    overflow-wrap: break-word !important;
+  }
+
+  article h1,
+  article h2,
+  article h3,
+  article h4 {
+    color: #111 !important;
+    page-break-after: avoid;
+  }
+
+  article pre,
+  article blockquote,
+  article table,
+  article img,
+  article .callout {
+    page-break-inside: avoid;
+  }
+
+  article table {
+    border-collapse: collapse;
+  }
+
+  article th,
+  article td {
+    border: 1px solid #ccc;
+  }
+
+  article img {
+    max-width: 100% !important;
+  }
+}

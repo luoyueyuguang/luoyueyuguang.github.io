@@ -24,6 +24,7 @@ import ArticleIndex from "./ArticleIndex"
 import SeriesNavigation from "./SeriesNavigation"
 import Breadcrumbs from "./Breadcrumbs"
 import Comments from "./Comments"
+import DownloadPDF from "./DownloadPDF"
 
 export {
   ArticleTitle,
@@ -52,4 +53,5 @@ export {
   NotFound,
   Breadcrumbs,
   Comments,
+  DownloadPDF,
 }
