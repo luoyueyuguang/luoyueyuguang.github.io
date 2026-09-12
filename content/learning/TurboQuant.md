@@ -1,4 +1,4 @@
-Coauthor with codex 5.5
+> 本文与 codex 5.5 协作撰写。
 
 这篇文章按三个层次来讲 TurboQuant：
 
@@ -9,6 +9,8 @@ Coauthor with codex 5.5
 > TurboQuant 是有损压缩。它承认压缩会丢信息，但让丢掉的信息尽量不影响 AI 在乎的计算，尤其是距离、相似度和内积。
 
 ![TurboQuant整体流程](/learning/assets/turboquant-pipeline.svg)
+
+> 自绘示意图
 
 ## 1. AI 里的“向量”到底是什么
 
@@ -112,7 +114,7 @@ bit 就是开关：
 8 bit -> 256 种状态
 ```
 
-如果一个数字原来用 16 bit，现在只用 2 bit，理论上单个数字的存储变成原来的 `1/8`。当然，压缩不是免费午餐，代价是误差。
+如果一个数字原来用 16 bit，现在只用 2 bit，理论上单个数字的存储变成原来的 $1/8$。当然，压缩不是免费午餐，代价是误差。
 
 ## 5. 点积：TurboQuant 真正在乎的计算
 
@@ -194,8 +196,8 @@ $$
 
 普通解释：
 
-- `y` 是查询向量，比如当前 Query。
-- 原来应该算 `<y, x>`。
+- $y$ 是查询向量，比如当前 Query。
+- 原来应该算 $\langle y, x \rangle$。
 - 压缩后只能算 $\langle y, \hat{x} \rangle$。
 - 内积误差问的是：最终分数差多少。
 
@@ -271,7 +273,7 @@ $$
 \mathbf{z} = \mathbf{\Pi}\mathbf{x}
 $$
 
-这里的 `Π` 是正交矩阵。你可以把它理解成高维空间里的“旋转操作”。
+这里的 $\Pi$ 是正交矩阵。你可以把它理解成高维空间里的“旋转操作”。
 
 正交矩阵最重要的性质是：
 
@@ -353,7 +355,7 @@ $$
 
 个可选中心。
 
-例如 `b=2`，每个坐标可以选 4 个中心。论文给出的高维近似中心是：
+例如 $b=2$，每个坐标可以选 4 个中心。论文给出的高维近似中心是：
 
 $$
 \left\{
@@ -364,7 +366,7 @@ $$
 \right\}
 $$
 
-`b=1` 时，只有两个中心：
+$b=1$ 时，只有两个中心：
 
 $$
 \left\{
@@ -374,6 +376,8 @@ $$
 $$
 
 ![PolarQuant直觉](/learning/assets/turboquant-polar.svg)
+
+> 自绘示意图
 
 这张图用二维箭头解释“方向 + 长度”的直觉。但 TurboQuant_mse 并不存二维角度；它随机旋转后，对每个坐标做最优标量量化。
 
@@ -389,7 +393,7 @@ $$
 c_1, c_2, \ldots, c_{2^b}
 $$
 
-每个真实值 `t` 会被分到最近的中心。
+每个真实值 $t$ 会被分到最近的中心。
 
 中心之间的边界是相邻中心的中点：
 
@@ -412,8 +416,8 @@ $$
 
 - 横轴是一个坐标可能出现的数值。
 - $f_X(t)$ 表示这个数值出现的概率。
-- $|t - c_i|^2$ 表示把 `t` 近似成中心 $c_i$ 的损失。
-- 积分就是把所有可能的 `t` 按概率加权平均。
+- $|t - c_i|^2$ 表示把 $t$ 近似成中心 $c_i$ 的损失。
+- 积分就是把所有可能的 $t$ 按概率加权平均。
 - 最小化这个值，就是找最好的代表点。
 
 这就是连续版的一维 k-means，也叫 Lloyd-Max 量化。
@@ -457,6 +461,23 @@ $$
 这一步很关键。它说明：高维向量量化被随机旋转后，可以拆成很多个一维量化问题。
 
 这里不要被外面的 $d$ 吓到。随机旋转后，单个坐标 $z_j$ 的方差大约是 $1/d$，所以一维误差 $\mathcal{C}(f_X,b)$ 自己也带着一个大约 $1/d$ 的缩放。外面的 $d$ 和里面的 $1/d$ 会抵消。因此总 MSE 不会因为维度变大就线性暴涨；在论文的单位向量设定下，主导误差主要由 bit-width $b$ 决定。
+
+把这一步算清楚。论文用的是一维量化器的 Panter-Dite 高分辨率公式：
+
+$$
+\mathcal{C}(f_X,b)
+\le
+\frac{1}{12}\left(\int f_X(x)^{1/3}\,dx\right)^3 \cdot \frac{1}{4^b}
+$$
+
+对 $f_X \to \mathcal{N}(0,1/d)$ 有 $\left(\int f_X^{1/3}\,dx\right)^3 = \frac{6\sqrt{3}\pi}{d}$（对 $\mathcal{N}(0,\sigma^2)$ 这个积分等于 $6\sqrt{3}\pi\sigma^2$，再代入 $\sigma^2 = 1/d$），于是
+
+$$
+\mathcal{C}(f_X,b)\le \frac{1}{12}\cdot\frac{6\sqrt{3}\pi}{d}\cdot\frac{1}{4^b}
+=\frac{\sqrt{3}\pi}{2d}\cdot\frac{1}{4^b}
+$$
+
+乘回 $d$ 个坐标，就是下面的 $\frac{\sqrt{3}\pi}{2}\cdot\frac{1}{4^b}$。常数 $\sqrt{3}\pi/2$ 是从这个积分来的，不是另外凑的。
 
 论文证明的上界是：
 
@@ -507,12 +528,15 @@ DeQuant_mse(idx):
 
 对应 NumPy 教学版如下。
 
-注意：这不是生产级代码。论文使用的是 Beta 分布对应的最优 codebook；下面为了可读性，用高维下的正态近似 `N(0, 1/d)` 来用 Lloyd-Max 数值求 codebook。生产系统还需要 bit packing、CUDA kernel、快速旋转、norm 存储和 outlier channel 处理。
+注意：这不是生产级代码。论文使用的是 Beta 分布对应的最优 codebook；下面为了可读性，用高维下的正态近似 $\mathcal{N}(0, 1/d)$ 来用 Lloyd-Max 数值求 codebook。生产系统还需要 bit packing、CUDA kernel、快速旋转、norm 存储和 outlier channel 处理。
 
-代码里用 `np.trapezoid` 做数值积分（NumPy 2.0 之前叫 `trapz`），这样能直接在 Pyodide 的 NumPy 2.x 上运行。
+这段代码要用梯形法做数值积分，而函数名在不同 NumPy 版本里不一样：站点内置的运行器是 Pyodide 0.26.4，它带的 NumPy 是 **1.26.4**，函数叫 `np.trapz`；NumPy 2.0 起改名为 `np.trapezoid`（`trapz` 保留为过时别名）。所以第一行先按版本取一个别名 `_trapz`，两个版本都能跑。
 
 ```python
 import numpy as np
+
+# NumPy 2.0 把 trapz 改名为 trapezoid；Pyodide 0.26.4 带的是 NumPy 1.26.4，只有 trapz。
+_trapz = getattr(np, "trapezoid", np.trapz)
 
 
 def random_rotation(d, rng):
@@ -535,7 +559,7 @@ def lloyd_max_normal(bit_width, d, steps=200, grid_size=20001):
     sigma = 1.0 / np.sqrt(d)
     grid = np.linspace(-6 * sigma, 6 * sigma, grid_size)
     pdf = np.exp(-0.5 * (grid / sigma) ** 2)
-    pdf = pdf / np.trapezoid(pdf, grid)
+    pdf = pdf / _trapz(pdf, grid)
 
     centers = np.linspace(-2.5 * sigma, 2.5 * sigma, k)
 
@@ -548,9 +572,9 @@ def lloyd_max_normal(bit_width, d, steps=200, grid_size=20001):
 
         for i, (left, right) in enumerate(zip(left_edges, right_edges)):
             mask = (grid >= left) & (grid < right)
-            mass = np.trapezoid(pdf[mask], grid[mask])
+            mass = _trapz(pdf[mask], grid[mask])
             if mass > 1e-12:
-                new_centers[i] = np.trapezoid(
+                new_centers[i] = _trapz(
                     grid[mask] * pdf[mask],
                     grid[mask],
                 ) / mass
@@ -583,10 +607,10 @@ class TurboQuantMSE:
 
 逐行对应：
 
-- `random_rotation` 对应论文里的 `Π`。
-- `z = self.rotation @ x` 对应 `z = Πx`。
+- `random_rotation` 对应论文里的 $\Pi$。
+- `z = self.rotation @ x` 对应 $z = \Pi x$。
 - `self.codebook` 对应中心 $c_1 \dots c_{2^b}$。
-- `idx = argmin(...)` 对应找最近中心。
+- `idx = np.argmin(distance, axis=1)` 对应找最近中心。
 - `z_hat = self.codebook[idx]` 对应从编号恢复中心。
 - `rotation.T @ z_hat` 对应 $\Pi^T \hat{z}$，也就是反向旋转。
 
@@ -623,7 +647,7 @@ $$
 
 如果平均值总是偏小或偏大，就叫有偏。
 
-论文举了 `b=1` 的例子。高维下，MSE 最优的两个中心是：
+论文举了 $b=1$ 的例子。高维下，MSE 最优的两个中心是：
 
 $$
 \pm \sqrt{\frac{2}{\pi d}}
@@ -651,9 +675,9 @@ $$
 \langle \mathbf{y}, \mathbf{x} \rangle
 $$
 
-`2/pi ≈ 0.637`。
+$2/\pi \approx 0.637$。
 
-也就是说，如果真实点积是 `1.0`，它平均估计成 `0.637`。这是系统性偏小，不是随机噪声。
+也就是说，如果真实点积是 $1.0$，它平均估计成 $0.637$。这是系统性偏小，不是随机噪声。
 
 这就是为什么 TurboQuant 还需要第二版算法：`TurboQuant_prod`。
 
@@ -667,7 +691,7 @@ QJL 全称是 Quantized Johnson-Lindenstrauss。
 随机投影 -> 只保留正负号 -> 用特殊缩放还原成一个估计向量
 ```
 
-给定一个向量 `u`，QJL 先生成一个随机矩阵：
+给定一个向量 $u$，QJL 先生成一个随机矩阵：
 
 $$
 \mathbf{S}_{ij} \sim \mathcal{N}(0, 1)
@@ -697,7 +721,7 @@ Q_{\text{qjl}}^{-1}(\mathbf{s})
 \mathbf{S}^\top \mathbf{s}
 $$
 
-如果 `u` 是单位向量，则 QJL 有两个关键性质：
+如果 $u$ 是单位向量，则 QJL 有两个关键性质：
 
 $$
 \mathbb{E}
@@ -710,6 +734,25 @@ $$
 
 这就是无偏。
 
+为什么？把估计按行展开。记 $\mathbf{s}_1, \ldots, \mathbf{s}_d$ 是 $\mathbf{S}$ 的 $d$ 行，则
+
+$$
+\langle \mathbf{y}, Q_{\text{qjl}}^{-1}(Q_{\text{qjl}}(\mathbf{u})) \rangle
+=
+\frac{\sqrt{\pi/2}}{d}
+\sum_{i=1}^{d}
+(\mathbf{s}_i^\top \mathbf{y})\,
+\operatorname{sign}(\mathbf{s}_i^\top \mathbf{u})
+$$
+
+$\mathbf{u}$ 是单位向量时，把 $\mathbf{y}$ 拆成沿 $\mathbf{u}$ 的分量和与它正交的分量。正交分量与 $\operatorname{sign}(\mathbf{s}_i^\top\mathbf{u})$ 独立且零均值，期望为 $0$；沿 $\mathbf{u}$ 的那一项是 $(\mathbf{s}_i^\top\mathbf{u})\operatorname{sign}(\mathbf{s}_i^\top\mathbf{u}) = |\mathbf{s}_i^\top\mathbf{u}|$。又因为 $\mathbf{s}_i^\top\mathbf{u} \sim \mathcal{N}(0,1)$，所以 $\mathbb{E}|\mathbf{s}_i^\top\mathbf{u}| = \sqrt{2/\pi}$。代回去：
+
+$$
+\frac{\sqrt{\pi/2}}{d}\cdot d \cdot \sqrt{2/\pi} \cdot \langle \mathbf{y}, \mathbf{u} \rangle
+=
+\langle \mathbf{y}, \mathbf{u} \rangle
+$$
+
 它的方差上界是：
 
 $$
@@ -721,6 +764,8 @@ $$
 \frac{\pi}{2d}\|\mathbf{y}\|_2^2
 $$
 
+单行的方差 $\operatorname{Var}(z_i) \le \frac{\pi}{2}\mathbb{E}[(\mathbf{s}_i^\top\mathbf{y})^2] = \frac{\pi}{2}\|\mathbf{y}\|_2^2$，因为 $\operatorname{sign}(\cdot)$ 只改符号不改幅值。$d$ 个独立样本取平均后方差是 $\frac{1}{d^2}\sum_i \operatorname{Var}(z_i)$，正好再除以一个 $d$。
+
 普通解释：
 
 - QJL 单次估计会有噪声。
@@ -728,7 +773,7 @@ $$
 - 维度 $d$ 越大，方差越小。
 - 所以高维反而帮了忙。
 
-再强调一次：上面这个无偏公式的前提是 `u` 是单位向量。对于非单位向量 `v`，要先写成：
+再强调一次：上面这个无偏公式的前提是 $u$ 是单位向量。对于非单位向量 $v$，要先写成：
 
 $$
 \mathbf{v} = \gamma \mathbf{u},
@@ -738,9 +783,11 @@ $$
 \|\mathbf{u}\|_2 = 1
 $$
 
-然后对 `u` 做 QJL，并在反量化时乘回 $\gamma$。如果直接忘掉这个范数缩放，就不能把 QJL 理解成“任意向量都能直接还原”的方法。
+然后对 $u$ 做 QJL，并在反量化时乘回 $\gamma$。如果直接忘掉这个范数缩放，就不能把 QJL 理解成“任意向量都能直接还原”的方法。
 
 ![QJL残差修正直觉](/learning/assets/turboquant-qjl.svg)
+
+> 自绘示意图
 
 ## 16. TurboQuant_prod：主量化 + QJL 残差
 
@@ -984,9 +1031,11 @@ D_{\text{prod}}
 \frac{1}{4^b}
 $$
 
+这里的 $\pi^2$ 就是 $\pi/2$ 乘上 $D_{\text{mse}}$ 自带的 $\pi$：代入 $D_{\text{mse}}(b-1)\le\frac{\sqrt{3}\pi}{2}\cdot 4^{-(b-1)}$，且 $4^{-(b-1)}=4\cdot 4^{-b}$，于是 $\frac{\pi}{2d}\cdot 4\cdot\frac{\sqrt{3}\pi}{2}=\frac{\sqrt{3}\pi^2}{d}$，常数刚好对上。
+
 这就是 TurboQuant 的组合逻辑：
 
-1. 用 `b-1` bit 把残差压小。
+1. 用 $b-1$ bit 把残差压小。
 2. 用最后 1 bit 的 QJL 保证内积无偏。
 3. 残差越小，QJL 的噪声越小。
 
@@ -1050,9 +1099,9 @@ class TurboQuantProd:
 
 - `self.mse = TurboQuantMSE(d, bit_width - 1, rng)` 对应先用 `b-1` bit 做主量化。
 - `residual = x - x_mse` 对应残差 $r = x - x_{mse}$。
-- `gamma = np.linalg.norm(residual)` 对应保存 `||r||`。
+- `gamma = np.linalg.norm(residual)` 对应保存 $\|\mathbf{r}\|_2$。
 - `qjl = sign_pm1(self.proj @ residual)` 对应 $\mathrm{sign}(S\,r)$。
-- `sqrt(pi / 2) / d * gamma * S.T @ qjl` 对应 QJL 反量化。
+- `np.sqrt(np.pi / 2.0) / self.d * gamma * (self.proj.T @ qjl)` 对应 QJL 反量化。
 - `return x_mse + x_qjl` 对应主量化结果加残差修正。
 
 ## 20. 一个完整小实验
@@ -1066,49 +1115,69 @@ def unit(v):
 
 def demo():
     d = 128
-    bit_width = 2
 
     base_rng = np.random.default_rng(123)
     x = unit(base_rng.normal(size=d))
-    y = unit(base_rng.normal(size=d))
+    # 让 query 和 key 有较高重叠，便于观察系统性偏差。
+    noise = unit(base_rng.normal(size=d))
+    y = unit(x + 0.5 * noise)
     true_ip = float(y @ x)
+    print("真实内积:", round(true_ip, 4))
 
-    mse_estimates = []
-    prod_estimates = []
+    for bit_width in (1, 2):
+        mse_estimates = []
+        prod_estimates = []
 
-    # 多换几次随机旋转和随机投影，看平均值。
-    for seed in range(200):
-        rng = np.random.default_rng(seed)
+        # 只换随机旋转和随机投影，各收集 200 次估计。
+        for seed in range(200):
+            rng = np.random.default_rng(seed)
 
-        tq_mse = TurboQuantMSE(d, bit_width, rng)
-        idx = tq_mse.quant(x)
-        x_mse = tq_mse.dequant(idx)
-        mse_estimates.append(float(y @ x_mse))
+            tq_mse = TurboQuantMSE(d, bit_width, rng)
+            idx = tq_mse.quant(x)
+            x_mse = tq_mse.dequant(idx)
+            mse_estimates.append(float(y @ x_mse))
 
-        rng = np.random.default_rng(seed)
-        tq_prod = TurboQuantProd(d, bit_width, rng)
-        idx, qjl, gamma = tq_prod.quant(x)
-        x_prod = tq_prod.dequant(idx, qjl, gamma)
-        prod_estimates.append(float(y @ x_prod))
+            rng = np.random.default_rng(seed)
+            tq_prod = TurboQuantProd(d, bit_width, rng)
+            idx, qjl, gamma = tq_prod.quant(x)
+            x_prod = tq_prod.dequant(idx, qjl, gamma)
+            prod_estimates.append(float(y @ x_prod))
 
-    print("真实内积:", true_ip)
-    print("MSE 量化平均估计:", np.mean(mse_estimates))
-    print("Prod 量化平均估计:", np.mean(prod_estimates))
-    print("MSE 量化估计方差:", np.var(mse_estimates))
-    print("Prod 量化估计方差:", np.var(prod_estimates))
+        mse_mean = float(np.mean(mse_estimates))
+        prod_mean = float(np.mean(prod_estimates))
+        print("bit_width =", bit_width)
+        print("  MSE  平均估计:", round(mse_mean, 4),
+              " 倍数:", round(mse_mean / true_ip, 3))
+        print("  Prod 平均估计:", round(prod_mean, 4),
+              " 倍数:", round(prod_mean / true_ip, 3))
+        print("  MSE  估计方差:", round(float(np.var(mse_estimates)), 6))
+        print("  Prod 估计方差:", round(float(np.var(prod_estimates)), 6))
 
 
 demo()
 ```
 
-你应该关注平均值。
+在 Pyodide 0.26.4（NumPy 1.26.4）下的运行输出：
 
-理论上：
+```text
+真实内积: 0.89
+bit_width = 1
+  MSE  平均估计: 0.5655  倍数: 0.635
+  Prod 平均估计: 0.8895  倍数: 0.999
+  MSE  估计方差: 0.000687
+  Prod 估计方差: 0.00583
+bit_width = 2
+  MSE  平均估计: 0.7829  倍数: 0.88
+  Prod 平均估计: 0.8903  倍数: 1.0
+  MSE  估计方差: 0.001712
+  Prod 估计方差: 0.003209
+```
 
-- `TurboQuant_mse` 追求重建误差小，不保证内积平均值完全正确。
-- `TurboQuant_prod` 通过 QJL 残差修正，保证内积估计无偏。
+要看的是平均值，不是单次结果：
 
-实际实验会有有限采样误差，但 `prod` 的平均值应该更接近真实内积。
+- $b=1$ 时 `TurboQuant_mse` 的平均估计缩到真实值的 $0.635$ 倍，正好是第 14 节推出来的 $2/\pi \approx 0.637$；`TurboQuant_prod` 加上 QJL 残差后是 $0.999$ 倍。
+- $b=2$ 时 MSE 的平均估计回到 $0.88$ 倍，说明偏差随 bit-width 增大而缩小；prod 仍然是 $1.0$ 倍。
+- prod 的方差更大（$b=2$ 时约 $1.9$ 倍），因为最后 1 bit 的 QJL 本身就是噪声估计。它换来的是平均值无偏，这和第 18 节的方差上界 $\frac{\pi}{2d}\|\mathbf{r}\|_2^2\|\mathbf{y}\|_2^2$ 一致。
 
 ## 21. 代码和论文实现差在哪里
 
@@ -1142,7 +1211,7 @@ KV cache 通常是这种形状：
 x = KV[layer, head, token, :]
 ```
 
-假设 head_dim 是 `d = 128`，原本用 float16 存：
+假设 head_dim 是 $d = 128$，原本用 float16 存：
 
 ```text
 128 channels * 16 bit = 2048 bit = 256 bytes
@@ -1154,9 +1223,11 @@ x = KV[layer, head, token, :]
 128 channels * 2 bit = 256 bit = 32 bytes
 ```
 
-只看 idx，体积是原来的 `1/8`。真实系统还要额外存 norm、scale、QJL sign、outlier channel 等元数据，所以最终压缩比不会这么理想，但方向是对的。
+只看 idx，体积是原来的 $1/8$。真实系统还要额外存 norm、scale、QJL sign、outlier channel 等元数据，所以最终压缩比不会这么理想，但方向是对的。
 
 ![TurboQuant kernel数据布局](/learning/assets/turboquant-kernel-layout.svg)
+
+> 自绘示意图
 
 一个比较自然的 kernel 映射是：
 
@@ -1174,9 +1245,11 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 > 论文里的随机旋转 $\Pi\,x$ 是算法定义。工程热路径里，如果真的每来一个 KV 向量都做 dense $d\times d$ 矩阵乘法，代价会很重。
 
+量级上，旋转是 $O(d^2)$，而 $b$ bit 的最近中心查找只有 $O(d\cdot 2^b)$：$d=128$、$b=2$ 时是 16384 次对 512 次乘加，这一小步的开销基本全在旋转上。
+
 所以 kernel 实现常见会拆成两种讲法：
 
-1. **数学直译版**：先算好 `z = Πx`，然后量化 `z`。这最容易理解。
+1. **数学直译版**：先算好 $z = \Pi x$，然后量化 $z$。这最容易理解。
 2. **工程优化版**：用结构化随机旋转、融合上游算子、或者把旋转和量化放在同一个 kernel 里，减少 HBM 读写。
 
 下面的代码主要讲数学直译版和 kernel 设计模式。它不是直接可部署的完整 TurboQuant 库。
@@ -1185,7 +1258,7 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 先从最基础的 bit packing 讲。
 
-如果 `b = 2`，每个 channel 的量化编号只有 4 种：
+如果 $b = 2$，每个 channel 的量化编号只有 4 种：
 
 ```text
 0, 1, 2, 3
@@ -1201,7 +1274,13 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 ![2-bit打包](/learning/assets/turboquant-bitpacking.svg)
 
-第 `j` 个 channel 存在哪里？
+> 自绘示意图
+
+于是一个长度为 $d$ 的向量需要 $\lceil d/16 \rceil = (d+15)/16$ 个 word。$d=128$ 时正好 8 个 word，也就是前面算的 32 字节，没有一个 bit 浪费。
+
+这个布局只在 $b$ 整除 $32$ 时成立（$b=1,2,4$ 分别装 32、16、8 个编号）。$b=3$ 不整除 32，按同样写法会出现编号跨 word 边界；常见做法是 32 个编号凑成 $32\times 3 = 96$ bit，正好打成 3 个 word。
+
+第 $j$ 个 channel 存在哪里？
 
 ```text
 word_id = j / 16
@@ -1242,6 +1321,8 @@ __device__ __forceinline__ void set_2bit_idx_in_word(
     int slot,
     uint32_t idx
 ) {
+    // 前提：该 slot 原来的两位是 0（word 从 0 开始拼）。若要原地改写，
+    // 先清位：word &= ~(3u << (slot * 2))，再或上 idx。
     word |= (idx & 3u) << (slot * 2);
 }
 ```
@@ -1260,7 +1341,9 @@ z = Πx 已经算好
 
 ![Quant kernel线程映射](/learning/assets/turboquant-quant-kernel.svg)
 
-为了让代码短一点，我们先只写 `b = 2`。这时 codebook 有 4 个中心：
+> 自绘示意图
+
+为了让代码短一点，我们先只写 $b = 2$。这时 codebook 有 4 个中心：
 
 ```text
 c0, c1, c2, c3
@@ -1336,13 +1419,13 @@ $$
 | --- | --- |
 | $z_j$ | `rotated[vec * d + ch]` |
 | $c_k$ | `kCodebook2[k]` |
-| `argmin` | `for (int k = 1; k < 4; ++k)` |
+| $\arg\min_k$ | `for (int k = 1; k < 4; ++k)` |
 | $\mathrm{idx}_j$ | `best` |
 | bit-packed idx | `out |= best << (2 * slot)` |
 
 真实工程里还要加：
 
-- 对 `b = 3`、`b = 4` 的不同 packing。
+- 对 $b = 3$、$b = 4$ 的不同 packing。
 - 对 outlier channel 的不同 bit-width。
 - 对 scale/norm 的写出。
 - 旋转和量化的融合。
@@ -1366,7 +1449,9 @@ $$
 
 ![融合解码attention](/learning/assets/turboquant-fused-attention.svg)
 
-还有一个细节：如果 Key 存的是旋转后的 `z = Πk` 的量化结果，那么 Query 也要旋转：
+> 自绘示意图
+
+还有一个细节：如果 Key 存的是旋转后的 $z = \Pi k$ 的量化结果，那么 Query 也要旋转：
 
 $$
 \langle \mathbf{q}, \mathbf{k} \rangle
@@ -1385,6 +1470,7 @@ q_rot = Πq
 下面的版本为了清楚，内层循环直接读 `q_rot[ch]`。生产级 attention kernel 通常不会让每个 token block 都反复从 global memory 读同一个 query。更常见的做法是：block 启动时先让线程协作把 `q_rot` 搬到 shared memory，或者把 query tile 放进寄存器并通过 warp 内广播复用。这样可以明显减少对 HBM/L2 的重复读压力。
 
 ```cpp
+// 沿用第 24 节的 kCodebook2（__constant__ float[4]）和它的 include。
 __global__ void score_packed_keys_2bit_kernel(
     const half* __restrict__ q_rot,       // [d]，当前 query 已经旋转
     const uint32_t* __restrict__ packed_k,// [num_tokens, words_per_vec]
@@ -1503,8 +1589,8 @@ $$
 
 其中：
 
-- $\gamma = \|r\|_2$
-- `s = sign(Sr)`，也就是 packed QJL signs
+- $\gamma = \|\mathbf{r}\|_2$
+- $\mathbf{s} = \operatorname{sign}(\mathbf{S}\mathbf{r})$，也就是 packed QJL signs
 
 如果直接按公式算点积：
 
@@ -1539,6 +1625,7 @@ $$
 教学版代码可以写成：
 
 ```cpp
+// CUDART_PI_F 来自 <math_constants.h>；signs 按 1 bit / channel 打包，每 32 个 channel 一个 word。
 __global__ void add_qjl_scores_kernel(
     const half* __restrict__ sy,          // [d]，提前算好的 S*y
     const uint32_t* __restrict__ signs,   // [num_tokens, ceil(d / 32)]，1 bit sign
@@ -1608,6 +1695,8 @@ $$
 
 ![结构化随机投影](/learning/assets/turboquant-structured-projection.svg)
 
+> 自绘示意图
+
 一个典型形式可以写成：
 
 $$
@@ -1618,8 +1707,8 @@ $$
 
 这里：
 
-- $D_i$ 是随机正负号对角矩阵，只需要给每个 channel 乘 `+1` 或 `-1`。
-- `H` 是 Hadamard 矩阵，可以用 Fast Walsh-Hadamard Transform, FWHT, 的蝴蝶结构快速计算。
+- $D_i$ 是随机正负号对角矩阵，只需要给每个 channel 乘 $+1$ 或 $-1$。
+- $H$ 是 Hadamard 矩阵，可以用 Fast Walsh-Hadamard Transform, FWHT, 的蝴蝶结构快速计算。
 
 这样原本 dense $S\,y$ 的 $O(d^2)$ 乘法，可以降到 $O(d\log d)$。如果 $d$ 是 128 或 256，这个差别在热路径里非常实在。更进一步，结构化投影还更容易和量化、解码、attention 打分融合到同一个 kernel 里。
 
@@ -1629,7 +1718,7 @@ $$
 
 论文实验里提到 2.5-bit 和 3.5-bit。它们是把 channel 分组，而不是某个单独 channel 用了半个 bit。
 
-例如某些模型配置的 head_dim 是 `d = 128`，具体数值要以模型 config 为准。如果 32 个 outlier channel 用 3 bit，其余 96 个普通 channel 用 2 bit，平均 bit 是：
+例如某些模型配置的 head_dim 是 $d = 128$，具体数值要以模型 config 为准。如果 32 个 outlier channel 用 3 bit，其余 96 个普通 channel 用 2 bit，平均 bit 是：
 
 ```text
 32 个 outlier channel 用 3 bit
@@ -1724,9 +1813,9 @@ $$
 不用怕这个公式。它分两步：
 
 1. $qK^T$：当前 query 和历史 key 做点积，得到每个历史 token 的重要性分数。
-2. `softmax(...)V`：根据重要性分数，把历史 value 加权平均。
+2. $\text{softmax}(\cdots)\mathbf{V}$：根据重要性分数，把历史 value 加权平均。
 
-KV cache 里存的就是很多 `K` 和 `V` 向量。
+KV cache 里存的就是很多 $K$ 和 $V$ 向量。
 
 如果把 Key 量化坏了，$qK^T$ 的分数会错，模型会看错上下文位置。
 
@@ -1740,7 +1829,7 @@ TurboQuant 的意义在于：
 
 论文报告说，在 KV cache 量化实验里，3.5 bits per channel 可以达到接近无质量损失，2.5 bits per channel 只有轻微质量下降。具体效果当然依赖模型、任务和实现。
 
-Google 的官方博客（2026 年 3 月更新）进一步公开了几组更偏部署的测量，可以当作补充：在开源模型上，TurboQuant 能在不重训、不微调的情况下把 KV cache 压到 **3 bit** 且不损失准确度，KV cache 体积至少下降 **6x**；在 H100 上，4-bit TurboQuant 算 attention logits 相比 32-bit 未量化 key 最高约 **8x** 加速。博客同时确认 TurboQuant 入选 **ICLR 2026**、PolarQuant 入选 **AISTATS 2026**、QJL 发表在 **AAAI**（见 Reference 里的 QJL 链接）。
+Google 的官方博客（2026 年 3 月 24 日发布）进一步公开了几组更偏部署的测量，可以当作补充：在开源模型上，TurboQuant 能在不重训、不微调的情况下把 KV cache 压到 **3 bit** 且不损失准确度，KV cache 体积至少下降 **6x**；在 H100 上，4-bit TurboQuant 算 attention logits 相比 32-bit 未量化 key 最高约 **8x** 加速。博客同时确认 TurboQuant 入选 **ICLR 2026**、PolarQuant 入选 **AISTATS 2026**、QJL 发表在 **AAAI**（见 Reference 里的 QJL 链接）。
 
 ## 30. 和 PolarQuant、QJL 的关系
 
@@ -1752,6 +1841,8 @@ Google 的官方博客（2026 年 3 月更新）进一步公开了几组更偏�
 | QJL | 1 bit 下做无偏内积估计 | 用来量化残差 |
 | TurboQuant_mse | 用随机旋转 + 标量最优量化降低 MSE | 第一阶段主量化 |
 | TurboQuant_prod | MSE 主量化 + QJL 残差修正 | 面向内积的完整版本 |
+
+这里有一个容易混的地方：Google 博客把第一阶段（随机旋转 + 逐坐标标量量化）直接叫做 "the PolarQuant method"，但论文里 PolarQuant 是另一条独立路线，用递归的两两极坐标变换去量化角度，在 TurboQuant 论文里它是被对比的 baseline 之一。本文按论文的说法，把 TurboQuant_mse 的第一阶段记作旋转 + Lloyd-Max，不做极坐标变换。
 
 TurboQuant 的核心数学是下面这几步：
 
@@ -1811,7 +1902,7 @@ $$
 
 第三步，直接逐坐标量化容易被异常坐标影响，所以先随机旋转，把能量摊平。
 
-第四步，随机旋转后，每个坐标分布变得可预测，高维下接近 `N(0, 1/d)`。
+第四步，随机旋转后，每个坐标分布变得可预测，高维下接近 $\mathcal{N}(0, 1/d)$。
 
 第五步，对这个一维分布求最优 codebook。每个坐标只存最近中心的编号，这就是 `TurboQuant_mse`。
 
@@ -1871,8 +1962,8 @@ QJL 只保存正负号草图，它不能完整恢复残差。它的目标是内�
 
 ## Reference
 
-- [Google TurboQuant blog](https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/)
-- [Google QJL arxiv paper](https://arxiv.org/abs/2406.03482)
-- [Google QJL AAAI 发表版本](https://dl.acm.org/doi/10.1609/aaai.v39i24.34773)
-- [Google PolarQuant paper](https://arxiv.org/abs/2502.02617)
-- [Google TurboQuant arxiv paper](https://arxiv.org/abs/2504.19874)
+- [TurboQuant blog: Redefining AI efficiency with extreme compression](https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/)（Google Research，2026-03-24）
+- [TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate](https://arxiv.org/abs/2504.19874)（arXiv:2504.19874，2025-04-28；ICLR 2026）
+- [PolarQuant: Quantizing KV Caches with Polar Transformation](https://arxiv.org/abs/2502.02617)（arXiv:2502.02617，2025-02-04；AISTATS 2026）
+- [QJL: 1-Bit Quantized JL Transform for KV Cache Quantization with Zero Overhead](https://arxiv.org/abs/2406.03482)（arXiv:2406.03482，2024-06-05）
+- [QJL 的 AAAI 2025 发表版](https://doi.org/10.1609/aaai.v39i24.34773)（AAAI 2025，39(24): 25805–25813）

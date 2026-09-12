@@ -45,7 +45,7 @@ $$
 
 ## 一个 A100 的例子
 
-A100（80GB SXM）大致是 $\beta \approx 2.0\ \mathrm{TB/s}$（实测约 1.94–2.04），$\pi$：FP32 约 19.5 TFLOPS，BF16 tensor core 约 312 TFLOPS（稠密）。代入得两个 ridge point：
+A100（80GB SXM）的官方规格是 $\beta = 2039\ \mathrm{GB/s} \approx 2.0\ \mathrm{TB/s}$（实测约 1.94–2.04），$\pi$：FP32 19.5 TFLOPS、BF16 tensor core 312 TFLOPS（稠密；624 那个数字是 2:4 稀疏）。代入得两个 ridge point：
 
 $$
 I_{\text{ridge}}^{\text{FP32}} = \frac{19.5\times10^{12}}{2.0\times10^{12}} \approx \mathbf{9.75},\qquad
@@ -57,10 +57,10 @@ $$
 ```python
 import numpy as np
 
-# A100 大致参数
-pi_fp32 = 19.5e12      # FLOPs/s
-pi_bf16 = 312e12       # FLOPs/s
-beta    = 2.0e12       # bytes/s（约 2 TB/s HBM）
+# A100 80GB SXM 规格
+pi_fp32 = 19.5e12      # FP32 峰值（FLOPs/s）
+pi_bf16 = 312e12       # BF16 tensor core 稠密峰值（624 是 2:4 稀疏）
+beta    = 2.0e12       # HBM 带宽（官方 2039 GB/s，取 2 TB/s）
 
 for name, pi in (("FP32", pi_fp32), ("BF16", pi_bf16)):
     ridge = pi / beta
@@ -73,12 +73,34 @@ def classify(ai, ridge):
     return "memory-bound（被带宽卡）" if ai < ridge else "compute-bound（被算力卡）"
 
 print("\n常见 kernel 的算术强度（粗略，对照 BF16 张量核 ridge=156）：")
-print(f"  elementwise（逐元素，如激活）         I≈0.5  → {classify(0.5, 156)}")
-print(f"  注意力（分块后，HBM 压到 O(N)）       I≈几十 → {classify(60, 156)}")
-print(f"  大 N 的 GEMM（N=4096，I≈2N/3≈2730）   I≈2730 → {classify(2730, 156)}")
+print(f"  elementwise（bf16 读写各 2 字节、每元素约 2 FLOP）I≈0.5  → {classify(0.5, 156)}")
+print(f"  注意力（FA1 实测 fwd+bwd：75.2 GFLOPs / 4.4 GB）  I≈17   → {classify(17, 156)}")
+print(f"  大 N 的 GEMM（N=4096、bf16 操作数，I≈N/3≈1365）  I≈1365 → {classify(1365, 156)}")
 ```
 
-实际运行会打印：`FP32: ridge point = 9.8`、`BF16: ridge point = 156.0`，并把三个 example 归好区：elementwise 和注意力（都在 ridge 左边）是 **memory-bound**，大 N 的 GEMM（远远甩在右边）是 **compute-bound**。
+实际运行输出：
+
+```text
+FP32: ridge point =      9.8 FLOPs/byte
+BF16: ridge point =    156.0 FLOPs/byte
+
+常见 kernel 的算术强度（粗略，对照 BF16 张量核 ridge=156）：
+  elementwise（bf16 读写各 2 字节、每元素约 2 FLOP）I≈0.5  → memory-bound（被带宽卡）
+  注意力（FA1 实测 fwd+bwd：75.2 GFLOPs / 4.4 GB）  I≈17   → memory-bound（被带宽卡）
+  大 N 的 GEMM（N=4096、bf16 操作数，I≈N/3≈1365）  I≈1365 → compute-bound（被算力卡）
+```
+
+三个 example 的 $I$ 怎么来的：
+
+- **elementwise**：一个元素读 2 字节、写 2 字节，做约 2 次浮点运算（如 $y = \mathrm{relu}(x)$ 的比较加乘），$I = 2/4 = 0.5$。
+- **注意力**：$I \approx 17$ 不是估的——FA1 论文 Figure 2 实测 GPT-2 medium（$N=1024$、$d=64$、16 head、batch 64）forward+backward 是 75.2 GFLOPs 对 4.4 GB HBM 读写，相除得 17.1。理论值高得多（见下节），差在实现效率上。
+- **大 N 的 GEMM**：$N \times N$ 的 $C = AB$，FLOPs $= 2N^3$，访存是 $A, B, C$ 各 $N^2$ 个元素、bf16 每个 2 字节共 $6N^2$，于是
+
+$$
+I_{\text{GEMM}} = \frac{2N^3}{6N^2} = \frac{N}{3}
+$$
+
+N=4096 时约 1365。这个式子对字节数敏感：同样 $N$，操作数换成 4 字节（FP32/TF32）就掉到 $N/6 \approx 683$。
 
 **注意 ridge 跟着"用哪条计算路径"变**：attention 用的是 tensor core，所以必须对照 BF16 的 ridge（156），而不是 FP32 的（9.75）。同一份 $I$ 在不同 ridge 下可能属于不同区——这就是为什么先得确认"拿什么算"，再查表归类。
 
@@ -93,10 +115,10 @@ Roofline 的用法不是"看个热闹"，而是**先定位瓶颈，再改对地�
 
 ## 和 attention 的关系
 
-attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少（[[learning/flash-attention/01-flash-attention|FlashAttention 系列]] 开篇就在讲这个）。朴素的 attention 有个 $O(N^2)$ 的 HBM 读写下限，$I$ 被压得很低；FlashAttention 靠分块 + online softmax 把 HBM 读写从 $O(N^2)$ 压到 $O(N)$，让 $I$ 从"远低于 ridge"一路抬**向 ridge 靠拢**，从而把带宽瓶颈大大缓解——但它通常仍落在 ridge 左边（仍是 memory-bound），只是不再被 $O(N^2)$ 的流量死死压住。这就是"把 $I$ 抬向 ridge"和"直接跨过 ridge"的区别。而 FA4 在 Blackwell 上甚至先画 roofline 判断瓶颈**是否已经换人**（B200 的 tensor core 翻倍但共享内存带宽和指数单元没涨），再决定改 kernel 还是改算法。
+attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少（[[learning/flash-attention/01-flash-attention|FlashAttention 系列]] 开篇就在讲这个）。朴素实现会把 $N \times N$ 的 $S$、$P$ 写进 HBM 再读出来，每行 query 花 $4Nd$ FLOPs 却要搬约 $8N$ 字节，$I \approx d/2$（$d=64$ 时 32）——远低于 ridge。FlashAttention 把 $S$、$P$ 留在片上，但**流量也不是线性的**：每个 query 行块都要重读整条 $K, V$，总 HBM 读写是 $\Theta(N^2 d^2 M^{-1})$（$M$ 为片上 SRAM 元素数），比朴素实现的 $\Theta(Nd + N^2)$ 少了 $M/d^2$ 倍。按这个阶算理论 $I \approx 2M/d$（$M \approx 10^5$、$d=64$ 时三千多，已越过 ridge），但实测受实现效率所限只有十几（FA1 论文实测 $I \approx 17$），**仍落在 ridge 左边**。所以准确的说法是"把 $I$ 大幅抬向 ridge"，而不是"一步跨过 ridge"。而 FA4 在 Blackwell 上先做多资源 roofline 判断瓶颈**是否已经换人**——B200 的 BF16 tensor core 吞吐是 H100 的两倍（2.25 PFLOPS vs 1 PFLOPS），但共享内存读带宽仍是 128 B/clock/SM、指数单元仍是 16 op/clock/SM（和 Hopper 相同；B300 才把 exp 翻倍到 32），于是瓶颈从 MMA 转到 smem 流量和 exp——再决定改 kernel 还是改算法。
 
 ## Reference
 
-- Williams, Waterman, Patterson. *Roofline: An Insightful Visual Performance Model for Multicore Architectures.* Communications of the ACM 52(4), 2009：<https://dl.acm.org/doi/10.1145/1498765.1498785>
-- NVIDIA A100 规格表（HBM 带宽、FP32 / TF32 / BF16 张量核峰值）：<https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet.pdf>
-- NVIDIA Performance Optimization 文档（memory-bound vs compute-bound 调优）：<https://docs.nvidia.com/deeplearning/performance/dl-performance-guidelines/>
+- Williams, Waterman, Patterson. *Roofline: An Insightful Visual Performance Model for Multicore Architectures.* Communications of the ACM 52(4), April 2009, pp. 65–76：<https://dl.acm.org/doi/10.1145/1498765.1498785>
+- NVIDIA A100 产品规格页（80GB SXM：HBM2e 2039 GB/s、FP32 19.5 TFLOPS、BF16 tensor core 312 TFLOPS 稠密 / 624 稀疏）：<https://www.nvidia.com/en-us/data-center/a100/>
+- NVIDIA GPU Performance Background User's Guide（arithmetic intensity / ops:byte、memory- vs math-limited 判定）：<https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html>
