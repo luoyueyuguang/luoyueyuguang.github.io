@@ -16,7 +16,7 @@ self.tmem_dS_offset = self.tmem_dP_offset    # dS 与 dP 共用一块 TMEM
 
 ## 流水线：拿上一轮的 dQ/dK MMA 垫 softmax
 
-FA3 反向里，softmax 只和 $ dP $ 的 MMA 重叠。但 [[learning/flash-attention/07-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2883 行起）让**上一轮的 $ dQ $ 和 $ dK $ 两个 MMA** 和当前轮的 softmax 重叠。
+FA3 反向里，softmax 只和 $ dP $ 的 MMA 重叠。但 [[learning/flash-attention/07-flashattention3|FA3 篇]] 说过 Blackwell 上 MMA 必须至少两个并发才喂得饱。所以 FA4 的 `compute_loop`（2981 行起）让**上一轮的 $ dQ $ 和 $ dK $ 两个 MMA** 和当前轮的 softmax 重叠。
 
 ```python
 # compute_loop 里（伪代码化）：
@@ -80,17 +80,17 @@ if const_expr(self.deterministic and stage == 0 and delay_semaphore_release):
         )
 ```
 
-- `lock_value` 由 `_dq_semaphore_lock_value` 决定。**普通模式**：`lock_value = n_block`。**SPT（shortest-processing-time-first）模式**：`lock_value = n_block_max_for_m_block - 1 - n_block`，让"最长的块"先写，减少 CTA 等的次数。
-- `wait_eq` = acquire：等到这个 `m_block` 的信号量等于 `lock_value`，也就是按**预定顺序**排队。
-- `arrive_inc` = release：写完后给上一块的信号量 +1，允许下一块写。注释明确写了"`arrive_inc` 调用 `red_release` 会发 `membar`"。这就是论文说的"设备级可见性栅栏"的性能代价。
+- `lock_value` 由 `_dq_semaphore_lock_value` 决定。**普通模式**：`lock_value = n_block`，KV 块索引小的（因果下要扫的 query 块最多、主力循环最长）先写。**SPT（shortest-processing-time-first）模式**：`lock_value = n_block_max_for_m_block - 1 - n_block`，把顺序整个倒过来，让**最短**的块（KV 块索引最大、要扫的 query 块最少）先写——长的那些 CTA 本来就在忙，抢在它们前面落盘才不会被它们堵住。
+- `wait_eq` = acquire：`ld.global.acquire.gpu.b32` 自旋，等到这个 `m_block` 的信号量等于 `lock_value`，也就是按**预定顺序**排队。
+- `arrive_inc` = release：写完后给上一块的信号量 +1，允许下一块写。`red_release` 发的是 `red.release.gpu.global.add.s32`，release 语义会把这条原子之前的所有全局写排到它前面；源码注释也写了"`arrive_inc` 调用 `red_release` 会发 `membar`"。这就是论文说的"设备级可见性栅栏"的性能代价。
 
-**为什么有代价。** 确定性模式要 (1) 每个写之后发 `membar`（`read=True` 的 `cp_async_bulk_wait_group(0)`），(2) 每个 CTA 等前面 CTA 写完这同一块 `dQ`。负载不均时，等锁能把性能拖垮。所以 **SPT 调度 + CTA swizzle** 是关键：因果 mask 时 KV 块降序、query 块从对角向上、`dQ` 归约按 query 块索引降序，保证没有 CTA 第一次写 `dQ` 就被卡住。
+**为什么有代价。** 确定性模式要 (1) 每条 `cp.async.bulk` 归约之后都要等它彻底做完——`dQacc_reduce` 里的 `read_flag = not self.deterministic`，非确定性模式用 `cp_async_bulk_wait_group(0, read=True)` 只等 smem 源被读完就行，确定性模式必须 `read=False` 等全局写可见；(2) 每个 CTA 等前面 CTA 写完这同一块 `dQ`。负载不均时，等锁能把性能拖垮。所以 **SPT 调度 + CTA swizzle** 是关键：因果 mask 时 KV 块降序、query 块从对角向上、`dQ` 归约按 query 块索引降序，保证没有 CTA 第一次写 `dQ` 就被卡住。
 
 代码里还有一堆针对 `hdim==192`、block-sparsity、`kv_subtile > cta_group_size` 的锁值细节（`_dq_semaphore_lock_value` 里那段 `[NOTE] KV_subtile determ + spt` 的长注释），都是处理"tail 块没被调度、锁会悬空"的边界情况。这属于工程细节，理解到这层就够了。
 
 ## epilogue_dKV
 
-`epilogue_dKV`（3846 行）把 $ dK, dV $ 的累加器从 TMEM 读出、写回全局。GQA 时多个 query head 共享一组 KV，这里要把跨 head 的 $ dK, dV $ 求和。FA4 用 TMA 把 $ dK/dV $ 存出去（`epilogue_dK_or_dV_tma`），配合 `use_2cta_instrs` 时同样拆分。
+`epilogue_dKV`（3984 行）把 $ dK, dV $ 的累加器从 TMEM 读出、写回全局。GQA 时多个 query head 共享一组 KV，同一组 $ dK/dV $ 会从多个 CTA 写到同一块全局内存——`__init__` 里的 `self.dKV_postprocess = self.qhead_per_kvhead > 1` 就是干这个的，打开时 epilogue 不再直接 TMA store，而是走 `cpasync_reduce_bulk_add_f32` 原子加合并（`epilogue_dK_or_dV_tma`）。
 
 ## 一句话
 

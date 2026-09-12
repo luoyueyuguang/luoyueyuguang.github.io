@@ -47,16 +47,16 @@ $$
 论文里的关键结果：
 
 - **LRA 基准**：block-sparse FA 相比标准 attention **快 2.8×**，效果和标准 attention **相当**（这是个"近似但几乎无损"的结果）。
-- **长上下文**：块稀疏让模型能跑更长序列。FA1 的摘要提到长文档分类 lift 6.4 分、Path-X（seq 16K）首次超过随机（61.4%）、Path-256（seq 64K，63.1%）。
+- **长上下文**：序列拉长后模型质量更高。FA1 摘要提到长文档分类有 6.4 分的 lift。这里要把两个数字分清楚：Path-X（seq 16K）的 **61.4%** 是**稠密** FlashAttention 拿到的，Path-256（seq 64K）的 **63.1%** 才是 block-sparse FA；论文 Table 6 里 block-sparse 在 Path-X 上是 56.0，比稠密低，但它是唯一能把序列推到 64K 并保持非随机水平的。
 
 ## 仓库实现
 
 `flash-attention` 仓库里有：
 
-- `flash_blocksparse_attn_interface.py`：`flash_blocksparse_attn_func`，把 block mask（`row_count`/`col_count`/块索引）传给 CUDA kernel。
-- `flash_blocksparse_attention.py`：`FlashBlocksparseAttention` / `FlashBlocksparseMHA` 两个 `nn.Module` 封装，内部注册稀疏布局为 buffer、掉 `flash_blocksparse_attn_func`。
+- `flash_blocksparse_attn_interface.py`：`flash_blocksparse_attn_func`，把 block mask 传给 CUDA kernel。
+- `flash_blocksparse_attention.py`：`FlashBlocksparseAttention` / `FlashBlocksparseMHA` 两个 `nn.Module` 封装，`__init__` 里用 `sparsity_config.make_layout(max_seq_length)` 生成稀疏布局并 `register_buffer("layout", ...)`，再注册一份转换后的 `blockmask_converted`。
 
-mask 在 PyTorch 侧用块稀疏布局表达（每行非零块数 + 列索引），kernel 侧按"非零块"遍历，跳过零块。这和 [[learning/flash-attention/14-launch-scheduling|调度层]] 里因果跳过一半块的逻辑同源，只是 mask 从"因果"换成"任意块稀疏"。
+mask 在 PyTorch 侧是"每行/每列的 0-1 矩阵"，进入 kernel 前由 `convert_blockmask` 换一种布局：以 `(col, row)` 为序、dtype `int32`，每条列里列出该列非零块所在的行号，不足处用 `-1` 补齐；行号还乘了 4，最低位标记"这是该行第一个非零块"、次低位标记"这是最后一个非零块"（kernel 靠这两个 bit 决定何时做 rescale / 写回）。kernel 侧就按这个列表遍历非零块、跳过零块。这和 [[learning/flash-attention/14-launch-scheduling|调度层]] 里因果跳过一半块的逻辑同源，只是 mask 从"因果"换成了任意块稀疏。
 
 ## 一句话
 

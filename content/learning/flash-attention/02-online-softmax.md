@@ -57,16 +57,34 @@ $$
 \ell(x) = e^{m(x^{(1)}) - m(x)} \ell(x^{(1)}) + e^{m(x^{(2)}) - m(x)} \ell(x^{(2)})
 $$
 
-所以在线 softmax 只需要带两个标量——当前行最大值 $ m $ 和指数和 $ \ell $，不用存完整的 $ f $ 向量（attention 里还要额外带一个输出累加器 $ O $，合并时把它按 $ e^{m_{\text{old}}-m_{\text{new}}} $ 重缩后再加上新块的贡献）。关键在于这里的合并**满足结合律**（构成一个 monoid / 幺半群）：哪两块先合并都不影响最终的 $ m,\ell $。正因为结合律，整行的 softmax 才能拆成任意大小的块、按任意顺序算，结果都和整行一起算完全一致。
+第三式不是新东西，它就是第二式代入 $ \ell(x) = \sum_i f(x)_i $：重缩放因子 $ e^{m(x^{(k)}) - m(x)} $ 的来源是 $ f $ 定义在**当前 max** 上，换了更大的 max，旧块存下的指数就得整体乘 $ e^{m_{\text{old}} - m_{\text{new}}} $ 才能对齐。attention 里的 $ \widetilde{O} $ 是同一套：它也是"相对某个 max 的累积量"，合并时乘同一个因子。
+
+所以在线 softmax 只需要带两个标量——当前行最大值 $ m $ 和指数和 $ \ell $，不用存完整的 $ f $ 向量（attention 里还要额外带一个输出累加器 $ \widetilde{O} $，合并时把它按 $ e^{m_{\text{old}}-m_{\text{new}}} $ 重缩后再加上新块的贡献）。关键在于这里的合并**满足结合律**（构成一个 monoid / 幺半群）：哪两块先合并都不影响最终的 $ m,\ell $。正因为结合律，整行的 softmax 才能拆成任意大小的块、按任意顺序算，结果都和整行一起算完全一致。
 
 > **monoid / 幺半群：一个"可以随便合并"的代数结构。** 它由三样东西组成——集合 $ S $、二元运算 $ \circ $、单位元 $ e $，满足三条：
 > 1. **闭合**：$ a \circ b \in S $（合并结果仍在集合里）；
 > 2. **结合律**：$ (a\circ b)\circ c = a\circ(b\circ c) $（先合哪两个，最终一样）；
 > 3. **单位元**：$ e\circ a = a\circ e = a $（有个"什么都没做"的状态）。
 >
-> 对 online softmax：$ S $ = 所有状态 $ (m,\ell) $（attention 还要带 $ O $，即 $ (m,\ell,O) $），$ \circ $ = 上面的合并（取 max、重缩、加和），单位元 = $ (m=-\infty,\ \ell=0) $（什么都没扫的状态；合并它时 $ m=\max(-\infty,m_1)=m_1 $、$ \ell $ 不变）。真正起作用的是**结合律**——所以任意分块、任意顺序合并，最终 $ m,\ell $ 都一样。
+> 对 online softmax：$ S $ = 所有状态 $ (m,\ell,\widetilde{O}) $，$ \circ $ = 上面的合并（取 max、重缩、加和），单位元 = $ (m=-\infty,\ \ell=0,\ \widetilde{O}=0) $（什么都没扫的状态；合并它时 $ m=\max(-\infty,m_1)=m_1 $、$ \ell $ 和 $ \widetilde{O} $ 不变）。真正起作用的是**结合律**——所以任意分块、任意顺序合并，最终 $ m,\ell $ 都一样。
+
+**顺手把 $ L $ 也定义好。** 设真正的 logsumexp $ L = \log \sum_i e^{s_i} $，它跟任何 max 都无关。由 $ \ell = \sum_i e^{s_i - m} = e^{-m}\sum_i e^{s_i} $ 立刻得到恒等式
+
+$$
+L = m + \log \ell
+$$
+
+也就是说 $ m + \log \ell $ 这个组合**与 $ m $ 取多少无关**：哪怕中途 max 变了、$ \ell $ 被重缩过，$ m + \log \ell $ 始终等于同一个 $ L $。两块合并时它同样满足结合律：$ L = \log(e^{L_1} + e^{L_2}) $。这就是 FA2 敢只存一个 $ L $（而不是 FA1 的 $ m, \ell $ 两个向量）的全部理由——信息没丢，反向时一个指数就能把 $ P $ 还原出来：
+
+$$
+P_{ij} = e^{S_{ij} - L_i}
+$$
+
+后面 [[learning/flash-attention/05-backward-kernel|反向内核]] 用 $ e^{S-L} $ 重算 $ P $ 就是这么来的。
 
 ![online softmax：每个新块的分数重缩放到运行最大值，再合并进累计状态](/learning/assets/online-softmax.svg)
+
+> 自绘示意图
 
 **用一段 NumPy 验证**（blog代码块可以直接跑）。单条 query、9 个 key、每块 3 个，在线版把 $ O $ 和 $ \ell $ 一路累积，最后除以 $ \ell $，得到和 full softmax 一致的结果：
 
@@ -109,7 +127,7 @@ block 0: S = [ 0.8193 -0.3161 -1.1381]
 block 1: S = [ 0.3463 -0.5858 -0.4717]
    -> m=0.8193 ell=2.6059 O_tilde=[-0.937   1.8569  1.2498  1.188 ]
 block 2: S = [-0.7552  0.0833  0.5937]
-   -> m=0.8193 ell=4.0900 O_tilde=[ 0.2356  0.2548  3.0565  0.7352]
+   -> m=0.8193 ell=4.0900 O_tilde=[0.2356 0.2548 3.0565 0.7352]
 O (online) = [0.0576 0.0623 0.7473 0.1798]
 O (full)   = [0.0576 0.0623 0.7473 0.1798]
 完全一致: True
@@ -129,7 +147,7 @@ $$
 - $ B_c $：每次放进 SRAM 的 key/value 列块大小。
 - $ B_r $：每块处理的 query 行数，一般不大于 $ d $。
 
-为什么是 `4d`：SRAM 里要同时放 $ Q_i $、$ K_j $、$ V_j $ 和一块输出 $ O $，四块 $ B \times d $，加起来约 $ 4B d $ 个元素，得塞进 $ M $。
+为什么是 $ 4d $：SRAM 里要同时放 $ Q_i $、$ K_j $、$ V_j $ 和一块输出 $ O $，四块 $ B \times d $，加起来约 $ 4B d $ 个元素，得塞进 $ M $。
 
 FA1 的 forward 伪代码（外层扫列块 $ j $，内层扫行块 $ i $）：
 
@@ -152,7 +170,7 @@ FA1 的 forward 伪代码（外层扫列块 $ j $，内层扫行块 $ i $）：
 15. 返回 O
 ```
 
-第 13 行是重点。它把两个块的结果"对齐到新的 $ m $ 再合并"。具体看：
+第 13 行是重点（行号是按本文的紧凑写法编的；论文 Algorithm 1 里对应的是第 15 行 $ O_i \leftarrow \operatorname{diag}(\ell_i^{new})^{-1}\big(\operatorname{diag}(\ell_i)e^{m_i-m_i^{new}}O_i + e^{\tilde m_{ij}-m_i^{new}}\widetilde{P}_{ij}V_j\big) $）。它把两个块的结果"对齐到新的 $ m $ 再合并"。具体看：
 
 - 旧的输出 $ O_i $ 存的是**按旧 $ m_i $ 归一化**的结果（每步都除以了当时的 $ l_i $），所以搬它的权重是 $ e^{m_i - m_i^{new}} $，还要乘回旧 $ l_i $ 才和不归一化版本对齐。
 - 新块 $ \widetilde{P}_{ij} V_j $ 的权重是 $ e^{\widetilde{m}_{ij} - m_i^{new}} $，它把新块的指数也从新块自身 max 对齐到了全局 max。
@@ -167,28 +185,28 @@ FA1 证明了 IO 复杂度。设 SRAM 大小 $ M $ 满足 $ d \le M \le Nd $：
 | 标准 attention | $ \Theta(Nd + N^2) $ |
 | FlashAttention | $ \Theta(N^2 d^2 M^{-1}) $ |
 
-标准实现要把 $ N \times N $ 的 $ S $、$ P $ 写 HBM，光是这两个就是 $ \Theta(N^2) $。注意这里变的**只是常数**：$ d^2 / M $ 在 $ d \in [64, 128] $、$ M \approx 100 \text{KB} $ 时远小于 1，所以 HBM 访问少几个数量级——但随 $ N $ 的**阶仍是 $ O(N^2) $**，不是次二次。
+标准实现要把 $ N \times N $ 的 $ S $、$ P $ 写 HBM，光是这两个就是 $ \Theta(N^2) $。注意这里变的**只是常数**：$ d^2 / M $ 在 $ d \in [64, 128] $、$ M \approx 10^5 $ 个 fp16 元素（A100 的 192 KB SRAM）时远小于 1，所以 HBM 访问少数十倍到上百倍——但随 $ N $ 的**阶仍是 $ O(N^2) $**，不是次二次。
 
 而且对精确 attention 而言，这个复杂度是**下界**（渐近最优），不只是"比标准快"。FA1 论文的 **Proposition 3** 用反证证明：不存在一个算法，能对 $ M $ 的整个区间 $ [d, Nd] $ **同时**做到 $ o(N^2 d^2 M^{-1}) $ 次 HBM 访问。证明思路：取极端情形 $ M = \Theta(Nd) $，此时 $ N^2 d^2 M^{-1} = \Theta(Nd) $；但输入 $ Q,K,V $（各 $ N\times d $）和输出 $ O $（$ N\times d $）本来就躺在 HBM 里，任何精确算法至少要把它们各读写一遍，所以 HBM 访问注定 $ \Omega(Nd) $。于是没有算法能对所有 $ M $ 同时超越 $ \Theta(N^2 d^2 M^{-1}) $——精确计算下这份 IO 复杂度是**渐近最优**的，能优化的只剩常数因子。
 
 > 注：这是流式算法风格的"对 $ M $ 的整个区间都紧"的下界——靠对抗性地取 $ M=\Theta(Nd) $，让阶掉到必须读写输入/输出的 $ \Omega(Nd) $。见 FlashAttention 论文 **Proposition 3**（arXiv:2205.14135，<https://arxiv.org/abs/2205.14135>）。
 
-论文里 GPT-2 medium（seq 1024、head dim 64、16 heads、batch 64）的实测直接印证：
+论文里 GPT-2 medium（seq 1024、head dim 64、16 heads、batch 64）的 forward + backward 实测直接印证（Figure 2 左那张表）：
 
 | | GFLOPs | HBM R/W（GB） | Runtime（ms） |
 | --- | ---: | ---: | ---: |
 | 标准 attention | 66.6 | 40.3 | 41.7 |
 | FlashAttention | 75.2 | **4.4** | **7.3** |
 
-注意 FA1 的 GFLOPs 反而更高（75.2 > 66.6），因为反向要重算。**但 HBM 读写从 40.3 GB 掉到 4.4 GB，时间从 41.7 ms 掉到 7.3 ms。** ,极大缓解了memory bound。
+注意 FA1 的 GFLOPs 反而更高（75.2 > 66.6），因为反向要重算。**但 HBM 读写从 40.3 GB 掉到 4.4 GB，时间从 41.7 ms 掉到 7.3 ms**，极大缓解了 memory-bound。
 
 ## 重计算：反向不用存 S、P
 
 标准实现反向需要 $ S, P $ 来算梯度，于是 forward 时把它们写进 HBM，或者用梯度检查点换 $ S $。FA1 的做法：**forward 只存 $ O $ 和统计量 $ (m, \ell) $，反向时按块重新算出 $ S = Q K^\top $、$ P = \exp(S - m) $。**
 
-这多出来的 FLOPs 并不亏。反向 pass 的 GEMM 反而因为 HBM 访问更少而更快。完整推导在 [[learning/flash-attention/05-backward-kernel|反向内核逐行读]]。重计算不是"省存 S 的显存"，而是把 $ O(N^2) $ 的显存需求压成 $ O(N) $（只存 $ O $ 和 $ L $），同时反向还更快。
+这多出来的 FLOPs 并不亏。反向 pass 的 GEMM 反而因为 HBM 访问更少而更快。完整推导在 [[learning/flash-attention/05-backward-kernel|反向内核逐行读]]。重计算不是"省存 S 的显存"，而是把 $ O(N^2) $ 的显存需求压成 $ O(N) $（只存 $ O $ 和每行一个统计量：FA1 存 $ (m, \ell) $，FA2 起合并成 $ L $），同时反向还更快。
 
-后面三篇往里加的东西（FA2 的并行、FA3 的 TMA/FP8）都是这个骨架上的加速，算法本身没变。
+后面三篇往里加的东西（FA2 的并行、FA3 的 TMA/FP8、FA4 的 Blackwell 流水线）都是这个骨架上的加速，算法本身没变。
 
 ## Reference
 

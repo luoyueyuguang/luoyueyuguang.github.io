@@ -1,4 +1,4 @@
-FA1 解决的问题是"HBM 读写太多"，FA2 解决的问题是"算力利用率太低"。同一块 A100，用 GEMM 能做到 80–90% 的理论峰值，FA1 的 forward 只能到 30–50%，backward 只有 25–35%。FA2 没有改算法，只改了**怎么在 GPU 上切分工作**。
+FA1 解决的问题是"HBM 读写太多"，FA2 解决的问题是"算力利用率太低"。A100 上 FA1 的 forward 只能到 30–50% 的理论峰值，backward 只有 25–35%（论文正文按 forward/backward 分开给；摘要里给的是一个更宽的整体区间 25–40%）。拿来对照的"GEMM 水平"是 80–90%，FA2 论文就是拿这个数当 A100 上的参照（同一句里说"optimized GEMM can reach up to 80–90% of the theoretical maximum device throughput"；FA3 又在 H100 上复用同一个区间：FA2 只到 35%，而优化过的 GEMM 能到 80–90%）。FA2 没有改算法，只改了**怎么在 GPU 上切分工作**。
 
 > **FA2 的三个改进都可以归为"把时间花在 matmul 上，别花在非 matmul 和共享内存搬移上"。先用一个数字感受成本不对称：A100 的 FP16 matmul 峰值是 312 TFLOPs/s，而非 matmul 的 FP32 只有 19.5 TFLOPs/s。也就是说一个非 matmul FLOP 的成本约等于 16 个 matmul FLOP。**
 
@@ -30,19 +30,23 @@ $$
 O = \mathrm{diag}\big(\ell^{(\mathrm{last})}\big)^{-1} \widetilde{O}^{(\mathrm{last})}
 $$
 
-> **论文那行 $ \widetilde{O}^{(2)} = \mathrm{diag}(\ell^{(1)})^{-1} O^{(1)} + \dots $ 容易读错。** 如果 $ O^{(1)} $ 是 FA1 那种已归一化输出，还原到未归一化要**乘** $ \ell^{(1)} $（写成 $ \mathrm{diag}(\ell^{(1)}) $），而且合并因子是 $ e^{m^{(1)} - m^{(2)}} $ 而非其逆。拿它在文中的 2-block 例子里 $ e^{s^{(1)}-m}V^{(1)} + e^{s^{(2)}-m}V^{(2)} $ 反推就能对上。论文这里的 $ \diag(\cdot)^{-1} $ 是符号笔误；正确递推见 [[learning/flash-attention/02-online-softmax|online softmax 与分块]] 的合并式。
+> **论文这两处的 $ \mathrm{diag} $ 有一处印反了，别照抄。** (1) §3.1.1 的 $ \widetilde{O}^{(2)} = \mathrm{diag}(\ell^{(1)})^{-1}O^{(1)} + \dots $：$ O^{(1)} $ 是 FA1 那种**已归一化**的输出（$ O^{(1)} = \mathrm{diag}(\ell^{(1)})^{-1}e^{S^{(1)}-m^{(1)}}V^{(1)} $），还原成未归一化要**乘** $ \ell^{(1)} $（写成 $ \mathrm{diag}(\ell^{(1)}) $），取逆等于多除一次 $ \ell^{(1)} $。(2) Algorithm 1 第 10 行印的是 $ \mathrm{diag}(e^{m^{(j-1)}-m^{(j)}})^{-1}O^{(j-1)} $，但同一页的 $ \ell $ 行写的是 $ \ell^{(2)} = e^{m^{(1)}-m^{(2)}}\ell^{(1)} + \dots $（FA3 Algorithm 1 第 19/21 行也是同一处乘、一处取逆）：$ \ell $ 和 $ O $ 做的是同一件事——把统计量从旧 max 换到新 max 的指数基准上，因子必须同向，所以旧项要**乘** $ e^{m^{old}-m^{new}} $（新块 max 变大，旧项贡献就该缩小）。FA1 Algorithm 1 第 12 行写的就是这个形式：$ \mathrm{diag}(\ell^{new})^{-1}\big(\mathrm{diag}(\ell^{old})e^{m^{old}-m^{new}}O + e^{\tilde m - m^{new}}\tilde P V\big) $。
+>
+> 顺带一个坑：论文那个 2-block 例子里 $ m^{(1)} = m^{(2)} = m $，因子恒等于 1，所以**验不出**乘还是取逆——两种写法算出来一样。要确认符号得用 $ m^{(1)}\ne m^{(2)} $ 的账，或直接看下一段的代码。
 
 代码上对应 [[learning/flash-attention/04-forward-kernel|forward kernel]] 里的 `softmax_rescale_o`：它只乘 `scores_scale`（$ e^{m_{old} - m_{new}} $），不除 $ \ell $。省掉的是每个 block 一次的对角矩阵乘（$ d $ 个元素乘 $ \ell $）+ 一次除法。循环里 $ T_c $ 次，累计下来可观。
 
 ## 算法微调 2：只存 logsumexp
 
-FA1 反向需要 $ m $ 和 $ \ell $ 两个统计量。FA2 发现只需要一个：
+FA1 论文的反向（Algorithm 4）每个块要从 HBM 读 $ m_i $ 和 $ \ell_i $ 两个向量，再用 $ P = \mathrm{diag}(\ell_i)^{-1}\exp(S_{\mathrm{masked}} - m_i) $ 重算概率。FA2 指出只需要一个：
 
 $$
 L = m + \log \ell
 $$
 
-因为 $ P = e^{S - L} $（推导见 [[learning/flash-attention/05-backward-kernel|反向内核]]）。于是反向只需读 $ L $，不用读两个向量。这既是省显存（$ O(N) $ → 还是 $ O(N) $，但少一个），也是省一次 HBM 读取。
+因为 $ P = e^{S - L} $（推导见 [[learning/flash-attention/05-backward-kernel|反向内核]]：$ \frac{e^{S-m}}{\ell} = e^{S-(m+\log \ell)} $）。于是反向只需读 $ L $。这既是省显存（$ O(N) $ → 还是 $ O(N) $，但少一个），也是省一次 HBM 读取。
+
+不过有个细节值得点出：FA1 的**实现**（v1.x 的 `fmha_fprop_kernel_1xN.h`）其实已经在 forward 结尾算 `p_sum_log = p_max + __logf(sum)` 并存进 `softmax_lse` 这一张表，反向直接拿它做 `scale_apply_exp`。所以"只存 LSE"在实现层面 FA1 就已经这么干了；FA2 的贡献是把它写成算法约定（FA2 论文 Algorithm 1 第 13、15 行）并推广——有了 $ L $ 就不用为了重算 $ P $ 再引入 $ m/\ell $ 的分块归约。
 
 ## 序列维并行
 
@@ -61,9 +65,9 @@ FA2 的思路：**再沿序列维切一刀。**
 
 一个 thread block 通常 4 或 8 个 warp。**算 $ S = QK^\top $ 和 $ O = PV $ 时，$ Q, K, V $ 怎么分给 warp，决定了要不要通信。**
 
-**FA1 的做法（split-K）**：把 $ K, V $ 沿 $ k $ 维切给 4 个 warp，$ Q $ 让所有 warp 都能读。每个 warp 算自己那一列块 $ Q K_{warp}^\top $。问题在第二个 GEMM：每个 warp 算出的 $ P_{warp} V_{warp} $ 是** $ O $ 的偏和**，必须写回共享内存、`__syncthreads`、再对 4 个偏和求和。这一步 shared memory 读写 + 同步拖慢成 proc。
+**FA1 的做法（split-K）**：把 $ K, V $ 按列块切给 4 个 warp（每个 warp 拿一段 key 区间，$ Q $ 让所有 warp 都能读）。每个 warp 算自己那一列块 $ Q K_{warp}^\top $。问题在第二个 GEMM：每个 warp 算出的 $ P_{warp} V_{warp} $ 是** $ O $ 的偏和**，必须写回共享内存、`__syncthreads`、再对 4 个偏和求和。这一步 shared memory 读写 + 同步拖慢流水。
 
-**FA2 的做法（split-Q）**：把 $ Q $ 沿 $ m $ 维切给 4 个 warp，$ K, V $ 全部可读。每个 warp 先算自己那段 $ Q K^\top $ 的 $ S $，再乘 $ V $ 得自己那段 $ O $。**$ Q $ 的行块之间完全独立，warp 之间零通信。**
+**FA2 的做法（split-Q）**：把 $ Q $ 按行块切给 4 个 warp（每个 warp 拿 $ Q $ 的一段行区间），$ K, V $ 全部可读。每个 warp 先算自己那段 $ Q K^\top $ 的 $ S $，再乘 $ V $ 得自己那段 $ O $。**$ Q $ 的行块之间完全独立，warp 之间零通信。**
 
 FA2 正向 warp 分工：
 
@@ -76,16 +80,26 @@ FA2 正向 warp 分工：
 | 通信 | `__syncthreads` | 不需要 |
 
 ![FA1 split-K 与 FA2 split-Q 的 warp 分工对比](/learning/assets/fa2-warp-partition.svg)
+> 自绘示意图
 
 代码层面，FA2 让 $ Q $ 留在寄存器（`Is_Q_in_regs`），每个 warp 有自己那行块 $ Q $ 的片段 `tSrQ`。这就是 [[learning/flash-attention/04-forward-kernel|forward kernel]] 里那个 `if (Is_Q_in_regs) ... tSrQ_copy_view` 的来历。
 
-**代价**：$ Q $ 切给 warp 意味着每个 warp 要能独立算完整 attention（包括 softmax 的行 max / 行和），所以 $ B_r $ 不能太大，否则寄存器不够。FA2 实测块大小常取 $ \{64, 128\} \times \{64, 128\} $，按 head dim 和设备共享内存调。
+**split-K 真正贵在哪。** 不只是"多一次归约"，而是两笔账：
+
+1. **$ P V $ 偏和是整块大小。** 每个 warp 手里是 $ B_r \times d $ 的 fp32 偏和（不是 $ B_r \times d/4 $），要整块写回 smem、`__syncthreads`、再读回来做 4 路求和。这条链（写 → 同步 → 求和 → 重缩 $ O $）落在关键路径上，没法跟下一个 $ j $ 的 GEMM 重叠。
+2. **行统计量也是碎的。** $ m_i, \ell_i $ 是对**整行**的归约，而 split-K 下每个 warp 只持有 $ S $ 的列切片，所以 $ m_i, \ell_i $ 同样得跨 warp 归约——FA1 的 `Smem_tile_reduce` 就是干这个的（v1.x 代码里的 `csrc/flash_attn/src/fmha/softmax.h`，里面带 `__syncthreads()`）。
+
+split-Q 把这两笔账一起抹掉：$ Q $ 按行切给 warp 后，每个 warp 独占若干整行 $ S $，行 max / 行和天然本地；$ P V $ 的输出行块也天然本地，没有任何跨 warp 的部分和。代价是每个 warp 都要能容下自己那段 $ Q $、$ S $、$ O $，寄存器更紧张（见下）。
+
+**代价**：$ B_r $ 不能太大。寄存器用量随 $ B_r $ 线性涨，块一大就 spill；shared memory 里 $ Q/K/V $ 的几份缓冲也会先装不下——两种情况下 kernel 要么掉速要么直接跑不起来。FA2 实测块大小常取 $ \{64, 128\} \times \{64, 128\} $，按 head dim 和设备共享内存调。
 
 **backward 同理**：FA1 反向也用 split-K；FA2 反向避开 split-K，因为 $ dQ, dK, dV $ 之间的依赖比 forward 复杂，但代价是反向仍要一些同步（`__syncthreads` 也存在于 `flash_bwd_kernel.h` 里）。即便如此，避免 split-K 还是省了大量共享内存读写。
 
 ## MQA / GQA
 
-FA2 原生支持 MQA（multi-query attention）和 GQA（grouped-query attention）：多个 query head 共享一组 KV head。实现上不复制 $ K, V $，而是用 `h_h_k_ratio = H_q / H_{kv}` 去索引 head。`params.h_h_k_ratio` 就是 GQA 的 group 大小。反向时把 $ dK, dV $ 在共享了同一组 KV 的多个 query head 之间求和即可。
+FA2 原生支持 MQA（multi-query attention）和 GQA（grouped-query attention）：多个 query head 共享一组 KV head。forward 里不复制 $ K, V $，而是让 KV 的索引退化成 `bidh / params.h_h_k_ratio`（`flash_api.cpp` 里 `params.h_h_k_ratio = h / h_k`，就是 group 大小 $ H_q / H_{kv} $），所以同一组 query head 会命中同一块 K/V。
+
+backward 稍绕一点：内核仍然是"一个 query head 一个 block"，于是 host 侧先按 $ H_q $ 分配 `dk_expanded` / `dv_expanded`，让每个 query head 把自己的 $ dK, dV $ 写进对应位置，**再在 kernel 之外**用 `at::sum_out(dk, dk_expanded.reshape(b, s, H_{kv}, H_q/H_{kv}, d), {3})` 把 group 维加起来，得到 $ H_{kv} $ 份 $ dK, dV $。也就是说 GQA 的反向求和不在 kernel 里，而是一次额外的内存往返。
 
 ## 结果
 
@@ -98,7 +112,7 @@ FA2 原生支持 MQA（multi-query attention）和 GQA（grouped-query attention
 | forward-only 峰值 | — | 230 TFLOPs/s |
 | GPT 式训练吞吐（每 A100） | — | 225 TFLOPs/s（72% 模型 FLOPs） |
 
-对比 FA1 约快 `2×`；长序列（seq 2k/8k）训练端到端比 FA1 快 `1.3×`，比不带 FA 的 baseline 快 `2.8×`。它已经把 attention 推到接近 GEMM 的效率水平。
+对比 FA1 约快 2×（论文 benchmark 里是 1.7–3.0×，随 seq len / head dim / 有无 causal 变化）；长序列（seq 2k/8k）训练端到端比 FA1 快 1.3×，比不带 FA 的 baseline 快 2.8×（Table 1 里最亮的一格是 GPT3-2.7B/8k：80 → 225 TFLOPs/s）。它已经把 attention 推到接近 GEMM 的效率水平。
 
 ## Reference
 

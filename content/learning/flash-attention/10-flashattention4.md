@@ -90,6 +90,8 @@ $$
 
 ![反向 dQ 的 2-CTA MMA：两个 CTA 用 DSMEM 交换 dS，凑成加倍归约](/learning/assets/fa4-2cta.svg)
 
+> 图源：Dao-AILab《FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling》（arXiv:2603.05451）Figure 3（按原图转写）
+
 ## 确定性反向
 
 反向的全局归约（$ dQ $，GQA 时还有 $ dK/dV $）是**非确定**的（谁先到谁加）。FA4 提供一个确定性模式：用**信号量锁**把全局归约串行化，每个 CTA 按预定顺序拿锁、归约、放锁（signal 计数器 +1）。代价是内存栅栏（保证信号量写全局可见）+ 等锁的停顿。
@@ -108,7 +110,7 @@ FA4 的一个亮点是**没有任何 CUDA C++**：整个 kernel 用 **CuTe-DSL**
 | FA4（CuTe-DSL） | 2.5 s | 1.4 s |
 | 加速 | 22× | 32× |
 
-代码在仓库 `flash_attn/cute/`：`flash_fwd_sm100.py`（Blackwell forward）、`flash_bwd_sm100.py`（backward）、`flash_fwd_sm120.py`（sm120）等。这套 CuTe-DSL 实现现在已经打包成可 `pip install flash-attn-4` 的独立发行版（`flash-attn-4==4.0.0b29`），接口照常从 `flash_attn.cute` 导入 `flash_attn_func` / `flash_attn_varlen_func`；CUDA 13 时用 `pip install "flash-attn-4[cu13]"` 拿到最优性能。注意它是"Hopper + Blackwell"都覆盖（sm80/sm90/sm100/sm120 都在 `interface.py` 里分派），论文针对 Blackwell 的提速是其中 sm100/sm120 路径，不是包只支持 Blackwell。
+代码在仓库 `flash_attn/cute/`：`flash_fwd_sm100.py`（Blackwell forward）、`flash_bwd_sm100.py`（backward）、`flash_fwd_sm120.py`（sm120）等。这套 CuTe-DSL 实现现在已经打包成可 `pip install flash-attn-4` 的独立发行版（`flash-attn-4==4.0.0b29`），接口照常从 `flash_attn.cute` 导入 `flash_attn_func` / `flash_attn_varlen_func`；CUDA 13 时用 `pip install "flash-attn-4[cu13]"` 拿到最优性能。注意这个包覆盖的不止 Blackwell：`interface.py` 按 arch 分派 sm80/sm90/sm100/sm120 四套实现，其中 sm80 和 sm120 走的是 SM80 时代的 `mma.sync` 代码（`flash_fwd_sm120.py` 只是子类化 `FlashAttentionForwardSm80`、把共享内存容量换成 SM120 的 99 KB），并没有用上 TMEM / 2-CTA 那一套。论文的 Blackwell 提速对应的是 sm100 那条路径（B200/GB200；B300 的 sm103 也在同一个模块里分支），不是"这个包只支持 Blackwell"。
 ```python
 from flash_attn.cute import flash_attn_func, flash_attn_varlen_func
 out = flash_attn_func(q, k, v, causal=True)
@@ -127,7 +129,7 @@ B200（FP16/BF16）：
 
 FA4 还测了 DeepSeek V3 用的 `head dim (192, 128)` 配置，也是长序列占优。
 
-顺带一句：这篇论文后来入选了 **MLSys 2026 的 oral**（oral 页面：<https://mlsys.org/virtual/2026/oral/3759>），是 FlashAttention 系列在顶会上的正式亮相。上面这些数字（1613 TFLOPs/s、1.3× vs cuDNN、2.7× vs Triton、20–30× 编译提速）在 oral 页面和 arXiv 正文里一致。
+顺带一句：这篇论文后来入选了 **MLSys 2026 的 oral**（2026-05-22，oral 页面：<https://mlsys.org/virtual/2026/oral/3759>）。上面这些数字（1613 TFLOPs/s、1.3× vs cuDNN、2.7× vs Triton、20–30× 编译提速）在 oral 页面和 arXiv 正文里一致。
 
 ## Reference
 

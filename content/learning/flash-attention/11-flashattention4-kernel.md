@@ -4,17 +4,17 @@
 
 ## 配置：warp 组 + TMEM 布局
 
-`FlashAttentionForwardSm100.__init__` 里，`__config` 字典（约 100–120 行）按 `(use_2cta, is_causal, head_dim_padded, is_sm103)` 查表给参数。以 `(True, False, 128, False)`（2-CTA、非因果、hdim128）为例：
+模块顶部的 `_TUNING_CONFIG` 字典（约 105–116 行）按 `(use_2cta_instrs, is_causal, head_dim_padded, is_sm103)` 给参数，`__init__` 里用 `self._tune = _TUNING_CONFIG.get(_tune_key, {})` 取出来。以 `(True, False, 128, False)`（2-CTA、非因果、hdim128）为例：
 
 ```python
-{"ex2_emu_freq": 10, "ex2_emu_start_frg": 1, "num_regs_softmax": 176, "num_regs_correction": 88}
+{"ex2_emu_freq": 10, "ex2_emu_start_frg": 1, "num_regs_softmax": 184, "num_regs_correction": 80}
 ```
 
-- `ex2_emu_freq=10`：每 10 个 fragment 里有若干走多项式模拟（见下文 `apply_exp2_convert`）。
-- `num_regs_softmax=176`、`num_regs_correction=88`：每个 softmax warpgroup / correction warpgroup 的寄存器数。
-- `num_regs_other` 反推：`512 - num_regs_softmax*2 - num_regs_correction`，即给 mma/TMA warp 的。
+- `ex2_emu_freq=10`：exp2 的模拟频率（`0` = 全走硬件），值越大模拟的元素越多；具体比例见下文 `apply_exp2_convert`。
+- `num_regs_softmax=184`、`num_regs_correction=80`：每个 softmax warpgroup / correction warpgroup 的寄存器数。
+- `num_regs_other` 反推：`512 - num_regs_softmax*2 - num_regs_correction`，即给 mma/TMA warp 的（hd256 的配置是例外，那里固定成 32）。
 
-warp 分工（302–303 行）：
+warp 分工（305–311 行）：
 
 ```python
 self.softmax0_warp_ids = (0, 1, 2, 3)
@@ -23,7 +23,7 @@ self.correction_warp_ids = (8, 9, 10, 11)
 self.mma_warp_id = 12
 ```
 
-TMEM 布局（344–349 行）：
+TMEM 布局（349–354 行）：
 
 ```python
 self.tmem_s_offset = [0, self.n_block_size]        # e.g. 0, 128
@@ -35,7 +35,9 @@ self.tmem_total = self.tmem_o_offset[-1] + self.head_dim_v_padded
 
 ![FA4 的 4 个 warp 组和 TMEM 布局](/learning/assets/fa4-tmem.svg)
 
-2-CTA 相关（195–204 行）：
+> 自绘示意图
+
+2-CTA 相关（200–209 行）：
 
 ```python
 self.cta_group_size = 2 if self.use_2cta_instrs else 1
@@ -90,7 +92,7 @@ else:
     cute.copy(thr_tmem_load, tStS_t2r, tSrS_t2r)
 ```
 
-- `use_ldred_rowmax`：用 `tcgen05.copy.LdRed32x32bOp`（SM103 的硬件归约版），`ld.red` 在把 $ S $ 装回寄存器的同时，额外返一个每 x32 tile 的 max 在 `tSrS_red`。省掉一行软件的 fmax 树。
+- `use_ldred_rowmax`：用 `tcgen05.copy.LdRed32x32bOp`（SM103 的硬件归约版；`__init__` 里的开关是 `is_sm103 and score_mod is None and mask_mod is None and head_dim_padded != 32`），`ld.red` 在把 $ S $ 装回寄存器的同时，额外返一个每 x32 tile 的 max 在 `tSrS_red`。省掉一行软件的 fmax 树。
 - 前半段 `cute.copy(thr_tmem_load, tStS_t2r, (tSrS_t2r, tSrS_red))` 是"一箭双雕"：S 数据 + 硬件 max 一起拿。
 
 **③ mask + 更新行最大。**
@@ -109,9 +111,9 @@ else:
 `update_row_max`（softmax.py）里的条件缩放就藏在 `is_first` 分支：
 
 ```python
-acc_scale_ = (row_max_old - row_max_safe) * self.scale_log2     # (m_old - m_new)·log2e
-acc_scale = cute.math.exp2(acc_scale_, fastmath=True)           # 理论上 = e^{m_old - m_new}
-if const_expr(self.rescale_threshold > 0.0):
+acc_scale_ = (row_max_old - row_max_safe) * self.scale_log2     # (m_old - m_safe)·scale_log2，scale_log2 = scale·log2(e)
+acc_scale = cute.math.exp2(acc_scale_, fastmath=True)           # = e^{scale·(m_old - m_safe)}
+if cutlass.const_expr(self.rescale_threshold > 0.0):
     if acc_scale_ >= -self.rescale_threshold:                  # m_new - m_old ≤ τ（log2 单位）
         row_max_new = row_max_old                              # 跳过：不更新 max
         row_max_safe = row_max_old
@@ -138,7 +140,7 @@ softmax.scale_subtract_rowmax(tSrS_t2r, row_max)   # S = S·scale_log2 - row_max
 softmax.apply_exp2_convert(tSrS_t2r, tSrP_r2t, ex2_emu_freq=self.ex2_emu_freq, ex2_emu_start_frg=self.ex2_emu_start_frg)
 ```
 
-`scale_subtract_rowmax` 用 `fma_packed_f32x2`（一次对两个 f32 做乘加），`bias = max_offset - row_max_scaled`，正是 `exp2(S·log2e - m·log2e)` 的偏置。`apply_exp2_convert` 里才真正做 exp2（含模拟）。
+`scale_subtract_rowmax` 用 `fma_packed_f32x2`（一次对两个 f32 做乘加），`bias = max_offset - row_max_scaled`，正是 `exp2(S·scale_log2 − m·scale_log2 + max_offset)` 的偏置（`max_offset` 只在 FP8 下取 8、FP16/BF16 下是 0，是给低精度 P 留的指数余量）。`apply_exp2_convert` 里才真正做 exp2（含模拟）。
 
 **⑥ 把 P 分块写回 TMEM，边写边通知 mma。**
 
@@ -151,10 +153,15 @@ for i in cutlass.range_constexpr(cute.size(tStP_r2t.shape[2])):
             cute.arch.fence_view_async_tmem_store()
             pipeline_s_p_o.consumer_release_w_index(stage)   # 前四分之三块 P 就绪，让 P·V MMA 先跑
 cute.arch.fence_view_async_tmem_store()
-pipeline_s_p_o.consumer_release_w_index(stage)               # 最后四分之一块 P 也就绪
+if const_expr(self.split_P_arrive > 0):
+    cute.arch.sync_warp()
+    with cute.arch.elect_one():
+        pipeline_p_lastsplit.producer_commit_w_index(stage)  # 最后四分之一块 P 走另一条 pipeline
+else:
+    pipeline_s_p_o.consumer_release_w_index(stage)           # 不分块：整块 P 一次就绪
 ```
 
-这就是上一篇说的"把 $ P $ 分成四份存"：`split_P_arrive > 0` 时，存完前四分之三就 `consumer_release`，让 $ P\cdot V $ 的 MMA 和剩下的 softmax 并行；`fence_view_async_tmem_store` 保证 TMEM 写对 mma 可见。
+这就是上一篇说的"把 $ P $ 分成四份存"：`split_P_arrive` 在 `__init__` 里被设成 `n_block_size // 4 * 3`（并向 32 对齐），所以存完前四分之三就先 `consumer_release`，让 $ P\cdot V $ 的 MMA 和剩下的 softmax 并行，最后四分之一到齐再单独 commit `pipeline_p_lastsplit`；`fence_view_async_tmem_store` 保证 TMEM 写对 mma 可见。
 
 **⑦ 更新行和。**
 
@@ -174,20 +181,21 @@ frg_tile = 32
 frg_cnt = cute.size(acc_S_row) // frg_tile
 acc_S_row_frg = cute.logical_divide(acc_S_row, cute.make_layout(frg_tile))
 for j in cute.range_constexpr(frg_cnt):
-    for k in cute.range_constexpr(0, cute.size(acc_S_row_frg, 0), 2):
+    for k in cute.range_constexpr(0, cute.size(acc_S_row_frg, mode=[0]), 2):
         if const_expr(ex2_emu_freq == 0):
-            exp2(...)                                            # 全走硬件 MUFU.EX2
+            acc_S_row_frg[k, j] = cute.math.exp2(acc_S_row_frg[k, j], fastmath=True)          # 全走硬件 MUFU.EX2
         else:
             if const_expr(k % ex2_emu_freq < ex2_emu_freq - ex2_emu_res
                           or j >= frg_cnt - 1
                           or j < ex2_emu_start_frg):
-                exp2(...)                                        # 硬件
+                acc_S_row_frg[k, j] = cute.math.exp2(acc_S_row_frg[k, j], fastmath=True)      # 硬件
             else:
                 acc_S_row_frg[k,j], acc_S_row_frg[k+1,j] = utils.ex2_emulation_2(...)  # 多项式模拟
         acc_S_row_converted_frg[None, j].store(acc_S_row_frg[None, j].load().to(...))
 ```
 
-- `k` 每隔 `ex2_emu_freq` 个里约有 `ex2_emu_res` 个走模拟（`k % freq < freq - res` 为真走硬件，否则走模拟），比例约 `ex2_emu_res / ex2_emu_freq`。`freq=16`、`res=4` 约 25% 模拟；`freq=32` 约 12.5%；`freq=10` 约 40%。边界约束（`j >= frg_cnt-1` 强制硬件、`j < ex2_emu_start_frg` 开头跳过）会再降一点。论文说的"10–25%"就是这个比例按 tile 配置调出来的典型区间。
+- 内层 `k` 每次处理 2 个元素（`fma_packed_f32x2` 的粒度），`k % freq < freq - res` 为真走硬件、否则走模拟，所以单看这个模式，模拟比例是 `res / freq`：`freq=16`、`res=4` 约 25%；`freq=32` 约 12.5%；`freq=10`（hd128 默认配置）约 40%。
+- 但两个边界约束会把实际比例压回去：`j >= frg_cnt - 1` 强制硬件、`j < ex2_emu_start_frg` 开头跳过。hd128 每行 128 个元素、`frg_tile=32`，所以 `frg_cnt=4`，`(True, False, 128, False)` 的 `ex2_emu_start_frg=1` 只有 `j=1,2` 两个 fragment 会走模拟模式：$2 \times 32 \times 40\% / 128 = 18.75\%$。论文说的"每行 10–25%"就是这么按 tile 配置调出来的。
 - `acc_S_row_converted_frg.store(... .to(element_type))`：结果从 fp32 转成 fp16/bf16 再写回。
 
 ## ex2_emulation_2：多项式位技巧
@@ -211,14 +219,14 @@ shl.b32 x_rounded_e, x_rounded_i, 23;   // floor(x) 移进指数字段
 add.s32 out_i, x_rounded_e, frac_ex_i;  // 加上 2^{frac} 的尾数位
 ```
 
-- `add 2^23+2^22`：把 `x` 的整数部分挤进尾数的低段（$2^{22}$ 保证 round-down 的舍入），`add.rm` 是向下取整。
+- `add 2^23+2^22`：加完之后和落在 $ [2^{23}, 2^{24}) $ 这个 binade 里，ULP 恰好是 1，配合 `rnd="rm"`（向下取整）就得到 $ \lfloor x \rfloor $；$ 2^{22} $ 的作用是让**负的** $ x $（clamp 到 $ -127 $）也留在这个 binade，否则和会掉到 $ 2^{23} $ 以下、ULP 变成 0.5，取整就不是整数了。
 - `x_frac = x - floor(x)`：`[0,1)`。
 - `POLY_EX2[3] = (1.0, 0.69515, 0.22756, 0.07712)`，Horner 法用 `fma_packed_f32x2` 算 $2^{frac}$。
 - `shl 23` + `add`：把 floor(x) 变成指数、把 $2^{frac}$ 的尾数拼上，得到 $2^x$ 的 IEEE 位模式。
 
 ## correction_loop / correction_rescale
 
-`correction_loop`（2551 行起）是 correction warpgroup：它从 `sScale` 读回 `acc_scale`，对旧 $ O $ 做重缩，并负责 epilogue。这就是"重缩放退出关键路径"的实现：softmax warpgroup 只管算 $ P $（和 $ m, \ell $ 更新），$ O $ 的合并让 correction warpgroup 在别的 warp 做 GEMM 时干。
+`correction_loop`（2556 行起）是 correction warpgroup：它从 `sScale` 读回 `acc_scale`，对旧 $ O $ 做重缩，并负责 epilogue。这就是"重缩放退出关键路径"的实现：softmax warpgroup 只管算 $ P $（和 $ m, \ell $ 更新），$ O $ 的合并让 correction warpgroup 在别的 warp 做 GEMM 时干。
 
 ## 一句话
 

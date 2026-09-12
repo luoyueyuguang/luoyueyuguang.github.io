@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" role="img" aria-labelledby="title desc" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="14">
+  <title id="title">FlashAttention forward tiling loop</title>
+  <desc id="desc">One thread block owns one query row block Q_i. In an outer loop over key/value blocks it loads K_j and V_j from HBM into SRAM, computes S_ij = Q_i K_j^T on the tensor cores, rescales with the online softmax max m_i, converts P to fp16/bf16 and accumulates P_ij V_j into the output accumulator. Only O and the softmax statistics go back to HBM; S and P never touch HBM.</desc>
+  <rect x="0" y="0" width="1000" height="470" fill="#ffffff"/>
+
+  <text x="500" y="30" text-anchor="middle" font-size="17" font-weight="600" fill="#1f2937">一个 thread block 的循环：固定 Q_i，遍历 K_j / V_j</text>
+
+  <!-- HBM: Q column -->
+  <text x="95" y="70" text-anchor="middle" font-size="13" fill="#6b7280">Q（HBM）</text>
+  <rect x="45" y="80" width="100" height="270" fill="#eff6ff" stroke="#93c5fd"/>
+  <rect x="45" y="170" width="100" height="90" fill="#3b82f6" opacity="0.85"/>
+  <text x="95" y="222" text-anchor="middle" font-size="15" fill="#ffffff" font-weight="600">Q_i</text>
+  <text x="95" y="330" text-anchor="middle" font-size="12" fill="#2563eb">B_r × d</text>
+
+  <!-- HBM: K/V column -->
+  <text x="237" y="70" text-anchor="middle" font-size="13" fill="#6b7280">K、V（HBM）</text>
+  <rect x="177" y="80" width="120" height="270" fill="#fef2f2" stroke="#fca5a5"/>
+  <rect x="177" y="80" width="120" height="54" fill="#ef4444" opacity="0.85"/>
+  <text x="237" y="114" text-anchor="middle" font-size="14" fill="#ffffff" font-weight="600">K_j / V_j</text>
+  <text x="237" y="158" text-anchor="middle" font-size="12" fill="#b91c1c">B_c × d</text>
+  <text x="237" y="180" text-anchor="middle" font-size="12" fill="#b91c1c">↓ 逐块</text>
+  <rect x="177" y="196" width="120" height="40" fill="#fee2e2" stroke="#fca5a5" stroke-dasharray="4 3"/>
+  <text x="237" y="222" text-anchor="middle" font-size="12" fill="#9ca3af">…</text>
+  <rect x="177" y="256" width="120" height="40" fill="#fee2e2" stroke="#fca5a5" stroke-dasharray="4 3"/>
+  <text x="237" y="282" text-anchor="middle" font-size="12" fill="#9ca3af">…</text>
+  <rect x="177" y="316" width="120" height="34" fill="#fee2e2" stroke="#fca5a5" stroke-dasharray="4 3"/>
+
+  <!-- SRAM panel -->
+  <rect x="330" y="60" width="250" height="330" fill="#f9fafb" stroke="#9ca3af" stroke-dasharray="6 4"/>
+  <text x="455" y="82" text-anchor="middle" font-size="13" fill="#4b5563">片上 SRAM（A100 每 SM ≈ 164 KB）</text>
+  <rect x="345" y="95" width="90" height="70" fill="#bfdbfe" stroke="#3b82f6"/>
+  <text x="390" y="127" text-anchor="middle" font-size="13" fill="#1e3a8a" font-weight="600">Q_i</text>
+  <text x="390" y="145" text-anchor="middle" font-size="11" fill="#1e40af">B_r × d</text>
+  <rect x="450" y="95" width="115" height="70" fill="#fecaca" stroke="#ef4444"/>
+  <text x="507" y="127" text-anchor="middle" font-size="13" fill="#7f1d1d" font-weight="600">K_j</text>
+  <text x="507" y="145" text-anchor="middle" font-size="11" fill="#991b1b">B_c × d</text>
+  <rect x="345" y="180" width="220" height="60" fill="#fde68a" stroke="#d97706"/>
+  <text x="455" y="205" text-anchor="middle" font-size="13" fill="#78350f" font-weight="600">S_ij = Q_i · K_jᵀ</text>
+  <text x="455" y="226" text-anchor="middle" font-size="11" fill="#92400e">B_r × B_c　（fp32 累加器）</text>
+  <rect x="345" y="255" width="220" height="60" fill="#fed7aa" stroke="#ea580c"/>
+  <text x="455" y="280" text-anchor="middle" font-size="13" fill="#7c2d12" font-weight="600">P̃_ij = exp(S_ij − m_i)</text>
+  <text x="455" y="301" text-anchor="middle" font-size="11" fill="#9a3412">B_r × B_c（转 fp16/bf16 喂 tensor core）</text>
+  <rect x="345" y="330" width="100" height="50" fill="#fecaca" stroke="#ef4444"/>
+  <text x="395" y="360" text-anchor="middle" font-size="13" fill="#7f1d1d" font-weight="600">V_j</text>
+  <rect x="465" y="330" width="100" height="50" fill="#bbf7d0" stroke="#16a34a"/>
+  <text x="515" y="351" text-anchor="middle" font-size="13" fill="#14532d" font-weight="600">Õ_i</text>
+  <text x="515" y="369" text-anchor="middle" font-size="11" fill="#166534">B_r × d</text>
+
+  <!-- HBM accumulation -->
+  <rect x="720" y="240" width="235" height="230" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="837" y="266" text-anchor="middle" font-size="13" fill="#166534">HBM 累积状态</text>
+  <rect x="740" y="280" width="195" height="42" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="837" y="307" text-anchor="middle" font-size="13" fill="#14532d">O_i（B_r × d，fp32）</text>
+  <rect x="740" y="332" width="195" height="42" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="837" y="359" text-anchor="middle" font-size="13" fill="#14532d">m_i、ℓ_i（每行标量）</text>
+  <rect x="740" y="384" width="195" height="42" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="837" y="405" text-anchor="middle" font-size="12" fill="#14532d">整块跑完 → L_i = m_i + log ℓ_i</text>
+  <text x="837" y="442" text-anchor="middle" font-size="11" fill="#15803d">只有 O/L 回写，S、P 从不落 HBM</text>
+
+  <!-- arrows HBM -> SRAM -->
+  <line x1="145" y1="215" x2="326" y2="215" stroke="#2563eb" stroke-width="2" marker-end="url(#ab)"/>
+  <line x1="297" y1="107" x2="326" y2="107" stroke="#dc2626" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- accumulate arrow -->
+  <line x1="580" y1="355" x2="716" y2="355" stroke="#16a34a" stroke-width="2" marker-end="url(#ag)"/>
+  <text x="648" y="345" text-anchor="middle" font-size="12" fill="#166534">O_i ← scale·Õ_i + P̃_ij·V_j</text>
+
+  <text x="500" y="410" text-anchor="middle" font-size="13" fill="#4b5563">外层循环 j（从 n_block_max−1 倒着走）：每轮只搬一块 K_j、V_j 进 SRAM</text>
+  <text x="500" y="436" text-anchor="middle" font-size="13" fill="#4b5563">Q_i 只在 prologue 搬一次，之后一直留在寄存器 / SRAM</text>
+  <text x="500" y="462" text-anchor="middle" font-size="12" fill="#6b7280">S_ij、P̃_ij 每轮算完即丢：不物化到 HBM，也不需要二次读回</text>
+
+  <defs>
+    <marker id="ab" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#2563eb"/>
+    </marker>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#dc2626"/>
+    </marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#16a34a"/>
+    </marker>
+  </defs>
+</svg>

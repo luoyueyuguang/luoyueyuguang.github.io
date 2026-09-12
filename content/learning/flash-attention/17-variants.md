@@ -75,7 +75,19 @@ MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 R
 // ... 用 CUDA_ARCH + 模板参数实例化 flash_attn_fwd<...>
 ```
 
-命名是 `op_hdim{dtype}_{features}_{arch}.cu`。`hopper/instantiations/` 里更细：`flash_fwd_hdimdiff_fp16_split_softcap_sm90.cu`、`flash_fwd_hdimall_bf16_packgqa_sm90.cu`……这里 `hdimdiff`/`hdimall` 是"head dim 由 kernel 内分派"的变体（省得为每个 hdim 都编一份），`split`/`softcap`/`packgqa` 是特性。统计一下：`hopper/instantiations/` 有 **451 个**文件，其中 310 个 sm90、140 个 sm80。
+命名是 `op_hdim{dtype}_{features}_{arch}.cu`。`hopper/instantiations/` 里还有一批"聚合单元"：`flash_fwd_hdimdiff_fp16_split_softcap_sm90.cu`、`flash_fwd_hdimall_bf16_packgqa_sm90.cu`。它们的内容不是 kernel，而是一串 `#include`：
+
+```cpp
+// flash_fwd_hdimall_bf16_packgqa_sm90.cu（自动生成）
+#include "flash_fwd_hdim64_bf16_packgqa_sm90.cu"
+#include "flash_fwd_hdim96_bf16_packgqa_sm90.cu"
+#include "flash_fwd_hdim128_bf16_packgqa_sm90.cu"
+// ...
+```
+
+`hopper/generate_kernels.py` 生成它们时按两条规则分批：`hdimall` 收的是 `head_dim == head_dim_v` 的那批，`hdimdiff` 收的是 `head_dim != head_dim_v` 的那批（比如 hdim 192 配 hdim_v 128、hdim 64 配 hdim_v 256）。**分文件只为并行编译、缩短整体编译时间**（每个 `.cu` 一个编译单元），不是"head dim 由 kernel 内分派"——每个被 include 的单元仍然是固定 hdim 的一份特化。
+
+统计一下：`hopper/instantiations/` 有 **451 个**文件，其中 310 个 sm90、140 个 sm80（另有 1 个 sm100）。
 
 **编译时间**就是这样爆炸的。这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/10-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
 
