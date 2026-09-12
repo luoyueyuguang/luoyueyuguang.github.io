@@ -36,8 +36,12 @@ async function getPyodide(): Promise<PyodideInstance> {
 
 async function runPython(code: string): Promise<string> {
   const pyodide = await getPyodide()
-  if (/\bnumpy\b|\bnp\b/.test(code)) {
-    if (!pyodide.loadedPackages?.["numpy"]) await pyodide.loadPackage("numpy")
+  // Preload the packages the snippet imports; Pyodide ships both.
+  const needed: string[] = []
+  if (/\bnumpy\b|\bnp\./.test(code)) needed.push("numpy")
+  if (/\bmpmath\b/.test(code)) needed.push("mpmath")
+  for (const pkg of needed) {
+    if (!pyodide.loadedPackages?.[pkg]) await pyodide.loadPackage(pkg)
   }
   // Redirect stdout/stderr via Python-level StringIO so print() keeps its newlines.
   const wrapped = [
