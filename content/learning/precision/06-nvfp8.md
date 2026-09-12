@@ -106,7 +106,9 @@ with te.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe):
 y.mean().backward()     # 反向用 E5M2；由前向是否在 autocast 内决定
 ```
 
-`fp8_autocast` 替你做了三件事：把 FP8 安全的操作转成 FP8、更新 amax 历史、算好下一次的 scale。注意反向调用要放在 `autocast` 块**外面**（精度由前向决定，只是通信聚合的需要）。
+`fp8_autocast` 替你做了三件事：把 FP8 安全的操作转成 FP8、更新 amax 历史、算好下一次的 scale。
+
+注意反向调用要写在 `fp8_autocast` 块**外面**：TE 会把块内的张量聚合起来做一次通信（在多卡训练里同步 scale 和 amax 历史），聚合要求 `backward()` 不能还在这个上下文里。这不影响精度——反向用不用 FP8 由**前向**是不是在 `fp8_autocast` 里算的说了算（TE 文档："the precision of the backward pass is determined by the precision of the forward pass"）。
 
 下面是一段**纯 Python** 的 amax→scale 心智模型（不依赖 GPU），演示"防裁剪"的原理：
 
@@ -120,16 +122,23 @@ def to_fp8(x, amax, fmt="e4m3"):
     return q, scale
 
 x = np.array([0.1, -0.6, 3.5, 0.02])
-y1, s1 = to_fp8(x, amax=3.5)          # amax 准确 → 完整落在 448 内
-y2, s2 = to_fp8(x, amax=0.6)          # amax 估小 → 3.5 被 clip 到 448
+y1, s1 = to_fp8(x, amax=3.5)          # amax 准确 → 全部落在 448 内
+y2, s2 = to_fp8(x, amax=0.6)          # amax 估小 → 3.5 撑爆量程
 print("scale(3.5):", s1, "->", y1)
-print("scale(0.6):", s2, "->", y2)    # 3.5/0.6*448 越界，被裁剪
+print("scale(0.6):", s2, "->", y2)
 ```
+
+```text
+scale(3.5): 0.0078125 -> [ 13. -77. 448.   3.]
+scale(0.6): 0.0013392857142857143 -> [  75. -448.  448.   15.]
+```
+
+第一行里 `amax = 3.5` 正好取到真实最大值，`3.5 / 0.0078125 = 448`，刚好顶到量程但没溢出；第二行把 `amax` 估成 `0.6`（真实最大值的 $0.6/3.5 \approx 1/5.8$），scale 同比例变小，`3.5` 和 `-0.6` 一起被裁到 $\pm 448$——`-0.6` 原本是最小的数，反倒和最大的数一起顶到量程，相对大小彻底丢了。这就是"宁肯 scale 偏大、不能偏小"的由来。
 
 ### 一些 tips
 
 1. **scale 别想当然地算**。`scale = amax / xmax` 用的是**真实 amax**；延迟缩放用的是历史估计，估计一旦偏小就会裁剪。宁可 scale 略大（损失一点量化精度），也不要 scale 偏小（直接裁剪）。
-2. **`amax_history_len` 是个权衡**。太小，scale 对分布突变反应慢、容易裁剪；太大，历史里混进早已不存在的极大值，scale 恒定偏大、有效位被"浪费"。常用 8–32。
+2. **`amax_history_len` 是个权衡**。它决定"取历史窗口里哪个 amax"：窗口太小，scale 对分布突变反应快但也容易被单次尖刺带偏；窗口太大，历史里长期混着早已不存在的极大值，scale 恒定偏大、有效位被"浪费"。TE 的默认值是 **1024**（配 `amax_compute_algo="max"`，即取窗口内最大的那个 amax），实际训练里很多配方会显式调小到几十到几百这一档来加快 scale 的跟随；上面例子里的 16 属于偏激进的一端。
 3. **2 倍吞吐只对张量核心矩阵乘成立**。对逐元素、归一化、memory-bound 的路段没有收益，反而多一次量化成本；所以一定用 `fp8_autocast` 这种**逐 op 开关**的机制，别整图无脑 FP8。
 4. **E4M3 没有 ±inf**，只有一个 NaN 模式；E5M2 有 ±inf 和 NaN。所以理论上 E5M2 更能容忍"算爆"，E4M3 一旦上到 448 就直接饱和。
 5. **注意转置/重排**。到 Blackwell 的 MXFP8，块必须在归约维度上"连续"，转置要重量化，TE 会同时保留原始与转置两份拷贝。这是 FP8 简单、MXFP8 麻烦的典型差异。

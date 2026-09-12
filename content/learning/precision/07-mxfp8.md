@@ -43,6 +43,8 @@ $$
 
 其中 $\text{emax}_\text{elem}$ 是元素格式的**最大正规指数**：E4M3 对应 $448 = 2^8 \times 1.75$，所以 $\text{emax}_\text{elem} = 8$；E5M2 对应 $57344 = 2^{15} \times 1.75$，所以 $\text{emax}_\text{elem} = 15$。除以 $X$ 后，块内最大元素被拉到"刚好在元素格式顶端附近"，小值也跟着被抬高到可表示范围内。这是让它们不塌缩的关键。
 
+这个取法就是 MX 论文的 Algorithm 1（与 OCP MX 规范 §6.3 一致）：`shared_exp = floor(log2(max_i |V_i|)) - emax_elem`。工程实现里常把 $X$ **向上取整到下一个 2 的幂**（等价于略微低估 amax）：这样块内 amax 不会被推到饱和边上，代价是浪费不到一个 binade 的动态范围。MXFP8 / NVFP4 的训练配方都采用这一取舍（NVIDIA 2506.08027、2509.25149 附录 B.4）。
+
 ### 关键数值
 
 | 参数 | E4M3 版本 | E5M2 版本 |
@@ -97,14 +99,14 @@ MXFP8 的价值在**块级的动态范围自适应**。先看标量 FP8 的死�
 
 两列各自用到完整的 $u=6.25\%$ 相对精度，只是量级差了 $10^5$ 倍。这就是"块级动态范围"的意义：**精度是相对的，而范围逐块决定**。
 
-**训练侧的证据。** 在 OCP Microscaling 论文（[arXiv:2310.10537](https://arxiv.org/abs/2310.10537)）里，用 **MXFP8 权重 + 激活**训练的生成式语言模型从零训练，loss 与 FP32 / bfloat16 基准几乎持平，且**不需要改动训练配方**；相比之下标量 FP8（单尺度）在同样任务上掉得更厉害。这正是"块尺度让 FP8 能用"的直接证据。
+**训练侧的证据。** OCP Microscaling 论文（[arXiv:2310.10537](https://arxiv.org/abs/2310.10537)）给出的第一个"sub-8-bit 训练"结果是：GPT 类模型用 **MXFP6_E3M2 的权重 / 激活 / 梯度**从零训练，loss 与 FP32 基线几乎持平，且**不需要改动训练配方**（超参直接沿用 FP32 调好的）；进一步把权重压到 **MXFP4 + MXFP6 激活/梯度**，只有很小的 loss 代价。论文对 MXFP8 的结论则集中在**推理**：direct-cast 下 MXFP8 精度落后于 MXFP6，但 MXINT8 是"零调优替代 FP32"的首选。换句话说，OCP 论文证明了"块尺度 + 低比特元素"这条路走得通，而 **MXFP8 作为训练格式的完整配方**是后来 NVIDIA 的《Recipes for Pre-training LLMs with MXFP8》（[arXiv:2506.08027](https://arxiv.org/abs/2506.08027)）补齐的：MXFP8-E4M3 配上具体的舍入/缩放选择，能匹配 BF16 训练（最大 8B 参数、15T token）。这正是"块尺度让 FP8 能用"的直接证据。
 
 典型场景：
 
 1. **权重 + 激活一起压到 8 bit 的混合精度训练**（前向 E4M3，梯度 E5M2）。这是 MXFP8 相比 MXFP4 的关键优势：8 bit 元素的块内动态范围能容纳激活值的起伏，而不像 4 bit 那样一块就塌。
 2. **权重 + 激活的 W8A8 推理**，且希望比单尺度 FP8 更稳（比如权重列与激活列量级差异大时，块尺度能保住小值）。
 3. **大模型推理的显存/带宽缩减**。8 bit（外加 0.25 bit 尺度 ≈ 8.25 bit/元素），相比 fp16 减半，吞吐提升。
-4. **MXFP4 的"激活侧搭档"**。论文里常见的组合是 **MXFP4 权重 + MXFP8 激活**：权重压到 4 bit，激活用 8 bit 块尺度兜住更宽的动态范围。
+4. **MXFP4 的"搭档"**。OCP 论文实测的组合是 **MXFP4 权重 + MXFP6 激活/梯度**（损失只有小幅上升）；把激活侧换成 MXFP8 是同一思路的更保守版本：权重压到 4 bit，激活用 8 bit 块尺度兜住更宽的动态范围。
 
 ### 什么时候不用它
 
@@ -193,17 +195,17 @@ print(f"标量 FP8 最大相对误差 = {relerr(tensor, scalar_q):.1%}")
 print(f"MXFP8   最大相对误差 = {relerr(tensor, mx):.1%}")
 ```
 
-运行结果：
+运行结果（就是上面代码的完整 stdout）：
 
 ```text
 标量尺度 X = 0.5000
-小块前 4 个元素(标量) : [0.0, 0.0, 0.0, 0.0]      # 全部塌缩成 0
-小块前 4 个元素(MX)   : [0.000488, 0.000397, 0.00061, 0.000305]   # 完整保留
+小块前 4 个元素(标量) : [0.0, 0.0, 0.0, 0.0]
+小块前 4 个元素(MX)   : [0.000488, 0.000397, 0.00061, 0.000305]
 标量 FP8 最大相对误差 = 100.0%
 MXFP8   最大相对误差 = 4.0%
 ```
 
-关键就是最后两行：**标量尺度把 $5\times10^{-4}$ 的那一块全部压成 0（相对误差 100%），MXFP8 用逐块尺度把它完整救回来**。8 bit 元素的 $6.25\%$ 舍入误差仍然在，但它被均匀地施加在"块量级正确对齐后"的数值上，不会因为跨块量级差异而放大成灾难性塌缩。
+第二行是标量尺度下那一小块的 4 个元素**全部塌缩成 0**；第三行是 MXFP8 的结果，它把同样的 4 个值完整保住。关键就是最后两行：**标量尺度把 $5\times10^{-4}$ 的那一块全部压成 0（相对误差 100%），MXFP8 用逐块尺度把它完整救回来**。MXFP8 的 4.0% 也已经接近 E4M3 半格（$u/2 = 3.1\%$）的量级，说明逐块尺度之后，误差只剩下元素格式本身的舍入——它被均匀地施加在"块量级正确对齐后"的数值上，不会因为跨块量级差异而放大成灾难性塌缩。
 
 ### 一些 tips
 
@@ -216,6 +218,7 @@ MXFP8   最大相对误差 = 4.0%
 ## Reference
 
 - Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
+- Recipes for Pre-training LLMs with MXFP8（arXiv:2506.08027，MXFP8 训练配方的来源）：<https://arxiv.org/abs/2506.08027>
 - OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
 - microxcaling（Microsoft，MX 仿真库）：<https://github.com/microsoft/microxcaling>
 - FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>

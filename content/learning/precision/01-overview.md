@@ -20,6 +20,8 @@ $$
 
 ![精度 vs 范围：一份位宽，怎么分](/learning/assets/precision-vs-range.svg)
 
+> 自绘示意图
+
 尾数和指数这两个维度是此消彼长的：位数固定时，多给指数就少给尾数。所以各种格式都是在这两个维度上做tradeoff。不过低精度现在还要考虑scale。
 
 ## 正规数与次正规数
@@ -124,6 +126,22 @@ for v in (1.0, 1024.0):
 # fp32 在   1024 附近：ulp = 1.221e-04
 ```
 
+## 块缩放：平移指数范围，不改相对精度
+
+上面所有讨论都默认"元素自带指数"就能定下范围。低精度格式还多了一层 **block scaling（块缩放）**：一块元素共享一个尺度 $s$，实际值是 $s \cdot P_i$（$P_i$ 是元素格式的码值）。把它代进浮点表示，等价于给元素的指数加一个偏移：
+
+$$
+x = s \cdot (-1)^{s_i} 2^{E_i - \text{bias}} (1.f_i)_2,
+\qquad
+\log_2 x = (E_i - \text{bias}) + \log_2 s + \log_2(1.f_i)
+$$
+
+也就是说，$s$ 只把整块元素的指数窗口**平移** $\log_2 s$：E2M1 的元素 binade 仍然只有 $2^{-1} \sim 2^{2}$（约 3.6 个倍频），但整块可以落在任意量级上——E8M0 尺度自身覆盖 $2^{-127} \sim 2^{127}$，约 254 个倍频。
+
+关键是**块缩放买不到精度**：$s$ 是每个元素共用的因子，相邻码值的**相对**间距（也就是 $u$）不随它变化——E2M1 加上块缩放后仍是 $u = 2^{-2} = 0.25$。它买到的是两件事：块与块之间的量级差异被逐块吸收（见 [[learning/precision/03-mxfp4|MXFP4]]），以及把数据搬进元素那条很窄的指数窗口、避免整体下溢或饱和。
+
+一个最小例子：块 $[15, 12, 18, 11]$，$amax = 18$，按 OCP MX §6.3 取 $X = 2^{\lfloor \log_2 18 \rfloor - 2} = 2^{4-2} = 4$。归一化后是 $[3.75, 3.0, 4.5, 2.75]$，落到 E2M1 的网格（正数只有 $1, 1.5, 2, 3, 4, 6$ 六档）上取整为 $[4, 3, 4, 3]$，反量化回来 $[16, 12, 16, 12]$：$18 \to 16$ 偏了一档（$11\%$），仍在 $u = 25\%$ 的允许范围内。若**没有**块缩放、整张量共用一个尺度，量级小得多的那一块会被统一压成 0——这正是块缩放存在的理由。
+
 ## 三组笔记
 
 整个系列可以分成三组，每组对应的取舍逻辑不同。
@@ -140,11 +158,13 @@ for v in (1.0, 1024.0):
 - [[learning/precision/07-mxfp8|MXFP8：OCP 微缩放 FP8]]，给 FP8 加块共享指数。
 - [[learning/precision/08-int8|INT8：整数量化]]，定点网格，W8A8 量化的根基。
 
-这一组里有几篇来自 **OCP（Open Compute Project）**：一个开放硬件 / 标准组织。它在 2023 年 9 月发布的 **MX（Microscaling，微缩放）** 规范，把低精度格式统一成"每 32 个元素共享一个 8 bit 块尺度（E8M0）"的家族：[[learning/precision/03-mxfp4|MXFP4]]（E2M1）、[[learning/precision/04-fp6|MXFP6]]（E2M3 / E3M2）、[[learning/precision/07-mxfp8|MXFP8]]（E4M3 / E5M2）。这个家族是低精度矩阵乘里"块缩放"路线（见 [[learning/precision/17-matmul|低精度矩阵乘]]）的根基：它改变了"谁负责缩放"，从而决定动态范围能撑多宽。**硬件上**，NVIDIA Blackwell 的第五代张量核原生执行这三种 MX 格式，Rubin（第六代，Blackwell 的下一代）沿用同一套精度并新增模拟 FP32/FP64；而 Hopper / Ampere 不支持（最低只能到 FP8）。
+这一组里有几篇来自 **OCP（Open Compute Project）**：一个开放硬件 / 标准组织。它在 2023 年 9 月发布的 **MX（Microscaling，微缩放）** 规范，把低精度格式统一成"每 32 个元素共享一个 8 bit 块尺度（E8M0）"的家族：[[learning/precision/03-mxfp4|MXFP4]]（E2M1）、[[learning/precision/04-fp6|MXFP6]]（E2M3 / E3M2）、[[learning/precision/07-mxfp8|MXFP8]]（E4M3 / E5M2）。这个家族是低精度矩阵乘里"块缩放"路线（见 [[learning/precision/17-matmul|低精度矩阵乘]]）的根基：它改变了"谁负责缩放"，从而决定动态范围能撑多宽。**硬件上**，NVIDIA Blackwell 的第五代张量核原生执行这三种 MX 格式；Rubin（Vera Rubin，Blackwell 的下一代）沿用同一套精度（NVFP4、FP8/FP6、INT8 等），且 Blackwell 与 Rubin 都能用低位宽张量核模拟（emulate）FP32/FP64 矩阵运算；而 Hopper / Ampere 不支持（最低只能到 FP8）。
 
 三种位宽共用同一套块结构，只有元素密度不同：
 
 ![OCP MX 家族：三种格式共用一套块尺度结构](/learning/assets/mx-family-blockscale.svg)
+
+> 自绘示意图（按 OCP MX 规范 v1.0 的块尺度结构绘制）
 
 ### 二、训练与中精度：精度和范围的平衡
 
@@ -181,3 +201,4 @@ for v in (1.0, 1024.0):
 - OCP Microscaling Formats (MX) Specification v1.0：<https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf>
 - Microscaling Data Formats for Deep Learning（arXiv:2310.10537）：<https://arxiv.org/abs/2310.10537>
 - FP8 Formats for Deep Learning（arXiv:2209.05433）：<https://arxiv.org/abs/2209.05433>
+- NVIDIA Tensor Cores（各代支持的精度，以及 Blackwell / Rubin 的 FP32/FP64 模拟）：<https://www.nvidia.com/en-us/data-center/tensor-cores/>

@@ -28,6 +28,8 @@
 
 ![GEMM 的三个精度点：A、B、累加](/learning/assets/matmul-mixed-precision.svg)
 
+> 自绘示意图
+
 "混合精度"分两类，逻辑不同：
 
 **第一类：训练混合精度（fp16 / bf16 计算 + fp32 主权重）。** 这是 ML 里"混合精度"最经典的含义："混合"发生在**权重与计算**之间，而不是矩阵乘的两个输入之间。主权重留在 **fp32**（每步用 fp32 更新，误差不累积），计算量最大的**矩阵乘**用 **fp16 / bf16** 跑，累加用 **fp32**，fp16 时还要配合 **loss scaling** 防下溢。详见 [[learning/precision/09-fp16|FP16]] 与 [[learning/precision/10-bf16|BF16]]。
@@ -154,10 +156,12 @@ print(f"per-row    rel_err={np.linalg.norm((Ar@Bq)*(sr*sb)-C)/np.linalg.norm(C):
 ```
 
 ```text
+--- rel_err vs K (no outlier, per-tensor) ---
 K=  256  rel_err=0.0042
 K= 1024  rel_err=0.0041
 K= 4096  rel_err=0.0044
 K= 8192  rel_err=0.0046
+--- one outlier row: per-tensor vs per-row ---
 per-tensor rel_err=0.0362
 per-row    rel_err=0.0039
 ```
@@ -229,10 +233,14 @@ B = rng.normal(0, 1, (4096, 256)).astype(np.float32)
 C8 = fp8_matmul(A, B)
 C32 = A @ B
 rel_err = np.linalg.norm(C8 - C32) / np.linalg.norm(C32)
-print(f"fp8 matmul relative error: {rel_err:.4f}")   # 通常为 1e-2 量级，取决于 K 和分布
+print(f"fp8 matmul relative error: {rel_err:.4f}")
 ```
 
-`K = 4096` 时，fp8 的相对误差通常在 $10^{-2}$ 量级，比 fp32 的 $10^{-6}$ 差约 4 个数量级，但吞吐翻倍或更多。真实系统还会用每通道缩放、clipping calibration 或块缩放把误差往下压。
+```text
+fp8 matmul relative error: 0.0047
+```
+
+$K = 4096$ 时这段代码跑出 $4.7\times10^{-3}$，比 fp32 累加的 $10^{-6}$ 量级差三到四个数量级，但吞吐翻倍或更多。注意这里量化的步长是均匀的 $s = \mathrm{amax}/448$（和上一节同一个示意量化器），所以误差对应的是"典型元素约 0.4%"那一档；真正按 E4M3 逐 binade 舍入时，总相对误差会到 3%～4%。真实系统还会用每通道缩放、clipping calibration 或块缩放把误差往下压。
 
 ## 一些 tips
 

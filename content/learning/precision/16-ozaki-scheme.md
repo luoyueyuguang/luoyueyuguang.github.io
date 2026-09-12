@@ -220,7 +220,7 @@ for s in (4, 8):
 
 ```text
 s = 4  rel_err = 3.915e-07
-s = 8  rel_err = 1.548e-15
+s = 8  rel_err = 1.532e-15
 ```
 
 ### 一些 tips
