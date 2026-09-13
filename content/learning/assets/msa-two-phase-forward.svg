@@ -54,6 +54,6 @@
   <g transform="translate(220 386)">
     <rect x="0" y="0" width="500" height="56" rx="14" fill="#ede9fe" stroke="#a78bfa"/>
     <text x="250" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#5b21b6">Phase 2: combine kernel</text>
-    <text x="250" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6">LSE = logsumexp(LSE_s)，w_s = exp(LSE_s - LSE)，O = sum_s w_s O_s</text>
+    <text x="250" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6"><tspan dy="0" font-size="13">LSE = logsumexp(LSE</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13">)，w</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13"> = exp(LSE</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13"> − LSE)，O = sum</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13"> w</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13"> O</tspan><tspan dy="4" font-size="10.5">s</tspan><tspan dy="-4" font-size="13"></tspan></text>
   </g>
 </svg>

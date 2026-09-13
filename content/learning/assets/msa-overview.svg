@@ -33,7 +33,7 @@
     <rect x="280" y="110" width="180" height="130" rx="14" fill="#ffffff"/>
     <rect x="280" y="110" width="180" height="34" rx="14" fill="url(#purple)"/>
     <text x="370" y="133" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#ffffff">Index Branch</text>
-    <text x="370" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">轻量 Q_idx / K_idx</text>
+    <text x="370" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155"><tspan dy="0" font-size="14">轻量 Q</tspan><tspan dy="-7" font-size="10.5">idx</tspan><tspan dy="7" font-size="14"> / K</tspan><tspan dy="-7" font-size="10.5">idx</tspan><tspan dy="7" font-size="14"></tspan></text>
     <text x="370" y="196" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">给 KV blocks 打分</text>
     <text x="370" y="222" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">选 Top-K blocks</text>
   </g>

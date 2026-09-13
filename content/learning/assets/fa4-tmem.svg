@@ -26,7 +26,7 @@
 
     <rect x="0" y="228" width="200" height="62" rx="12" fill="#c7d2fe" stroke="#6366f1" stroke-width="2"/>
     <text x="100" y="254" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#3730a3">mma / TMA（warp 12–15）</text>
-    <text x="100" y="276" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#4f46e5">发 QK^T、P·V 的 MMA 和 TMA 加载</text>
+    <text x="100" y="276" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#4f46e5"><tspan dy="0.0" font-size="12">发 QK</tspan><tspan dy="-7.0" font-size="10.5">T</tspan><tspan dy="7.0" font-size="12">、P·V 的 MMA 和 TMA 加载</tspan></text>
   </g>
 
   <!-- TMEM layout -->

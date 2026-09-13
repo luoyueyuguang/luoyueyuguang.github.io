@@ -19,12 +19,12 @@
   </defs>
   <rect width="980" height="470" fill="#ffffff"/>
   <text x="40" y="44" class="title">double-double：一个数装进两个 double</text>
-  <text x="40" y="70" class="sub">精度不够的本质是“舍入丢失的低位没有地方放”。double-double 用第二个 double（a_lo）把低位接住</text>
+  <text x="40" y="70" class="sub"><tspan dy="0" font-size="15">精度不够的本质是“舍入丢失的低位没有地方放”。double-double 用第二个 double（a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="15">）把低位接住</tspan></text>
 
   <!-- 定义公式框 -->
   <rect x="40" y="88" width="900" height="72" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
-  <text x="64" y="120" class="name">a = a_hi + a_lo</text>
-  <text x="300" y="120" class="lbl">｜a_lo｜ ≤ ½·ulp(a_hi)　——　两块的指数差距足够大，互不重叠</text>
+  <text x="64" y="120" class="name"><tspan dy="0" font-size="16">a = a</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="16"> + a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="16"></tspan></text>
+  <text x="300" y="120" class="lbl"><tspan dy="0" font-size="13">｜a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="13">｜ ≤ ½·ulp(a</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="13">)　——　两块的指数差距足够大，互不重叠</tspan></text>
   <text x="64" y="144" class="note">存储：2 × 64 bit（各是一个普通 IEEE double）　｜　有效精度：≈106 bit（约 32 位十进制）</text>
 
   <!-- 精度阶梯标题 -->
@@ -42,10 +42,10 @@
   <!-- double-double: 53 bit a_hi + 53 bit a_lo -->
   <text x="40" y="330" class="row">double-double</text>
   <rect x="180" y="308" width="265" height="40" class="hi"/>
-  <text x="278" y="332" class="lbl">a_hi（53 bit）</text>
+  <text x="278" y="332" class="lbl"><tspan dy="0" font-size="13">a</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="13">（53 bit）</tspan></text>
   <line x1="445" y1="308" x2="445" y2="348" class="sep"/>
   <rect x="445" y="308" width="265" height="40" class="lo"/>
-  <text x="535" y="332" class="lbl">a_lo（53 bit）</text>
+  <text x="535" y="332" class="lbl"><tspan dy="0" font-size="13">a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="13">（53 bit）</tspan></text>
   <text x="735" y="332" class="val">≈32 位十进制</text>
 
   <!-- fp128: 113 bit -->

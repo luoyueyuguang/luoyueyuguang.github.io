@@ -46,6 +46,6 @@
 
   <text x="524" y="290" class="note">无 FMA（旧 x86 / 部分 GPU）用 Dekker 拆分：</text>
   <text x="524" y="316" class="code">C = 2²⁷ + 1，把 a、b 各拆成 hi / lo</text>
-  <text x="524" y="342" class="code">p = a_hi·b_hi + a_hi·b_lo + a_lo·b_hi + a_lo·b_lo</text>
+  <text x="524" y="342" class="code"><tspan dy="0" font-size="14">p = a</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="14">·b</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="14"> + a</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="14">·b</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="14"> + a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="14">·b</tspan><tspan dy="4" font-size="10.5">hi</tspan><tspan dy="-4" font-size="14"> + a</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="14">·b</tspan><tspan dy="4" font-size="10.5">lo</tspan><tspan dy="-4" font-size="14"></tspan></text>
   <text x="524" y="368" class="note">拆分使四个交叉乘积都精确无舍入，残差 err 由这四块与 p 的差累出</text>
 </svg>

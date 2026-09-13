@@ -22,7 +22,7 @@
   <rect x="40" y="120" width="150" height="125" class="box"/>
   <text x="65" y="155" class="title">RNN</text>
   <text x="65" y="185" class="text">一个向量状态</text>
-  <text x="65" y="211" class="small">h_t = f(x_t, h_{t-1})</text>
+  <text x="65" y="211" class="small"><tspan dy="0" font-size="13">h</tspan><tspan dy="4" font-size="10.5">t</tspan><tspan dy="-4" font-size="13"> = f(x</tspan><tspan dy="4" font-size="10.5">t</tspan><tspan dy="-4" font-size="13">, h</tspan><tspan dy="4" font-size="10.5">t−1</tspan><tspan dy="-4" font-size="13">)</tspan></text>
   <text x="65" y="235" class="small">省内存，但容易遗忘</text>
 
   <path d="M200 182 H255" class="arrow"/>
@@ -36,14 +36,14 @@
   <rect x="495" y="120" width="170" height="125" class="accent"/>
   <text x="520" y="155" class="title">Linear Attention</text>
   <text x="520" y="185" class="text">矩阵状态 S</text>
-  <text x="520" y="211" class="small">S_t = S_{t-1}+k_t v_t^T</text>
+  <text x="520" y="211" class="small"><tspan dy="0" font-size="13">S</tspan><tspan dy="4" font-size="10.5">t</tspan><tspan dy="-4" font-size="13"> = S</tspan><tspan dy="4" font-size="10.5">t−1</tspan><tspan dy="-4" font-size="13">+k</tspan><tspan dy="4" font-size="10.5">t</tspan><tspan dy="-4" font-size="13"> v</tspan><tspan dy="4" font-size="10.5">t</tspan><tspan dy="-11" font-size="10.5">T</tspan><tspan dy="7" font-size="13"></tspan></text>
   <text x="520" y="235" class="small">线性复杂度</text>
 
   <path d="M675 182 H730" class="arrow"/>
   <rect x="740" y="82" width="190" height="96" class="accent"/>
   <text x="765" y="116" class="title">DeltaNet</text>
   <text x="765" y="145" class="text">先读旧答案</text>
-  <text x="765" y="168" class="small">再写入残差 v - read</text>
+  <text x="765" y="168" class="small">再写入残差 v − read</text>
 
   <path d="M835 183 V220" class="arrow"/>
   <rect x="740" y="230" width="190" height="96" class="gdn"/>
