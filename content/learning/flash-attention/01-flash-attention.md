@@ -28,9 +28,9 @@ attention 大部分操作是 reduction（softmax、sum），属于 memory-bound�
 
 从 SM（streaming multiprocessor）往外看，从寄存器 → 共享内存 → HBM，访存延迟越来越高。
 
-![GPU 存储层次：寄存器（线程私有，最快）→ 共享内存（block 共享）→ HBM（grid 共享，最慢）](/learning/assets/gpu-memory-hierarchy.svg)
+![NVIDIA CUDA 编程指南的存储层次图：寄存器与 local memory（每线程）→ 共享内存（每 block）→ 分布式共享内存（每 cluster）→ 全局内存（整个 grid）](/learning/assets/cuda-memory-hierarchy.png)
 
-> 自绘示意图
+> 图源：NVIDIA《CUDA C++ Programming Guide》§2.3 Memory Hierarchy，Figure 6（<https://docs.nvidia.com/cuda/cuda-c-programming-guide/_images/memory-hierarchy.png>）
 
 - **寄存器（register）**：**线程私有**，延迟最低。A100 每个 SM 的寄存器文件共 256 KB（64K 个 32 位寄存器），但被该 SM 上所有线程瓜分，单线程最多约 255 个寄存器（≈1 KB），**凑不成一整块可共享的缓冲**。
 - **共享内存（shared memory / SRAM）**：**block 内共享**、整块可寻址。A100 每个 SM 约 164 KB（L1+共享共 192 KB），带宽约 19 TB/s。**attention 分块要存的 $ S $、$ P $、$ O $ 就放在这里。**
