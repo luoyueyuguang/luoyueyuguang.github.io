@@ -58,7 +58,14 @@ export const CreatedModifiedDate: QuartzTransformerPlugin<Partial<Options>> = (u
                   // Get a reference to the main git repo.
                   // It's either the same as the workdir,
                   // or 1+ level higher in case of a submodule/subtree setup
-                  repo = Repository.discover(file.cwd)
+                  try {
+                    repo = Repository.discover(file.cwd)
+                  } catch {
+                    // 没有 .git（例如从源码包构建）时 discover 会抛错。
+                    // 这条来源现在会被默认走到，所以退回到后面的 filesystem 日期，
+                    // 而不是让整个构建挂掉。
+                    continue
+                  }
                 }
 
                 try {

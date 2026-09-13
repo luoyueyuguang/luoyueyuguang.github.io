@@ -56,7 +56,9 @@ const config: QuartzConfig = {
       Plugin.FrontMatter(),
       Plugin.ArticleMetadata({ index: articleIndex }),
       Plugin.CreatedModifiedDate({
-        priority: ["frontmatter", "filesystem"],
+        // git 排在 filesystem 前：文件 mtime 在 CI 里就是 checkout 时间，
+        // 拿它当 lastmod 会让每次部署都像是改过全部页面。
+        priority: ["frontmatter", "git", "filesystem"],
       }),
       Plugin.SyntaxHighlighting({
         theme: {

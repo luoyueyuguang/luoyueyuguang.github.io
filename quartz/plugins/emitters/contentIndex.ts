@@ -16,7 +16,10 @@ export type ContentDetails = {
   tags: string[]
   content: string
   richContent?: string
+  /** 发布/创建时间；RSS 的 pubDate 用它 */
   date?: Date
+  /** 最后改动时间；sitemap 的 lastmod 用它 */
+  modified?: Date
   description?: string
 }
 
@@ -38,10 +41,15 @@ const defaultOptions: Options = {
 
 function generateSiteMap(cfg: GlobalConfiguration, idx: ContentIndex): string {
   const base = cfg.baseUrl ?? ""
-  const createURLEntry = (slug: SimpleSlug, content: ContentDetails): string => `<url>
+  // entry.date 是发布/创建时间（RSS 的 pubDate 用它），lastmod 要的是最后改动时间，
+  // 两者不同：一篇文章发布之后被改过，lastmod 应该跟着改动走。
+  const createURLEntry = (slug: SimpleSlug, content: ContentDetails): string => {
+    const lastmod = content.modified ?? content.date
+    return `<url>
     <loc>https://${joinSegments(base, encodeURI(slug))}</loc>
-    ${content.date && `<lastmod>${content.date.toISOString()}</lastmod>`}
+    ${lastmod ? `<lastmod>${lastmod.toISOString()}</lastmod>` : ""}
   </url>`
+  }
   const urls = Array.from(idx)
     .map(([slug, content]) => createURLEntry(simplifySlug(slug), content))
     .join("")
@@ -130,6 +138,7 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
               ? escapeHTML(toHtml(tree as Root, { allowDangerousHtml: true }))
               : undefined,
             date: date,
+            modified: file.data.dates?.modified,
             description: file.data.description ?? "",
           })
         }
@@ -160,11 +169,11 @@ export const ContentIndex: QuartzEmitterPlugin<Partial<Options>> = (opts) => {
       const fp = joinSegments("static", "contentIndex") as FullSlug
       const simplifiedIndex = Object.fromEntries(
         Array.from(linkIndex).map(([slug, content]) => {
-          // remove description and from content index as nothing downstream
-          // actually uses it. we only keep it in the index as we need it
-          // for the RSS feed
+          // description、date、modified 只有生成 RSS / sitemap 时才用得到，
+          // 客户端搜索用不上，不进 contentIndex.json。
           delete content.description
           delete content.date
+          delete content.modified
           return [slug, content]
         }),
       )
