@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="620" viewBox="0 0 940 620" role="img" aria-labelledby="ti de">
+<title id="ti">四代 FlashAttention 的 forward 算力利用率（相对各自 GPU 的理论峰值）</title>
+<desc id="de">把每代实测 TFLOPs/s 除以该卡的理论峰值：FA1 在 A100 上 forward 为 30-50%，FA2 到 73%，FA3 在 H100 上 75%，FA4 在 B200 上 71%。灰色带是调优良好的 GEMM 的 80-90% 区间。</desc>
+<rect width="940" height="620" rx="22" fill="#f8fafc"/>
+<text x="470.0" y="38.0" font-family="Arial, sans-serif" font-size="21" fill="#111827" text-anchor="middle" font-weight="700" >四代的 forward 利用率：相对各自 GPU 的理论峰值</text>
+<text x="470.0" y="64.0" font-family="Arial, sans-serif" font-size="13.5" fill="#64748b" text-anchor="middle" font-weight="400" >绝对值不可比（三张不同的卡），换算成占该卡峰值的百分比后可以连成一条线</text>
+<text x="36" y="263.0" font-family="Arial, sans-serif" font-size="13" fill="#334155" text-anchor="middle" font-weight="700" transform="rotate(-90 36 263.0)">占该卡理论峰值的百分比</text><rect x="110" y="96" width="770" height="334" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<g stroke="#eef2f7" stroke-width="1">
+<line x1="110" y1="430.0" x2="880" y2="430.0"/>
+<line x1="110" y1="396.6" x2="880" y2="396.6"/>
+<line x1="110" y1="363.2" x2="880" y2="363.2"/>
+<line x1="110" y1="329.8" x2="880" y2="329.8"/>
+<line x1="110" y1="296.4" x2="880" y2="296.4"/>
+<line x1="110" y1="263.0" x2="880" y2="263.0"/>
+<line x1="110" y1="229.6" x2="880" y2="229.6"/>
+<line x1="110" y1="196.2" x2="880" y2="196.2"/>
+<line x1="110" y1="162.8" x2="880" y2="162.8"/>
+<line x1="110" y1="129.4" x2="880" y2="129.4"/>
+<line x1="110" y1="96.0" x2="880" y2="96.0"/>
+</g>
+<text x="100.0" y="434.0" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >0%</text>
+<text x="100.0" y="367.2" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >20%</text>
+<text x="100.0" y="300.4" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >40%</text>
+<text x="100.0" y="233.6" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >60%</text>
+<text x="100.0" y="166.8" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >80%</text>
+<text x="100.0" y="100.0" font-family="Arial, sans-serif" font-size="11" fill="#64748b" text-anchor="end" font-weight="400" >100%</text>
+<rect x="110" y="129.4" width="770" height="33.4" fill="#e2e8f0" opacity="0.75"/>
+<text x="872.0" y="150.1" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="end" font-weight="700" >调优良好的 GEMM：80–90%</text>
+<line x1="206.2" y1="329.8" x2="206.2" y2="263.0" stroke="#7c3aed" stroke-width="3"/>
+<line x1="199.2" y1="329.8" x2="213.2" y2="329.8" stroke="#7c3aed" stroke-width="3"/>
+<line x1="199.2" y1="263.0" x2="213.2" y2="263.0" stroke="#7c3aed" stroke-width="3"/>
+<path d="M206.2 263.0 L398.8 186.2 L591.2 179.5 L783.8 192.9" fill="none" stroke="#7c3aed" stroke-width="2.6" stroke-dasharray="0"/>
+<circle cx="206.2" cy="263.0" r="6" fill="#7c3aed" stroke="#ffffff" stroke-width="2"/>
+<text x="206.2" y="249.0" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6" text-anchor="middle" font-weight="700" >30–50%</text>
+<text x="206.2" y="351.8" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >94–156 TFLOPs/s</text>
+<text x="206.2" y="452.0" font-family="Arial, sans-serif" font-size="13.5" fill="#111827" text-anchor="middle" font-weight="700" >FA1</text>
+<text x="206.2" y="470.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >A100</text>
+<circle cx="398.8" cy="186.2" r="6" fill="#7c3aed" stroke="#ffffff" stroke-width="2"/>
+<text x="398.8" y="172.2" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6" text-anchor="middle" font-weight="700" >73%</text>
+<text x="398.8" y="208.2" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >230 TFLOPs/s</text>
+<text x="398.8" y="452.0" font-family="Arial, sans-serif" font-size="13.5" fill="#111827" text-anchor="middle" font-weight="700" >FA2</text>
+<text x="398.8" y="470.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >A100</text>
+<circle cx="591.2" cy="179.5" r="6" fill="#7c3aed" stroke="#ffffff" stroke-width="2"/>
+<text x="591.2" y="165.5" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6" text-anchor="middle" font-weight="700" >75%</text>
+<text x="591.2" y="201.5" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >740 TFLOPs/s</text>
+<text x="591.2" y="452.0" font-family="Arial, sans-serif" font-size="13.5" fill="#111827" text-anchor="middle" font-weight="700" >FA3</text>
+<text x="591.2" y="470.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >H100</text>
+<circle cx="783.8" cy="192.9" r="6" fill="#7c3aed" stroke="#ffffff" stroke-width="2"/>
+<text x="783.8" y="178.9" font-family="Arial, sans-serif" font-size="13" fill="#5b21b6" text-anchor="middle" font-weight="700" >71%</text>
+<text x="783.8" y="214.9" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >1613 TFLOPs/s</text>
+<text x="783.8" y="452.0" font-family="Arial, sans-serif" font-size="13.5" fill="#111827" text-anchor="middle" font-weight="700" >FA4</text>
+<text x="783.8" y="470.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="middle" font-weight="400" >B200</text>
+<text x="495.0" y="496.0" font-family="Arial, sans-serif" font-size="12" fill="#64748b" text-anchor="middle" font-weight="400" >峰值（FP16/BF16 稠密，TFLOPs/s）：A100 312 · H100 989 · B200 2250</text>
+<rect x="110" y="522" width="770" height="70" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+<text x="126.0" y="544.0" font-family="Arial, sans-serif" font-size="12" fill="#475569" text-anchor="start" font-weight="400" >FA1 是区间：forward 30–50%、backward 25–35%（FA2 论文给出的实测区间），所以画成竖线。</text>
+<text x="126.0" y="564.0" font-family="Arial, sans-serif" font-size="12" fill="#475569" text-anchor="start" font-weight="400" >FA2 起 forward 到 73%、backward 63%；FA3 的 FP16 到 75%；FA4 的 BF16 到 71%。</text>
+<text x="126.0" y="584.0" font-family="Arial, sans-serif" font-size="12" fill="#475569" text-anchor="start" font-weight="400" >三代都停在下方的 GEMM 带宽之下：attention 比纯 GEMM 多了 softmax 与 IO 的额外开销。</text>
+</svg>

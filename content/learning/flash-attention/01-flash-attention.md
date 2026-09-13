@@ -210,7 +210,13 @@ FA1 先把 $ S, P $ 的显存从 $ O(bhN^2) $ 降到 $ O(bhN) $（只多存 $ O 
 
 到 Blackwell，参照物换成了 cuDNN 和 Triton。B200 上 BF16 到 1613 TFLOPs/s（约 71% 理论峰值），比 cuDNN 9.13 快 1.1–1.3×、比 Triton 快 2.1–2.7×。这一代的 kernel 整个用 CuTe-DSL（Python）写成，单核编译时间比 FA3 的 C++ 模板快 20–30×。
 
-三张图的纵轴口径不同（TFLOPs/s 与 TFLOPS），且是三代不同的卡，**不要跨图比绝对值**——能横向看的只有同一张图里各条柱子的相对高低。
+三张图的纵轴口径不同（TFLOPs/s 与 TFLOPS），且是三代不同的卡，**不要跨图比绝对值**。把每代的实测值除以该卡的理论峰值，才连得成一条可比的线：
+
+![四代的 forward 利用率：FA1 在 A100 上 30–50%，FA2 到 73%，FA3 在 H100 上 75%，FA4 在 B200 上 71%；三代都停在调优 GEMM 的 80–90% 之下](/learning/assets/fa-utilization.svg)
+
+> 自绘示意图（数据取自各代论文自报的峰值利用率：FA1/FA2 见 arXiv:2307.08691，FA3 见 arXiv:2407.08608，FA4 见 arXiv:2603.05451；峰值为各卡 FP16/BF16 稠密值）
+
+FA1 到 FA2 是最大的一次跃升（30–50% → 73%），靠的是 work partitioning；之后两代各涨几个点，直到 75%（H100 FP16）与 71%（B200 BF16）。**三代都没能越过 80–90%**——attention 比纯 GEMM 多了 softmax 与 IO 的额外开销，这一段差距是结构性的。
 
 ## Reference
 
