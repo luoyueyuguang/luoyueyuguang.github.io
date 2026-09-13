@@ -26,6 +26,14 @@ export default ((opts?: Partial<ContentMetaOptions>) => {
   function ContentMetadata({ cfg, fileData, displayClass }: QuartzComponentProps) {
     const text = fileData.text
 
+    // 只有登记在 article-index.json 里的文章才有真正的发表信息：日期来自索引，
+    // 阅读时长来自正文。栏目首页、关于、文章索引这类页面拿到的日期要么是
+    // frontmatter 里写死的常量、要么是文件的 birthtime，都跟内容无关，
+    // 显示出来只会让人以为这些页面"更新于"某个日子。
+    if (fileData.frontmatter?.article !== true) {
+      return null
+    }
+
     if (text) {
       const segments: (string | JSX.Element)[] = []
 
