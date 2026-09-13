@@ -44,28 +44,51 @@ FA 的 kernel 把分块的 $ S $、$ P $、$ O $ 全留在共享内存，只在�
 
 用**算术强度**（arithmetic intensity，$ I = \text{FLOPs} / \text{字节} $）衡量一次操作里算力和内存的比例。一个平台有两个天花板：
 
-- **计算峰值** $ R_{\text{peak}} $：每秒最多做多少 FLOPs。
-- **内存带宽** $ B_{\text{peak}} $：每秒最多读写多少字节。
+- **峰值算力** $ \pi $（compute ceiling）：每秒最多做多少 FLOPs。
+- **峰值带宽** $ \beta $（memory ceiling）：每秒最多读写多少字节。
 
 任何 kernel 都可能被这两者中较小的那个卡住：
 
 $$
-\text{performance} = \min\left(R_{\text{peak}},\; B_{\text{peak}} \times I\right)
+\text{performance} = \min\left(\pi,\; \beta \times I\right)
 $$
 
 $ I $ 大时被计算峰值卡住（compute-bound），$ I $ 小时被带宽卡住（memory-bound）。两条线的交点叫 **ridge point**：
 $$ 
-I_{\text{ridge}} = R_{\text{peak}} / B_{\text{peak}} 
+I_{\text{ridge}} = \pi / \beta 
 $$
 A100（80GB SXM）上 BF16 张量核的稠密峰值约 $ \pi = 312 $ TFLOPS、HBM 峰值约 $ \beta = 2.0 $ TB/s，所以 $ I_{\text{ridge}} = 312 / 2.0 \approx 156 $ FLOPs/byte。
 
 attention 落在左侧。head dim $ d $ 不大（几十），标准实现又把 $ N \times N $ 的 $ S $、$ P $ 写进 HBM 再读出来：一行 query 花 $ 4Nd $ FLOPs（两次 $ N \times d $ 的 GEMM），却要搬 $ 8N $ 字节（$ S $、$ P $ 各写一次读一次，fp16），算术强度只有 $ \approx d/2 $（$ d = 64 $ 时约 32），远低于 ridge。所以它是 memory-bound：**瓶颈是 HBM 带宽，不是算力。**
 
-FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $。但流量**并没有降到 $ \Theta(Nd) $**：分块之后每个块对 $ (i,j) $ 都要重新读写一次 $ Q_i $、$ O_i $（每个 $ Q $ 行块都得把整条 $ K,V $ 扫一遍），块对总数是 $ T_r T_c $，于是 HBM 访问是 $ \Theta(N^2 d^2 M^{-1}) $ 次，论文 Theorem 2 是按**元素个数**数访问次数的，另外还有 $ \Theta(Nd) $ 的输入输出项。按这个阶算算术强度：$ 4N^2 d $ FLOPs 对 $ 2N^2 d^2 M^{-1} $ 字节（每个 fp16 元素 2 字节），约 $ 2M/d $，只由 SRAM 大小 $ M $ 和 head dim $ d $ 决定，与 $ N $ 无关；A100 上 $ M \approx 10^5 $ 个 fp16 元素（192 KB）、$ d = 64 $，就是三千多 FLOPs/byte，已经越过 ridge。
+FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $，但流量**并没有降到 $ \Theta(Nd) $**。这笔账分三步算：
 
-但这个阶要 $ N $ 足够大才成立。在 $ N = 1024 $、$ d = 64 $ 这类常用规模下，$ \Theta(Nd) $ 那一项和 $ N^2d^2M^{-1} $ 同量级，实测远不到三千：论文 Figure 2（左）那张表的数字是 75.2 GFLOPs 对 4.4 GB，$ I \approx 17 $；标准实现同表是 66.6 GFLOPs 对 40.3 GB，$ I \approx 1.65 $，比上面按单行 forward 估的 32 低得多，因为那是 forward + backward 的端到端平均，反向还要多搬 $ dO $、$ dS $、$ dP $ 好几个 $ N\times N $ 张量。抬了一个数量级，但仍低于 156。
+1. **块能开多大。** 片上要同时放下 $ Q_i $（$ B_r \times d $）、$ K_j $ 与 $ V_j $（各 $ B_c \times d $）、以及输出累加器 $ O_i $（$ B_r \times d $）。取 $ B_r \approx B_c \approx B $，占用约 $ 4Bd $ 个元素，于是 $ B \approx M/(4d) $。
+2. **块对有多少个。** 外层循环切 $ Q $、内层循环切 $ K,V $，块对总数是 $ T_r T_c = (N/B)^2 $。
+3. **每个块对搬多少。** 内层每前进一格，都要把 $ K_j $、$ V_j $ 两个块读进来，即 $ 2Bd $ 个元素。这就是"每个 $ Q $ 行块都得把整条 $ K,V $ 扫一遍"的代价。
 
-注意 roofline 示意图画的是**渐近意义**上的位置（分块把 $ I $ 抬过 ridge）；实测的 FA1 仍落在 ridge 左边，这正是 FA2 继续优化算力利用率的原因。
+三步相乘：$ (N/B)^2 \cdot 2Bd = 2N^2d/B $，代入 $ B \approx M/(4d) $ 得 $ 8N^2d^2/M $，也就是论文 Theorem 2 给出的 $ \Theta(N^2 d^2 M^{-1}) $ 次访问（Theorem 2 按**元素个数**计数）。除此之外还有 $ \Theta(Nd) $ 的输入输出项。
+
+按这个阶算算术强度：分子是 forward 的 $ 4N^2d $ FLOPs（$ QK^\top $ 与 $ PV $ 各 $ 2N^2d $），分母是 $ 2N^2d^2M^{-1} $ 字节（每个 fp16 元素 2 字节），相除得
+
+$$
+I = \frac{4N^2d}{2N^2d^2M^{-1}} = \frac{2M}{d}
+$$
+
+**结果只由 SRAM 大小 $ M $ 和 head dim $ d $ 决定，与 $ N $ 无关。** A100 上 $ M \approx 10^5 $ 个 fp16 元素（192 KB）、$ d = 64 $，代入得三千多 FLOPs/byte，远在 ridge（156）右侧。
+
+但这个阶要 $ N $ 足够大才成立。两项之比约 $ M/(Nd) $：$ N $ 越大这个比值越小，$ \Theta(Nd) $ 项才越可忽略；而在常用规模上它还是个 $ O(1) $ 的数。把两项放到 $ N = 1024 $、$ d = 64 $ 上比一比——输入输出项 $ 4Nd \approx 2.6\times10^5 $ 个元素，分块重读项 $ N^2d^2M^{-1} \approx 4.4\times10^4 $ 个元素——**同量级，IO 项还占了上风**，所以 $ 2M/d $ 这个上限根本用不上。
+
+论文 Figure 2（左）在 GPT-2 medium（$ N = 1024 $、$ d = 64 $、16 head、batch 64）上量到的正是这个结果，而且是 **forward + backward 端到端**的平均：
+
+| 实现 | FLOPs | HBM 流量 | $ I $ |
+| --- | --- | --- | --- |
+| 标准实现 | 66.6 GFLOPs | 40.3 GB | 1.65 |
+| FlashAttention | 75.2 GFLOPs | 4.4 GB | 17 |
+
+FA 的 FLOPs 反而更高，因为反向要重算 $ S $、$ P $；换来的是流量压掉约 9 倍。所以实测的 $ I \approx 17 $ 比理论上限的三千多差两个数量级，原因有三条：$ N $ 不够大，$ \Theta(Nd) $ 项没有相对变小；这是端到端平均，反向还要多搬 $ dO $、$ dS $、$ dP $ 好几个 $ N\times N $ 张量；以及实现效率本身还没榨干。**它相对标准实现的 $ 1.65 $ 抬了一个数量级。**
+
+roofline 示意图画的是**渐近意义**上的位置（分块把 $ I $ 抬过 ridge），而实测的 FA1 仍落在 ridge 左边，这正是 FA2 继续优化算力利用率的原因。
 
 所以**消除 attention 的瓶颈，关键是减少 HBM 读写、提高算术强度，而不是减少 FLOPs。**
 
@@ -152,4 +175,6 @@ FA1 用了三个技巧，关键是**不让 $ N\times N $ 的 $ S $、$ P $ 落�
 - 官方代码：<https://github.com/Dao-AILab/flash-attention>
 - NVIDIA A100 产品规格页（80GB SXM：HBM2e 2039 GB/s、FP32 19.5 TFLOPS、BF16 Tensor Core 312 TFLOPS 稠密）：<https://www.nvidia.com/en-us/data-center/a100/>
 - NVIDIA A100 Tensor Core GPU Architecture 白皮书（每 SM 256 KB 寄存器文件、192 KB L1+共享、共享内存可配到 164 KB）：<https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf>
+- NVIDIA CUDA C++ Programming Guide §2.3 Memory Hierarchy（本文存储层次图的出处，Figure 6）：<https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html>
+- Williams, Waterman, Patterson. *Roofline: An Insightful Visual Performance Model for Multicore Architectures.* CACM 52(4), 2009（$\pi$、$\beta$、ridge point 这组记号的出处；展开见 [[learning/roofline|Roofline 模型]]）：<https://dl.acm.org/doi/10.1145/1498765.1498785>
 - Online normalizer calculation for softmax（Milakov & Gimelshein, 2018）：<https://arxiv.org/abs/1805.02867>
