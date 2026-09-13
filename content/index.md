@@ -1,7 +1,20 @@
 ---
-title: 最新 Blog
+title: luoyue's Blog
 date: 2026-06-20
 autoRecent: true
 ---
 
-按时间倒序自动展示最近更新的内容。
+欢迎来到我的个人博客。这里是记录学习过程、分享技术心得和踩坑经验的地方。
+
+## GitHub
+
+- [luoyueyuguang](https://github.com/luoyueyuguang)
+
+## 个人简历
+
+- [resume](https://github.com/luoyueyuguang/resume/releases/download/latest/resume-zh_CN.pdf)
+
+## 导航
+
+- [[learning/index|学习笔记]]
+- [[pitfalls/index|踩坑纪念]]

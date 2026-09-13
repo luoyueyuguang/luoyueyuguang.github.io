@@ -37,7 +37,8 @@ npm run ci             # check + build
 ```
 content/
 ├── article-index.json      # titles, dates, tags, series descriptions
-├── about.md  index.md  articles.md
+├── index.md                # 首页：个人介绍 + 最近文章（autoRecent: true）
+├── articles.md             # 文章索引页（articleIndex: true）
 ├── learning/
 │   ├── index.md            # section landing page (has frontmatter)
 │   ├── assets/             # every image, referenced as /learning/assets/<name>
@@ -46,6 +47,8 @@ content/
 │       └── NN-kebab-name.md
 └── pitfalls/
 ```
+
+- **首页就是 `content/index.md`**：个人介绍写在正文里，最近文章由 `autoRecent: true` 触发的 `HomeRecentNotes` 渲染在正文之后（`afterBody`）。所以没有单独的「关于」页——介绍和文章列表在同一页上。
 
 - **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags.
 - **A series is a folder.** Files named `NN-` order the series; the folder path is the series slug. `article-index.json` `series` entries only override the title/description. Do **not** add `series`/`seriesOrder` fields to article records — the build errors.
