@@ -48,9 +48,9 @@ RNN
 
 ![GDN 原论文 Figure 2 长上下文曲线转写](/learning/assets/gdn-paper-length-extrapolation.svg)
 
-> 图源：同上（Figure 2，按原论文 pgfplots 坐标数据摘要式重绘）
+> 图源：同上（Figure 2，按原论文 LaTeX 源码里的 pgfplots 坐标逐一转写）
 
-六个 benchmark 依次是 GovReport、QMSum、NarrativeQA、Qasper、CodeParrot、PG19，横轴是 4K–20K。这里只保留相对趋势和核心模型对比，精确曲线请以论文 PDF/源码为准。
+六个 benchmark 依次是 GovReport、QMSum、NarrativeQA、Qasper、CodeParrot、PG19，横轴是评测长度 4k–20k，纵轴是困惑度（越低越好）。七条曲线是论文 Figure 2 的完整系列：Mamba1、DeltaNet、Mamba2、Samba、Gated DeltaNet、Gated DeltaNet-H1、Gated DeltaNet-H2。各子图的纵轴区间不同，读数只在同一个子图内可比。
 
 ![GDN 原论文 Figure 3 H100 训练吞吐转写](/learning/assets/gdn-paper-throughput.svg)
 

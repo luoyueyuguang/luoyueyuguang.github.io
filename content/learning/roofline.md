@@ -45,7 +45,7 @@ $$
 
 ## 一个 A100 的例子
 
-A100（80GB SXM）的官方规格是 $\beta = 2039\ \mathrm{GB/s} \approx 2.0\ \mathrm{TB/s}$（实测约 1.94–2.04），$\pi$：FP32 19.5 TFLOPS、BF16 tensor core 312 TFLOPS（稠密；624 那个数字是 2:4 稀疏）。代入得两个 ridge point：
+A100（80GB SXM）的官方规格是 $\beta = 2039\ \mathrm{GB/s} \approx 2.0\ \mathrm{TB/s}$（datasheet 峰值；ridge point 只关心数量级，取 2.0 TB/s），$\pi$：FP32 19.5 TFLOPS、BF16 tensor core 312 TFLOPS（稠密；624 那个数字是 2:4 稀疏）。代入得两个 ridge point：
 
 $$
 I_{\text{ridge}}^{\text{FP32}} = \frac{19.5\times10^{12}}{2.0\times10^{12}} \approx \mathbf{9.75},\qquad
