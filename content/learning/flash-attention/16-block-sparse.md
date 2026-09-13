@@ -1,4 +1,4 @@
-FA1 论文除了"IO-aware 精确 attention"，还有**一个重要的近似扩展**：把 FA 推广到 **block-sparse attention**。[[learning/flash-attention/02-online-softmax|FA1 算法篇]] 只在开头提了一句，这篇展开。它不在"四代 FlashAttention"的优化线路上，但它是 FA1 论文的正式贡献之一，也是"用稀疏省 IO"这条路线的起点。
+FA1 论文除了"IO-aware 精确 attention"，还有**一个重要的近似扩展**：把 FA 推广到 **block-sparse attention**。[[learning/flash-attention/02-online-softmax|FA1 算法篇]] 只在开头提了一句。它不在"四代 FlashAttention"的优化线路上，但它是 FA1 论文的正式贡献之一，也是"用稀疏省 IO"这条路线的起点。
 
 > **block-sparse FA 是"精确 attention 当稀疏、省 IO 当近似"的折中：注意力矩阵按块稀疏化，只在非零块上跑 FA，IO 复杂度随稀疏度下降。**
 
@@ -12,7 +12,7 @@ $$
 
 其中 $ (S \odot \mathbb{1}_M)_{kl} = S_{kl} $ 若 $ M_{kl}=1 $，否则 $ -\infty $。
 
-关键约束：**掩码必须是"块形式"**。也就是说 $ M $ 只在 $ B_r \times B_c $ 的粒度上给 0/1，不能精细到单个 $ (k,l) $。这样 FA 的分块才和稀疏对齐：一个块要么全算、要么全跳过。
+关键约束：**掩码必须是"块形式"**，即 $ M $ 只在 $ B_r \times B_c $ 的粒度上给 0/1，不能精细到单个 $ (k,l) $。这样 FA 的分块才和稀疏对齐：一个块要么全算、要么全跳过。
 
 ## 算法：和 FA 一样，只跳过零块
 
@@ -36,7 +36,7 @@ $$
 
 对长序列，$ N $ 巨大时这两种都能把 IO 从二次降到近线性。
 
-但要分清 block-sparse 省的是什么：它省的是**计算和 IO**（跳过零块），**不是显存**。FA 和 block-sparse FA 的显存占用都是线性的——两者都不物化 $ S, P $，只存 $ O $ 和 softmax 统计量（FA1 是 $ (m, \ell) $，FA2 起合并成一个 $ L $；论文里两者的 memory footprint 相同）。所以它和 [[learning/flash-attention/13-mla|MLA]] 那种"压缩 KV 省显存"是两条不同的路：block-sparse 省**算**，MLA 省**存**；前者靠稀疏跳过一部分，后者靠低秩把整块变小。
+但要分清 block-sparse 省的是什么：它省的是**计算和 IO**（跳过零块），**不是显存**。FA 和 block-sparse FA 的显存占用都是线性的：两者都不物化 $ S, P $，只存 $ O $ 和 softmax 统计量（FA1 是 $ (m, \ell) $，FA2 起合并成一个 $ L $；论文里两者的 memory footprint 相同）。所以它和 [[learning/flash-attention/13-mla|MLA]] 那种"压缩 KV 省显存"是两条不同的路：block-sparse 省**算**，MLA 省**存**；前者靠稀疏跳过一部分，后者靠低秩把整块变小。
 
 ## 稀疏模式：butterfly
 
@@ -47,7 +47,7 @@ $$
 论文里的关键结果：
 
 - **LRA 基准**：block-sparse FA 相比标准 attention **快 2.8×**，效果和标准 attention **相当**（这是个"近似但几乎无损"的结果）。
-- **长上下文**：序列拉长后模型质量更高。FA1 摘要提到长文档分类有 6.4 分的 lift。这里要把两个数字分清楚：Path-X（seq 16K）的 **61.4%** 是**稠密** FlashAttention 拿到的，Path-256（seq 64K）的 **63.1%** 才是 block-sparse FA；论文 Table 6 里 block-sparse 在 Path-X 上是 56.0，比稠密低，但它是唯一能把序列推到 64K 并保持非随机水平的。
+- **长上下文**：序列拉长后模型质量更高。FA1 摘要提到长文档分类有 6.4 分的 lift。两个数字要分清：Path-X（seq 16K）的 **61.4%** 是**稠密** FlashAttention 拿到的，Path-256（seq 64K）的 **63.1%** 才是 block-sparse FA；论文 Table 6 里 block-sparse 在 Path-X 上是 56.0，比稠密低，但它是唯一能把序列推到 64K 并保持非随机水平的。
 
 ## 仓库实现
 

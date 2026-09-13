@@ -1,6 +1,6 @@
-FA3 是为 Hopper 写的，落到 Blackwell（B200/GB200）就失效：FA3 的根本假设是"tensor core 是瓶颈"，但在 B200 上 tensor core 吞吐翻倍了，**瓶颈换人了**。FA4 不再把 GPU 当成一块均匀的算力，而是先做 roofline 找出真正的瓶颈，再"算法 + kernel"一起改。
+FA3 是为 Hopper 写的，落到 Blackwell（B200/GB200）就失效：它的根本假设是"tensor core 是瓶颈"，但 B200 的 tensor core 吞吐翻倍，**瓶颈换到了别处**。FA4 的做法是：先做 roofline 找出真正的瓶颈，再"算法 + kernel"一起改。
 
-> **FA4 的核心是"非对称硬件缩放"。** B200 的 tensor core 是 H100 的两倍（FP16/BF16 约 2.25 PFLOPS vs 1 PFLOPS），但共享内存带宽、指数单元、整数/浮点 ALU 涨得慢或没涨。结果 attention 的主导成本不再是 MMA，而是**共享内存流量和指数函数**。FA3 那套"把 exp 藏进 tensor core 干活"在这里不够用了，因为 exp 单元根本没涨。
+> **FA4 的核心是"非对称硬件缩放"。** B200 的 tensor core 是 H100 的两倍（FP16/BF16 约 2.25 PFLOPS vs 1 PFLOPS），但共享内存带宽、指数单元、整数/浮点 ALU 涨得慢或没涨。结果 attention 的主导成本从 MMA 转到了**共享内存流量和指数函数**。FA3 那套"把 exp 藏进 tensor core 干活"在这里不够用了，因为 exp 单元根本没涨。
 
 ## roofline 先定性
 
@@ -12,11 +12,11 @@ FA4 对 forward 用三种资源算了个 roofline（tile $ M = N = d = 128 $ / $
 | 共享内存 | 768 | 1536 |
 | 指数单元 | **1024** | **2048** |
 
-**MMA 和指数单元并列瓶颈。** 这不是巧合：tensor core 8192 FLOP/cycle，exp 只有 16 op/cycle，差 512 倍；而一个 attention 块里 MMA FLOPs 和 exp 次数也差不多那个量级。所以"多出来的"就卡在 exp 上。
+**MMA 和指数单元并列瓶颈。** tensor core 8192 FLOP/cycle，exp 只有 16 op/cycle，差 512 倍；而每个 $ S $ 元素对应 $ 4d = 512 $ 次 MMA FLOP 和 1 次 exp（$ d = 128 $），刚好把 512 倍的吞吐差抵平，两者的 cycle 数相等。
 
-backward 更夸张：$ M=N=d=128 $ 时共享内存 3328 cycle，比 MMA 2560 还多 30%。**反向的瓶颈是共享内存带宽。**
+backward 的瓶颈更明确：$ M=N=d=128 $ 时共享内存 3328 cycle，比 MMA 的 2560 多 30%。
 
-结论：FA4 的优化方向不是多塞 MMA，而是 (1) 把 MMA 和 softmax 更好地重叠，(2) 提高 exp 吞吐，(3) 减少共享内存流量。
+结论：FA4 的优化都在 MMA 之外：(1) 把 MMA 和 softmax 更好地重叠，(2) 提高 exp 吞吐，(3) 减少共享内存流量。
 
 ## 技术 1：为 Blackwell 重排的流水线
 
@@ -31,12 +31,12 @@ FA3 的 pingpong 是"两个 warpgroup 轮流做 softmax 和 GEMM"。FA4 继承�
 | warp 组 | warp 号 | 角色 |
 | --- | --- | --- |
 | softmax | 0–7 | 两个 warpgroup，各 128 线程，做整行 softmax |
-| correction | 8–11 | 只在必要时做 $ O $ 重缩放 |
+| correction | 8–11 | 做 $ O $ 重缩放，并负责 epilogue |
 | mma / TMA | 12–15 | 驱动 tensor core 和 TMA 加载 |
 
 TMEM 分配（`tmem_s_offset`、`tmem_o_offset`）：两个 $ S $ tile 在列 0、128，两个 $ O $ tile 在列 256、384。因为 Blackwell tile 大，一个 CTA 就占两个输出 tile（高/低两个 Q tile），一半 TMEM 留给 $ S, P $。**选"两个 $ S $ tile 和 $ P $ 重叠"这一种分配**，这样流水线一启动就能立刻算两个 $ S $，还能留 TMEM 给 correction warpgroup 传 rescale 统计量。
 
-代价是寄存器：一个线程要hold 整行 128 个元素（BF16 下输入 128 寄存器、输出可能 64），很容易 spill。FA4 的招是**把 $ P $ 分成四份存**：前四分之三存一次、立刻触发对应 MMA，最后四分之一单独存，降低峰值寄存器压力。
+代价是寄存器：一个线程要 hold 整行 128 个元素（BF16 下输入 128 寄存器、输出可能 64），很容易 spill。FA4 的招是**把 $ P $ 分成四份存**：前四分之三存一次、立刻触发对应 MMA，最后四分之一单独存，降低峰值寄存器压力。
 
 ## 技术 2：用多项式模拟指数
 
@@ -61,11 +61,11 @@ $$
 
 3 阶多项式在 FP32 下误差是硬件的约 600 倍，**但 round 到 BF16 后和硬件几乎无差别**（BF16 本身的量化误差 $ 3.9\times10^{-3} $ 主导）。所以 FA4 默认用 3 阶，代价只要每评估一次多几条 FMA。
 
-**关键不是全换，是"部分模拟"。** 多项式模拟要多寄存器、多寄存器带宽、更长延迟。全换会 spill，得不偿失。FA4 只模拟每行 10–25% 的元素，其余用硬件 `MUFU.EX2`，比例按 tile 配置经验调。代码里用 `ex2_emu_freq` 控制：越大模拟越多；`sm_103`（B300）有原生快 exp2，直接 `freq=0`。
+**只模拟一部分。** 多项式模拟要多寄存器、多寄存器带宽、更长延迟，全换会 spill，得不偿失。FA4 只模拟每行 10–25% 的元素，其余用硬件 `MUFU.EX2`，比例按 tile 配置经验调。代码里用 `ex2_emu_freq` 控制模拟的周期：每 `freq` 个元素里模拟 `ex2_emu_res` 个（默认 4），所以 `freq` 越小模拟得越多；`sm_103`（B300）有原生快 exp2，直接 `freq=0`。
 
 ## 技术 3：跳过不必要的 softmax 重缩放
 
-FA2 起，FA 用"未归一化的 $ \widetilde{O} $ + 结尾除 $ \ell $"省掉每步除法。但 online softmax 里每合并一个块还是有理器运算：$ e^{m_{j-1} - m_j} \widetilde{O}_{j-1} $。FA4 观察到一个事实：
+FA2 起，FA 用"未归一化的 $ \widetilde{O} $ + 结尾除 $ \ell $"省掉每步除法。但 online softmax 每合并一个块还是要做一次缩放：$ e^{m_{j-1} - m_j} \widetilde{O}_{j-1} $。FA4 观察到一个事实：
 
 **只有当 $ m_j > m_{j-1} $ 出现过大的新值时才需要重缩放。** 而且可以容忍一些"松弛"：只有当 $ m_j - m_{j-1} > \tau $（$ \tau $ 典型取 $ \log_2 256 = 8.0 $，对应缩放因子 256）才重缩，否则跳过并继续用 $ m_{j-1} $：
 
@@ -76,7 +76,7 @@ O_{j-1} + e^{S_j - m_{j-1}} V_j & \text{否则}
 \end{cases}
 $$
 
-**为什么正确：** 结尾反正要用最终的 $ m_{\text{final}} $ 和 $ \ell_{\text{final}} $ 归一化，中间跳过的小偏差会被最后一步修正。**工程实现**：为避免 warp 发散，只要 warp 里任一线程需要重缩，整个 warp 就重缩。
+**正确性**：结尾反正要用最终的 $ m_{\text{final}} $ 和 $ \ell_{\text{final}} $ 归一化，中间跳过的小偏差会被最后一步修正。**实现上**：为避免 warp 发散，只要 warp 里任一线程需要重缩，整个 warp 就重缩。
 
 ## 技术 4：反向用 TMEM + 2-CTA MMA 压共享内存
 
@@ -110,11 +110,14 @@ FA4 的一个亮点是**没有任何 CUDA C++**：整个 kernel 用 **CuTe-DSL**
 | FA4（CuTe-DSL） | 2.5 s | 1.4 s |
 | 加速 | 22× | 32× |
 
-代码在仓库 `flash_attn/cute/`：`flash_fwd_sm100.py`（Blackwell forward）、`flash_bwd_sm100.py`（backward）、`flash_fwd_sm120.py`（sm120）等。这套 CuTe-DSL 实现现在已经打包成可 `pip install flash-attn-4` 的独立发行版（`flash-attn-4==4.0.0b29`），接口照常从 `flash_attn.cute` 导入 `flash_attn_func` / `flash_attn_varlen_func`；CUDA 13 时用 `pip install "flash-attn-4[cu13]"` 拿到最优性能。注意这个包覆盖的不止 Blackwell：`interface.py` 按 arch 分派 sm80/sm90/sm100/sm120 四套实现，其中 sm80 和 sm120 走的是 SM80 时代的 `mma.sync` 代码（`flash_fwd_sm120.py` 只是子类化 `FlashAttentionForwardSm80`、把共享内存容量换成 SM120 的 99 KB），并没有用上 TMEM / 2-CTA 那一套。论文的 Blackwell 提速对应的是 sm100 那条路径（B200/GB200；B300 的 sm103 也在同一个模块里分支），不是"这个包只支持 Blackwell"。
+代码在仓库 `flash_attn/cute/`：`flash_fwd_sm100.py`（Blackwell forward）、`flash_bwd_sm100.py`（backward）、`flash_fwd_sm120.py`（sm120）等。这套 CuTe-DSL 实现现在已经打包成可 `pip install flash-attn-4` 的独立发行版（beta 阶段，PyPI 上到 `4.0.0b30`），接口照常从 `flash_attn.cute` 导入 `flash_attn_func` / `flash_attn_varlen_func`；CUDA 13 时用 `pip install "flash-attn-4[cu13]"` 拿到最优性能。这个包覆盖的不止 Blackwell：`interface.py` 按 arch 分派 sm80/sm90/sm100/sm120 四套实现，其中 sm80 和 sm120 走的是 SM80 时代的 `mma.sync` 代码（`flash_fwd_sm120.py` 只是子类化 `FlashAttentionForwardSm80`、把共享内存容量换成 SM120 的 99 KB），并没有用上 TMEM / 2-CTA 那一套。论文的 Blackwell 提速对应的是 sm100 那条路径（B200/GB200；B300 的 sm103 也在同一个模块里分支），不是"这个包只支持 Blackwell"。
+
 ```python
 from flash_attn.cute import flash_attn_func, flash_attn_varlen_func
 out = flash_attn_func(q, k, v, causal=True)
 ```
+
+这段代码要在装好 `flash-attn-4` 的 GPU 机器上跑，站点里的浏览器 Python runner 只有 NumPy，跑不了。
 
 ## 结果
 
@@ -129,7 +132,7 @@ B200（FP16/BF16）：
 
 FA4 还测了 DeepSeek V3 用的 `head dim (192, 128)` 配置，也是长序列占优。
 
-顺带一句：这篇论文后来入选了 **MLSys 2026 的 oral**（2026-05-22，oral 页面：<https://mlsys.org/virtual/2026/oral/3759>）。上面这些数字（1613 TFLOPs/s、1.3× vs cuDNN、2.7× vs Triton、20–30× 编译提速）在 oral 页面和 arXiv 正文里一致。
+这篇论文入选了 **MLSys 2026 的 oral**（2026-05-22，页面：<https://mlsys.org/virtual/2026/oral/3759>）。上面这些数字（1613 TFLOPs/s、1.3× vs cuDNN、2.7× vs Triton、20–30× 编译提速）在 oral 页面和 arXiv 正文里一致。
 
 ## Reference
 
@@ -139,4 +142,4 @@ FA4 还测了 DeepSeek V3 用的 `head dim (192, 128)` 配置，也是长序列�
 - 官方代码（flash_attn/cute，CuTe-DSL 实现）：<https://github.com/Dao-AILab/flash-attention/tree/main/flash_attn/cute>
 - CuTe-DSL：<https://github.com/NVIDIA/cutlass/tree/main/python/CuTeDSL>
 - Blackwell tensor memory（TMEM）架构与 2-CTA MMA：<https://docs.nvidia.com/cuda/parallel-thread-execution/>
-- Cody-Waite 范围缩减 / 多项式逼近（Handbook of Floating-Point Arithmetic）：<https://hal.science/hal-00292005>
+- Cody-Waite 范围缩减 / 多项式逼近（Muller 等《Handbook of Floating-Point Arithmetic》Birkhäuser 2018，论文参考文献 [16]）：<https://doi.org/10.1007/978-3-319-76526-6>

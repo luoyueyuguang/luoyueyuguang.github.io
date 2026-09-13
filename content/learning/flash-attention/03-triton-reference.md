@@ -1,6 +1,6 @@
-[[learning/flash-attention/04-forward-kernel|FA1/FA2 的 CUDA 内核]] 用了大量 cuTe/CUTLASS 抽象（`partition_fragment_A`、`SmemLayoutQ`、cp.async），对没读过 CUTLASS 的人几乎是天书。仓库里另有一版 **Triton 实现** `flash_attn/flash_attn_triton_og.py`，只用 `tl.dot` / `tl.max` / `tl.exp` 这几个原语，把同一个算法写得清清楚楚。这一篇逐行读它，你就能真的看懂 [[learning/flash-attention/02-online-softmax|online softmax]] 怎么落到代码。
+[[learning/flash-attention/04-forward-kernel|FA1/FA2 的 CUDA 内核]] 用了大量 cuTe/CUTLASS 抽象（`partition_fragment_A`、`SmemLayoutQ`、cp.async），对没读过 CUTLASS 的人几乎是天书。仓库里另有一版 **Triton 实现** `flash_attn/flash_attn_triton_og.py`，只用 `tl.dot` / `tl.max` / `tl.exp` 这几个原语，把同一个算法写得清清楚楚。逐行读下来，就能看懂 [[learning/flash-attention/02-online-softmax|online softmax]] 怎么落到代码。
 
-> **Triton 的价值不是快，是"可读"。** 它把"一个程序块负责一段 query 行、内层循环扫 key/value 块"这个结构直接写了出来。FA2 论文把两件事明确归功于 Tillet 的 Triton 实现：**外层扫 Q 行块、内层扫 K/V 列块**这个循环顺序（FA1 论文 Algorithm 1 里是反过来的：外层 K/V、内层 Q），以及**沿序列维并行**（见 [[learning/flash-attention/06-flashattention2|FA2]] §3.2）；"把 Q 切给各个 warp、K/V 对所有 warp 可见"则是 FA2 自己加的（同篇 §3.3）。
+> **Triton 实现的价值在可读性。** 它把"一个程序块负责一段 query 行、内层循环扫 key/value 块"这个结构直接写了出来。FA2 论文把两件事明确归功于 Tillet 的 Triton 实现：**外层扫 Q 行块、内层扫 K/V 列块**这个循环顺序（FA1 论文 Algorithm 1 里是反过来的：外层 K/V、内层 Q），以及**沿序列维并行**（见 [[learning/flash-attention/06-flashattention2|FA2]] §3.2）；"把 Q 切给各个 warp、K/V 对所有 warp 可见"则是 FA2 自己加的（同篇 §3.3）。
 
 ## 网格与偏移
 
@@ -27,7 +27,7 @@ off_v = off_hz * stride_qh + offs_n[:, None] * stride_qm + offs_d[None, :] * str
 
 `offs_m[:, None] * stride_qm` 是"第几行 × 行步长"，`offs_d[None, :] * stride_qk` 是"第几列 × 列步长"，`[:, None]` / `[None, :]` 把一维索引广播成二维。三个 tile 的全局地址就是这样算出来的。
 
-注意 `off_v` 用的是 Q 的 `stride_qm` / `stride_qk`（不是 `stride_vk` / `stride_vn`）：上游原版就是这么写的，因为测试里 Q/K/V 都是连续张量、对应步长恰好相同；换成非连续布局就会算错地址。同一层的连续假设还有一处：`off_q` 用 `off_hz * stride_qh` 一次算完 (batch, head) 的偏移，**`stride_qz` 传进来了却从头到尾没用过**——它只在 `stride_qz == H * stride_qh`（即 q 连续）时才等价于 `z*stride_qz + h*stride_qh`。`_bwd_kernel` 里 V 的 tile 用的也是 `stride_qm` / `stride_qk`，K/V 的 base 偏移也统一是 `off_z * stride_qz + off_h * stride_qh`（Q 的步长）。
+注意 `off_v` 用的是 Q 的 `stride_qm` / `stride_qk`（不是 `stride_vk` / `stride_vn`）：上游原版就是这么写的，因为测试里 Q/K/V 都是连续张量、对应步长恰好相同；换成非连续布局就会算错地址。同一层的连续假设还有一处：`off_q` 用 `off_hz * stride_qh` 一次算完 (batch, head) 的偏移，**`stride_qz` 传进来了却从头到尾没用过**，它只在 `stride_qz == H * stride_qh`（即 q 连续）时才等价于 `z*stride_qz + h*stride_qh`。`_bwd_kernel` 里 V 的 tile 用的也是 `stride_qm` / `stride_qk`，K/V 的 base 偏移也统一是 `off_z * stride_qz + off_h * stride_qh`（Q 的步长）。
 
 ## 运行状态
 
@@ -132,7 +132,7 @@ tl.store(lse_ptrs, lse_i)                                 # 只存 L
 
 ## 一句话
 
-`_fwd_kernel` 总共 100 行：其中 33 行是参数签名（Q/K/V/TMP/L/M/Out 加一大堆 stride），签名之后的主体 67 行、去掉注释剩 51 行代码；核心的主循环 33 行（代码 25 行）：**一个程序块一段 query 行，`tl.dot` 算 $ Q K^\top $，`tl.max`/`tl.exp`/`tl.sum` 做 online softmax，`tl.dot` 算 $ P V $，$ m, \ell $ 两个统计量从头攒到尾。** 它比 cuTe 版少了几层抽象，但算法分毫不差。想读懂任何一个版本的 flash attention，先读懂这 30 多行的主循环。
+`_fwd_kernel` 总共 100 行：其中 32 行是参数签名（Q/K/V/TMP/L/M/Out 加一大堆 stride），签名之后的主体 67 行、去掉注释剩 51 行代码；核心的主循环 33 行（代码 25 行）：**一个程序块一段 query 行，`tl.dot` 算 $ Q K^\top $，`tl.max`/`tl.exp`/`tl.sum` 做 online softmax，`tl.dot` 算 $ P V $，$ m, \ell $ 两个统计量从头攒到尾。** 它比 cuTe 版少了几层抽象，但算法分毫不差。想读懂任何一个版本的 FlashAttention，先读懂这 30 多行的主循环。
 
 ## Reference
 

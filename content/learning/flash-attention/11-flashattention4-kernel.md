@@ -1,6 +1,6 @@
-[[learning/flash-attention/10-flashattention4|FA4 算法]] 讲了思路，这一篇真的逐行读 FA4 的前向内核。它在仓库 `flash_attn/cute/flash_fwd_sm100.py`，是 **CuTe-DSL（Python 嵌入）**，不是 C++。`@cute.jit` 装饰的函数会被下沉成 PTX，再经 `ptxas` 出 SASS。
+[[learning/flash-attention/10-flashattention4|FA4 算法]] 讲了思路，这篇逐行读它的前向内核。内核在仓库 `flash_attn/cute/flash_fwd_sm100.py`，用 **CuTe-DSL（Python 嵌入）**写成，没有 C++。`@cute.jit` 装饰的函数会被下沉成 PTX，再经 `ptxas` 出 SASS。
 
-上一篇说过 FA4 有四个 warp 组：`softmax×2`、`correction`、`mma/TMA`。这一篇从配置往下读，直到 `ex2_emulation_2` 那个多项式位技巧。
+上一篇说过 FA4 有四个 warp 组：`softmax×2`、`correction`、`mma/TMA`。从配置往下读，直到 `ex2_emulation_2` 那个多项式位技巧。文中的代码块是从 `flash_attn/cute/` 几个文件里摘出来的片段（有的做了删减），要装好 CuTe-DSL 和 Blackwell 工具链才能编译，站点里的浏览器 Python runner 跑不了。
 
 ## 配置：warp 组 + TMEM 布局
 
@@ -10,7 +10,7 @@
 {"ex2_emu_freq": 10, "ex2_emu_start_frg": 1, "num_regs_softmax": 184, "num_regs_correction": 80}
 ```
 
-- `ex2_emu_freq=10`：exp2 的模拟频率（`0` = 全走硬件），值越大模拟的元素越多；具体比例见下文 `apply_exp2_convert`。
+- `ex2_emu_freq=10`：exp2 模拟的周期长度（`0` = 全走硬件），每 `freq` 个元素里模拟 `ex2_emu_res` 个（默认 4），值越小模拟得越多；具体算法见下文 `apply_exp2_convert`。
 - `num_regs_softmax=184`、`num_regs_correction=80`：每个 softmax warpgroup / correction warpgroup 的寄存器数。
 - `num_regs_other` 反推：`512 - num_regs_softmax*2 - num_regs_correction`，即给 mma/TMA warp 的（hd256 的配置是例外，那里固定成 32）。
 
@@ -68,7 +68,7 @@ while work_tile.is_valid_tile:
 
 ## softmax_step：一步 softmax
 
-这是 FA4 的"行"级核心，和 [[learning/flash-attention/04-forward-kernel|FA1/FA2 的 softmax_rescale_o]] 对应，但换成了 cell 循环加 TMEM。
+这是 FA4 的"行"级核心，和 [[learning/flash-attention/04-forward-kernel|FA1/FA2 的 softmax_rescale_o]] 对应，但换成了从 TMEM 整行 load 进寄存器、再分段写回的流程。
 
 **① 等 S 到位。**
 
@@ -76,7 +76,7 @@ while work_tile.is_valid_tile:
 pipeline_s_p_o.consumer_wait_w_index_phase(stage, mma_si_consumer_phase)
 ```
 
-consumer 等 MMA warpgroup 把这一 stage 的 $ S $（128×128，fp32 累加器）写进 TMEM。这是 2 级流水线的依赖：softmax 要等 GEMM0 完成。
+consumer 等 MMA warpgroup 把这一 stage 的 $ S $（128×128，fp32 累加器）写进 TMEM，softmax 才能开始。
 
 **② 从 TMEM 把 S 装进寄存器，同时算行最大值。**
 
@@ -92,8 +92,8 @@ else:
     cute.copy(thr_tmem_load, tStS_t2r, tSrS_t2r)
 ```
 
-- `use_ldred_rowmax`：用 `tcgen05.copy.LdRed32x32bOp`（SM103 的硬件归约版；`__init__` 里的开关是 `is_sm103 and score_mod is None and mask_mod is None and head_dim_padded != 32`），`ld.red` 在把 $ S $ 装回寄存器的同时，额外返一个每 x32 tile 的 max 在 `tSrS_red`。省掉一行软件的 fmax 树。
-- 前半段 `cute.copy(thr_tmem_load, tStS_t2r, (tSrS_t2r, tSrS_red))` 是"一箭双雕"：S 数据 + 硬件 max 一起拿。
+- `use_ldred_rowmax`：用 `tcgen05.copy.LdRed32x32bOp`（SM103 的硬件归约版；`__init__` 里的开关是 `is_sm103 and score_mod is None and mask_mod is None and head_dim_padded != 32`），`ld.red` 在把 $ S $ 装回寄存器的同时，额外返一个每 x32 tile 的 max 在 `tSrS_red`，省掉一遍软件 fmax 归约。
+- 这一次 `cute.copy(thr_tmem_load, tStS_t2r, (tSrS_t2r, tSrS_red))` 同时取回 $ S $ 数据和每 x32 tile 的 max。
 
 **③ mask + 更新行最大。**
 
@@ -106,7 +106,7 @@ else:
     row_max, acc_scale = softmax.update_row_max(tSrS_t2r.load(), is_first)
 ```
 
-关键分支：**mask 之后，硬件的 max 就失效了**（mask 把某些值改成 $ -\infty $），所以只要 `mask_fn is None`（本块不需要 mask）才敢用 `update_row_max_precomputed(hw_row_max)`；否则回退到软件的 `update_row_max`（重新 fmax 一遍）。
+关键分支：**mask 之后，硬件的 max 就失效了**（mask 把某些值改成 $ -\infty $），所以只有在 `mask_fn is None`（本块没有 mask）时才敢用 `update_row_max_precomputed(hw_row_max)`；否则回退到软件的 `update_row_max`（重新 fmax 一遍）。
 
 `update_row_max`（softmax.py）里的条件缩放就藏在 `is_first` 分支：
 
@@ -120,7 +120,7 @@ if cutlass.const_expr(self.rescale_threshold > 0.0):
         acc_scale = 1.0                                        # 不重缩放
 ```
 
-`rescale_threshold=8.0`（FP16/BF16）时，`m_new - m_old`（log2 单位）小于约 8 就**不重缩**，`acc_scale=1.0`。这就是 [[learning/flash-attention/10-flashattention4|条件缩放]]。
+`rescale_threshold=8.0`（FP16/BF16）时，`m_new - m_old`（log2 单位）不超过 8 就**不重缩**，`acc_scale=1.0`。这就是 [[learning/flash-attention/10-flashattention4|条件缩放]]。
 
 **④ 把 acc_scale 交给 correction warpgroup。**
 
@@ -130,7 +130,7 @@ if const_expr(not is_first):
 sm_stats_barrier.arrive_w_index(index=stage * 4 + warp_idx)      # 通知 correction：row_max/scale 就绪
 ```
 
-`acc_scale` 不在这里消费，而是通过 `sScale` 缓冲 + `sm_stats_barrier` 交给 correction warpgroup，让它把 $ O $ 的旧块重缩（$ e^{m_{old}-m_{new}} O_{old} $），从而**退出 softmax 的关键路径**。
+`acc_scale` 通过 `sScale` 缓冲 + `sm_stats_barrier` 交给 correction warpgroup，由它把 $ O $ 的旧块重缩（$ e^{m_{old}-m_{new}} O_{old} $），**从而退出 softmax 的关键路径**。
 
 **⑤ 减 max、exp2、转精度。**
 
@@ -194,13 +194,13 @@ for j in cute.range_constexpr(frg_cnt):
         acc_S_row_converted_frg[None, j].store(acc_S_row_frg[None, j].load().to(...))
 ```
 
-- 内层 `k` 每次处理 2 个元素（`fma_packed_f32x2` 的粒度），`k % freq < freq - res` 为真走硬件、否则走模拟，所以单看这个模式，模拟比例是 `res / freq`：`freq=16`、`res=4` 约 25%；`freq=32` 约 12.5%；`freq=10`（hd128 默认配置）约 40%。
-- 但两个边界约束会把实际比例压回去：`j >= frg_cnt - 1` 强制硬件、`j < ex2_emu_start_frg` 开头跳过。hd128 每行 128 个元素、`frg_tile=32`，所以 `frg_cnt=4`，`(True, False, 128, False)` 的 `ex2_emu_start_frg=1` 只有 `j=1,2` 两个 fragment 会走模拟模式：$2 \times 32 \times 40\% / 128 = 18.75\%$。论文说的"每行 10–25%"就是这么按 tile 配置调出来的。
+- 内层 `k` 每次处理 2 个元素（`fma_packed_f32x2` 的粒度），`k % freq < freq - res` 为真走硬件、否则走模拟，所以单看这个模式，模拟比例是 `res / freq`：`freq=16`、`res=4` 约 25%；`freq=32` 约 12.5%；`freq=10`（上文 hd128 那个配置）约 40%。
+- 但两个边界约束会把实际比例压回去：`j >= frg_cnt - 1` 强制硬件、`j < ex2_emu_start_frg` 开头跳过。hd128 每行 128 个元素、`frg_tile=32`，所以 `frg_cnt=4`，`(True, False, 128, False)` 的 `ex2_emu_start_frg=1` 只有 `j=1,2` 两个 fragment 会走模拟模式：$2 \times 32 \times 40\% / 128 = 20\%$。论文说的"每行 10–25%"就是这么按 tile 配置调出来的。
 - `acc_S_row_converted_frg.store(... .to(element_type))`：结果从 fp32 转成 fp16/bf16 再写回。
 
 ## ex2_emulation_2：多项式位技巧
 
-`utils.ex2_emulation_2`（一个 DSL operator）是核心，$ 2^x = 2^{\lfloor x \rfloor}\cdot 2^{x - \lfloor x \rfloor} $：
+`utils.ex2_emulation_2`（`@dsl_user_op` 装饰的算子）是核心，$ 2^x = 2^{\lfloor x \rfloor}\cdot 2^{x - \lfloor x \rfloor} $：
 
 ```python
 fp32_round_int = float(2**23 + 2**22)          # 0x4B400000
@@ -226,11 +226,11 @@ add.s32 out_i, x_rounded_e, frac_ex_i;  // 加上 2^{frac} 的尾数位
 
 ## correction_loop / correction_rescale
 
-`correction_loop`（2556 行起）是 correction warpgroup：它从 `sScale` 读回 `acc_scale`，对旧 $ O $ 做重缩，并负责 epilogue。这就是"重缩放退出关键路径"的实现：softmax warpgroup 只管算 $ P $（和 $ m, \ell $ 更新），$ O $ 的合并让 correction warpgroup 在别的 warp 做 GEMM 时干。
+`correction_loop`（2556 行起）是 correction warpgroup：它从 `sScale` 读回 `acc_scale`，对旧 $ O $ 做重缩，并负责 epilogue。这就是"重缩放退出关键路径"的实现：softmax warpgroup 只管算 $ P $（和 $ m, \ell $ 更新），$ O $ 的合并交给 correction warpgroup，和别的 warp 的 GEMM 并行。
 
 ## 一句话
 
-FA4 前向的"逐行"读下来，本质还是那套online softmax，但**载体全换了**：累加器在 TMEM（不是寄存器）、行 max 用硬件 `ld.red` 省软件归约、exp2 按 `ex2_emu_freq` 部分走多项式、$ P $ 分块写回边写边喂 MMA、$ O $ 重缩丢给 correction warpgroup。每一条都是为了躲开 Blackwell 上"没涨的 exp 单元"和"爬升的共享内存流量"。
+FA4 前向的逐行读下来，算法还是那套 online softmax，载体全换了：累加器在 TMEM（不占寄存器）、行 max 用硬件 `ld.red` 免掉软件归约、exp2 按 `ex2_emu_freq` 部分走多项式、$ P $ 分块写回边写边喂 MMA、$ O $ 重缩丢给 correction warpgroup。改动都指向 Blackwell 上没涨的 exp 单元和吃紧的寄存器。
 
 ## Reference
 

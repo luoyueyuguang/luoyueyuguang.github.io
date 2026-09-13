@@ -1,4 +1,4 @@
-前面讲的全是"一块怎么算"（kernel 内部）。这一篇往上一格：**GPU 上到底启动多少个 CTA、每个 CTA 分到哪一块**。也就是 `flash_fwd_launch_template.h`（决定 grid/block 形状）和 `hopper/tile_scheduler.hpp`（把 CTA 索引映射到 work）加 `hopper/heuristics.h`（决定 split 数）。这三层决定的是**占用率和负载均衡**，正是 [[learning/flash-attention/06-flashattention2|FA2]] 说的"work partitioning"的启动端。
+前面讲的全是"一块怎么算"（kernel 内部）。再往上一层是**GPU 上到底启动多少个 CTA、每个 CTA 分到哪一块**，涉及三个文件：`flash_fwd_launch_template.h`（决定 grid/block 形状）、`hopper/tile_scheduler.hpp`（把 CTA 索引映射到 work）、`hopper/heuristics.h`（决定 split 数）。这三层决定的是**占用率和负载均衡**，正是 [[learning/flash-attention/06-flashattention2|FA2]] 说的"work partitioning"的启动端。
 
 ## grid 形状：三维 (M, head, batch)
 
@@ -29,13 +29,13 @@ return {uint32_t(params.num_blocks),                    // M 块数
         uint32_t(params.num_batch)};                     // batch
 ```
 
-grid.x = M 块数，grid.y = head × split（split-KV 时把 split 折进 y），grid.z = batch。**split-KV 不新增 grid 维度，而是把 split 折进 head 那一维**——这样每个 CTA 除了"哪块 M、哪个 head、哪个 batch"，还会多一个"哪一段 KV（split_idx）"。
+grid.x = M 块数，grid.y = head × split（split-KV 时把 split 折进 y），grid.z = batch。**split-KV 把 split 折进 head 那一维，不新增 grid 维度**：这样每个 CTA 除了"哪块 M、哪个 head、哪个 batch"，还会多一个"哪一段 KV（split_idx）"。
 
-这是 non-persistent 的 `SingleTileScheduler` 的 grid。persistent 调度器（Hopper 上非 split、非 varlen 的常见路径，即 `StaticPersistentTileScheduler`/`DynamicPersistentTileScheduler`）的 `get_grid_shape` 返回一维 `{num_sm}`：只启动 SM 数那么多 CTA，再用一个全局 tile 计数器从 work 队列里抢下一个 tile，所以 grid 里没有"M 块"那一维。
+这是 non-persistent 的 `SingleTileScheduler` 的 grid。persistent 调度器（Hopper 上非 split、非 varlen 的常见路径，即 `StaticPersistentTileScheduler`/`DynamicPersistentTileScheduler`）的 `get_grid_shape` 返回一维 `{num_sm}`：只启动 SM 数那么多 CTA，再循环取下一个 tile（静态版按 `gridDim.x` 步长前进，动态版用全局计数器 `atomicAdd(params.tile_count_semaphore, 1)` 抢），所以 grid 里没有"M 块"那一维。
 
 ## Tile scheduler：CTA 索引 → work
 
-`scheduler` 把一维的 `block_idx`（grid 展开后的 CTA 编号）映射到 `(m_block, head, batch, split)`。最常用的两个：
+`scheduler` 把 CTA 编号映射到 `(m_block, head, batch, split)`。最常用的两个：
 
 **SingleTileScheduler**（每 CTA 只做一个 tile，non-persistent）：
 
@@ -52,7 +52,7 @@ if constexpr (Split) {
 }
 ```
 
-注意 `WorkTileInfo` 里 `bidh` 对应 grid.y、`bidb` 对应 grid.z，**只有 split 需要额外计算**——因为 split 被折进了 grid.y，所以这里用 `nsplits_divmod` 把 grid.y 再拆成 `(bidh, split_idx)`。
+`WorkTileInfo` 里 `bidh` 对应 grid.y、`bidb` 对应 grid.z，**只有 split 需要额外计算**，因为 split 被折进了 grid.y，这里用 `nsplits_divmod` 把 grid.y 再拆成 `(bidh, split_idx)`。
 
 **StaticPersistentTileScheduler**（persistent，一块 CTA 抢多个 tile）：
 
@@ -75,7 +75,7 @@ quotient  = __umulhi(dividend, multiplier) >> shift_right;   // 64 位乘法取�
 remainder = dividend - quotient * divisor;
 ```
 
-因为除数（head 数、batch 数、split 数、swizzle 大小）在 launch 时就知道且固定，这套预计算摊到所有 CTA 上是免费的——代价转移到了 host 侧算 `multiplier`。**这就是"block scheduling"**：决定谁会做哪一块，且不因此拖慢每个 CTA 的启动。
+因为除数（head 数、batch 数、split 数、swizzle 大小）在 launch 时就知道且固定，这套预计算摊到所有 CTA 上是免费的，代价转移到了 host 侧算 `multiplier`。**它决定的是谁会做哪一块**，且不因此拖慢每个 CTA 的启动。
 
 ## split-KV 启发式
 
@@ -106,9 +106,9 @@ for (num_splits = 1; ...; num_splits++) {
 }
 ```
 
-关键指标是**波次效率** `n_waves / ceil(n_waves)`：`n_waves = total_mblocks × num_splits / num_SMs` 是需要的波数，`ceil` 是实际要跑的整数波数，比值就是最后一波的填充率——如果总 tile 数是 SM 数的整数倍，最后一波满载（eff = 1）；否则最后一波空转（`48×2/108 = 0.89`，所以 eff = 0.89）。代码注释里的例子正是 `batch × n_heads = 48`、108 个 SM、每个 (batch,head) 只有一个 M 块：2 split 效率 0.89，3 split 效率 `1.33/2 = 0.67`，取 2。注意这里 2 split 的 eff 0.89 已经不完美（一波只用了 89% 的 SM），但它是所有 split 数里最好的，所以仍被选中——**"波次效率"追求的是最后一波别太空，不是每波都满**。
+关键指标是**波次效率** `n_waves / ceil(n_waves)`：`n_waves = total_mblocks × num_splits / num_SMs` 是需要的波数，`ceil` 是实际要跑的整数波数，比值就是最后一波的填充率。总 tile 数是 SM 数的整数倍时最后一波满载（eff = 1），否则最后一波空转（`48×2/108 = 0.89`，所以 eff = 0.89）。代码注释里的例子正是 `batch × n_heads = 48`、108 个 SM、每个 (batch,head) 只有一个 M 块：2 split 效率 0.89，3 split 效率 `1.33/2 = 0.67`，取 2。这里 2 split 的 eff 0.89 并不完美（一波只用了 89% 的 SM），但已经在最高一档，所以仍被选中：**"波次效率"追求的是最后一波别太空。**
 
-`total_mblocks` 是"要调度的 M 块总数"，真正算的时候是 `batch × n_heads_kv × num_m_blocks`（kv head 数，不是 q head 数——因为 GQA 下 KV 是共享的），见 `flash_api.cpp`：
+`total_mblocks` 是"要调度的 M 块总数"，真正算的时候是 `batch × n_heads_kv × num_m_blocks`（kv head 数，不是 q head 数；GQA 下 KV 是共享的），见 `hopper/flash_api.cpp`：
 
 ```cpp
 int total_mblocks = (params.num_splits_dynamic_ptr ? 1 : params.b) * params.h_k * num_m_blocks;
@@ -118,9 +118,9 @@ return num_splits_heuristic(total_mblocks, params.num_sm, num_n_blocks, num_m_bl
 
 `max_splits` 传的硬上限是 128。
 
-**但是**：如果 M 块已经能填满 SM（`total_mblocks >= 0.8*num_SMs`），就不为波次效率而 split——除非单个 KV 头大到装不进 L2（那样非得拆 KV 不可，否则 cache 疯狂 miss）。这就是"占用率优先、cache 兜底"的策略。
+**但是**：如果 M 块已经能填满 SM（`total_mblocks >= 0.8*num_SMs`），就不为波次效率而 split，除非单个 KV 头大到装不进 L2（那样非得拆 KV 不可，否则每扫一遍 KV 都要从 HBM 重读）。这套判据就是"占用率优先、cache 兜底"。
 
-**为什么"wave 效率"这么敏感**：Hopper 上一个 CTA 几乎吃光 SMEM。H100 每个 SM 约 228KB，FA3 留 ~3KB 给 LSE / dPsum / mbarrier 后，张量缓冲还能用约 **224KB**，一个 CTA 就是这样一个大 tile。于是 `num_SMs` 既是可并发 CTA 的上限，又正好是"最后一波是否满载"的分母——`total_mblocks`（乘以 split 数）越接近 SM 数的整数倍，最后的零头越小，空转越少。这也是为什么 `total_mblocks >= 0.8*num_SMs` 时干脆不再为波次而 split：SM 已经被 tile 占满，再切只在给 partial 波次添乱。
+**波次效率之所以敏感，是因为 Hopper 上一个 CTA 几乎吃光 SMEM**。H100 每个 SM 约 228KB，FA3 留 ~3KB 给 LSE / dPsum / mbarrier 后，张量缓冲还能用约 **224KB**，一个 CTA 就是这样一个大 tile。于是 `num_SMs` 既是可并发 CTA 的上限，又正好是"最后一波是否满载"的分母：`total_mblocks`（乘以 split 数）越接近 SM 数的整数倍，最后的零头越小，空转越少。这也是为什么 `total_mblocks >= 0.8*num_SMs` 时干脆不再为波次而 split：SM 已经被 tile 占满，再切只在给 partial 波次添乱。
 
 ## Pack-GQA 启发式
 
@@ -132,11 +132,11 @@ float pack_gqa_efficiency = float(seqlen_q * qhead_per_khead) / float(round_up(s
 return nopack_gqa_efficiency < 0.9 * pack_gqa_efficiency;
 ```
 
-打包效率高 10% 以上就打包。varlen（变长序列）时直接打包（长度未知，打包更稳）。
+打包效率比不打包高 11% 以上（`nopack_gqa_efficiency < 0.9 * pack_gqa_efficiency`）才打包。varlen（变长序列）时直接打包（此时只有 `max_seqlen_q`，按 head 独立切块浪费更大）。
 
 ## 因果 / local 的 tile 重排
 
-因果时每个 `m_block` 要扫的 KV 块数不一样（靠前的行扫得少，靠后的扫得多）。如果按顺序调度，前面的 CTA 先做完、后面的 CTA 拖到很晚，**负载不均**。`tile_scheduler.hpp` 里专门为因果/local 设计的调度器**按"预计工作量"给 tile 排序**——工作量大的先排：`DynamicPersistentTileScheduler::get_block_coord` 末尾就是 LPT（Longest-processing-time-first），一行把 M 块顺序倒过来：
+因果时每个 `m_block` 要扫的 KV 块数不一样（靠前的行扫得少，靠后的扫得多）。如果按顺序调度，前面的 CTA 先做完、后面的 CTA 拖到很晚，**负载不均**。`tile_scheduler.hpp` 里专门为因果/local 设计的调度器**按"预计工作量"给 tile 排序**，工作量大的先排：`DynamicPersistentTileScheduler::get_block_coord` 末尾就是 LPT（Longest-processing-time-first），一行把 M 块顺序倒过来：
 
 ```cpp
 // Longest-processing-time-first
@@ -147,10 +147,10 @@ block = params.m_block_divmod.divisor - 1 - block;
 
 ## 一句话
 
-启动这一层逻辑很直白：**grid 是 (M 块, head×split, batch) 三维；tile scheduler 用 FastDivmod 把 CTA 编号拆成坐标；split-KV 看波次效率和 L2；pack-GQA 看切块浪费；因果就把 tile 按工作量重排。** 它不在 kernel 里，却决定了整个 GPU 怎么被占满、最后一批 CTA 空不空转。
+启动这一层：**grid 是 (M 块, head×split, batch) 三维；tile scheduler 用 FastDivmod 把 CTA 编号拆成坐标；split-KV 看波次效率和 L2；pack-GQA 看切块浪费；因果就把 tile 按工作量重排。** 它不在 kernel 里，却决定了整个 GPU 怎么被占满、最后一批 CTA 空不空转。
 
 ## Reference
 - flash-attention 仓库（hopper/flash_fwd_launch_template.h、hopper/tile_scheduler.hpp、hopper/heuristics.h）：<https://github.com/Dao-AILab/flash-attention>
-- SM90 调参笔记（SMEM 预算、CTA 每 SM 数）：<https://github.com/Dao-AILab/flash-attention/blob/main/AI/SM90_BLOCK_SIZE_TUNING.md>
+- SM90 调参笔记（SMEM 预算、寄存器预算与 tile 尺寸选择）：<https://github.com/Dao-AILab/flash-attention/blob/main/AI/SM90_BLOCK_SIZE_TUNING.md>
 - CUTLASS 的 tile scheduler / cluster launch：<https://github.com/NVIDIA/cutlass>
 - FlashAttention-2（sequence-length 并行与 work partitioning 动机）：<https://arxiv.org/abs/2307.08691>

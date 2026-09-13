@@ -1,4 +1,4 @@
-为什么 `flash-attention` 仓库里有**几百个 `.cu` 文件**、每个长得都一样？因为 FA 的内核是一个**模板**，而它的"变体空间"是硬件（架构）× 精度（dtype）× head 维 × 特性（causal/varlen/paged/GQA/…）的**笛卡尔积**。每个变体都要实例化一份，才能在编译期把那些分支消除掉、吃到最紧的指令。这一篇专门厘清这套"变体"怎么组织。
+`flash-attention` 仓库里有**几百个 `.cu` 文件**、每个长得都一样，因为 FA 的内核是一个**模板**，而它的"变体空间"是硬件（架构）× 精度（dtype）× head 维 × 特性（causal/varlen/paged/GQA/…）的**笛卡尔积**。每个变体都要实例化一份，才能在编译期把那些分支消除掉、吃到最紧的指令。
 
 ## 模板参数：变体从哪来
 
@@ -11,14 +11,14 @@ template<typename Kernel_traits, bool Is_dropout, bool Is_causal, bool Is_local,
 inline __device__ void compute_attn_1rowblock(...)
 ```
 
-`Is_causal`、`Is_local`、`Is_softcap` 等都是 **`constexpr bool`**，编译器在实例化时就定型；`Kernel_traits` 把"用什么 dtype、什么 block 大小、什么 MMA atom"打包。所以每个组合都生成一份完全特化的 SASS，**运行时没有任何 `if` 分支**。
+`Is_causal`、`Is_local`、`Is_softcap` 等都是 **`constexpr bool`**，编译器在实例化时就定型；`Kernel_traits` 把"用什么 dtype、什么 block 大小、什么 MMA atom"打包。所以每个组合都生成一份完全特化的 SASS，这些分支在运行时不出现。
 
 变体空间大致是：
 
 | 维度 | 取值 | 说明 |
 | --- | --- | --- |
 | 架构 | sm80 / sm86–89 / sm90 / sm100 / sm120 | Ampere → Hopper → Blackwell，硬件能力不同 |
-| dtype | fp16 / bf16 / fp8(e4m3 / e5m2) / 更高 | tensor core 输入精度 |
+| dtype | fp16 / bf16 / fp8(e4m3 / e5m2) | tensor core 输入精度 |
 | head dim | 32 / 64 / 96 / 128 / 192 / 256 | 非倍数要 padding（`Is_even_K`） |
 | 特性 | causal / local / varlen / paged / GQA / split-KV / softcap / alibi / append-KV / block-sparse / MLA | 每个加一个模板标志或预处理 |
 
@@ -34,7 +34,7 @@ inline __device__ void compute_attn_1rowblock(...)
 
 ## dtype 变体
 
-实例化命名里直接体现：`flash_fwd_hdim128_{fp16|bf16|e4m3|e5m2}_sm90.cu`。FA4 还支持**更高精度**（在低精度核上模拟），这是 [[learning/flash-attention/10-flashattention4|FA4]] 提到的。dtype 决定：
+实例化命名里直接体现：`flash_fwd_hdim128_{fp16|bf16|e4m3|e5m2}_sm90.cu`。FA4 的 CuTe-DSL 侧（[[learning/flash-attention/10-flashattention4|FA4]]）按 `torch2cute_dtype_map` 收 float16 / bfloat16 / fp8 e4m3 / fp8 e5m2 四种输入，FP8 输入时输出按 bf16 给。dtype 决定：
 
 - 喂给 MMA 的操作数位宽（16-bit vs 8-bit）。
 - 是否要额外 descaled（FP8 的块 scale，`ptr_q_descale` 等）。
@@ -44,7 +44,7 @@ inline __device__ void compute_attn_1rowblock(...)
 
 MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 RoPE 后顶 `d=40`、DeepSeek `d=192`）。所以：
 - 不为 `Is_even_K` 时，多出来的列用**predication**（`tQpQ(k) = ... < params.d`）跳过，读越界当作 0/不写。
-- hdim 192/256 是专门的 `hdim192` / `hdim256` 变体（FA4 里 `flash_fwd_sm100.py` 的 hd256 配置、`slice_dQKV_Mma` 等），因为太大了得拆。
+- hdim 192/256 是专门的 `hdim192` / `hdim256` 变体（FA4 里 `flash_fwd_sm100.py` 的 hd256 配置、backward mainloop 的 `Slice_dQKV_Mma` 等），因为太大了得拆。
 
 ## 特性变体
 
@@ -70,12 +70,20 @@ MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 R
 
 ```cpp
 // flash_fwd_hdim128_fp16_causal_sm80.cu
-#include "flash_fwd_kernel.h"
+#include "namespace_config.h"
 #include "flash_fwd_launch_template.h"
-// ... 用 CUDA_ARCH + 模板参数实例化 flash_attn_fwd<...>
+
+namespace FLASH_NAMESPACE {
+
+template<>
+void run_mha_fwd_<cutlass::half_t, 128, true>(Flash_fwd_params &params, cudaStream_t stream) {
+    run_mha_fwd_hdim128<cutlass::half_t, true>(params, stream);
+}
+
+} // namespace FLASH_NAMESPACE
 ```
 
-命名是 `op_hdim{dtype}_{features}_{arch}.cu`。`hopper/instantiations/` 里还有一批"聚合单元"：`flash_fwd_hdimdiff_fp16_split_softcap_sm90.cu`、`flash_fwd_hdimall_bf16_packgqa_sm90.cu`。它们的内容不是 kernel，而是一串 `#include`：
+命名是 `op_hdim{dtype}_{features}_{arch}.cu`。`hopper/instantiations/` 里还有一批"聚合单元"：`flash_fwd_hdimdiff_fp16_split_softcap_sm90.cu`、`flash_fwd_hdimall_bf16_packgqa_sm90.cu`。它们的内容是一串 `#include`，不是 kernel 本体：
 
 ```cpp
 // flash_fwd_hdimall_bf16_packgqa_sm90.cu（自动生成）
@@ -85,17 +93,17 @@ MMA tile 固定是 16 的倍数（`m16n8k16`），但 head dim 不一定（如 R
 // ...
 ```
 
-`hopper/generate_kernels.py` 生成它们时按两条规则分批：`hdimall` 收的是 `head_dim == head_dim_v` 的那批，`hdimdiff` 收的是 `head_dim != head_dim_v` 的那批（比如 hdim 192 配 hdim_v 128、hdim 64 配 hdim_v 256）。**分文件只为并行编译、缩短整体编译时间**（每个 `.cu` 一个编译单元），不是"head dim 由 kernel 内分派"——每个被 include 的单元仍然是固定 hdim 的一份特化。
+`hopper/generate_kernels.py` 生成它们时按两条规则分批：`hdimall` 收的是 `head_dim == head_dim_v` 的那批，`hdimdiff` 收的是 `head_dim != head_dim_v` 的那批（比如 hdim 192 配 hdim_v 128、hdim 64 配 hdim_v 256）。**分文件只为并行编译、缩短整体编译时间**（每个 `.cu` 一个编译单元）；被 include 的每个单元仍然是固定 hdim 的一份特化，head dim 不在 kernel 内分派。
 
 统计一下：`hopper/instantiations/` 有 **451 个**文件，其中 310 个 sm90、140 个 sm80（另有 1 个 sm100）。
 
-**编译时间**就是这样爆炸的。这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/10-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
+编译时间就是这样爆炸的，这也是 FA4 改用 CuTe-DSL 的动机之一（[[learning/flash-attention/10-flashattention4|FA4]]：C++ 模板要预编译几百个、fwd 55s，CuTe-DSL JIT 降到 2.5s）。
 
-而且现在这套 CuTe-DSL 打法已经收敛成独立的 `flash-attn-4` 发行版（`pip install flash-attn-4`），`flash_attn/cute/interface.py` 里把 sm80/sm90/sm100/sm120 的 forward/backward、MLA forward/backward、combine、block-sparse 全部从一个包分派出去——对 Blackwell 而言，C++ 那套"一个 `.cu` 一个实例化"的爆炸被换成了 JIT 编译的单一 Python 包，`interface.py` 开头就写着 "[2025-07-04] Version in Cute-DSL, for Hopper and Blackwell"。
+这套 CuTe-DSL 打法已经收敛成独立的 `flash-attn-4` 发行版（`pip install flash-attn-4`），`flash_attn/cute/interface.py` 把 sm80/sm90/sm100/sm120 的 forward/backward、MLA forward/backward、combine、block-sparse 全部从一个包分派出去。对 Blackwell 而言，C++ 那套"一个 `.cu` 一个实例化"的爆炸被换成了 JIT 编译的单一 Python 包，`interface.py` 开头就写着 "[2025-07-04] Version in Cute-DSL, for Hopper and Blackwell"。
 
 ## 运行时怎么选
 
-launcher（`flash_fwd_launch_template.h` 的 `run_flash_fwd`）在运行时按 `(head_dim, dtype, seqlen, causal, varlen, paged, ...)` **switch** 到对应的实例化函数。这就是一个巨大的 `if/switch` 分派表。编译期把分支消掉，运行期只跑一种。
+launcher（`flash_fwd_launch_template.h` 的 `run_flash_fwd`）在运行时按 `(head_dim, dtype, seqlen, causal, varlen, paged, ...)` **switch** 到对应的实例化函数，就是一张巨大的 `if/switch` 分派表；编译期把分支消掉，运行期只跑一种。
 
 ## split-KV 的 combine 内核
 
@@ -113,7 +121,7 @@ L_{\text{final}} = \log\sum_s e^{L_s}, \qquad
 O = \sum_s e^{L_s - L_{\text{final}}}\, O_s
 $$
 
-$O_s$ 是第 `s` 个 split 的未归一化累积，$L_s$ 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化。**这就是 [[learning/flash-attention/11-flashattention4-kernel|FA4]] 里 `flash_fwd_combine` 的对应，也是 split-KV 的收尾。**
+$O_s$ 是第 `s` 个 split 的未归一化累积，$L_s$ 是它的 logsumexp。combine 核读各 split 的 partial，做 logsumexp 合并再归一化，对应 [[learning/flash-attention/11-flashattention4-kernel|FA4]] 里的 `flash_fwd_combine`，也是 split-KV 的收尾。
 
 ## 一句话
 
