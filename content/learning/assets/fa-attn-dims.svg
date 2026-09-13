@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img" aria-labelledby="ti de">
+<title id="ti">Attention 计算中的维度变化，标准实现与分块实现对照</title>
+<desc id="de">左：标准实现，S=QK^T 与 P=softmax(S) 都是 N×N，必须写进 HBM 再读回。右：FlashAttention 按 B_r×B_c 分块，S_ij 与 P_ij 只存在于 SRAM。两列共享同一组输入 Q,K,V（N×d）与输出 O（N×d）。</desc>
+<rect width="960" height="700" rx="22" fill="#f8fafc"/>
+<text x="480.0" y="40.0" font-family="Arial, sans-serif" font-size="22" fill="#111827" text-anchor="middle" font-weight="700" >Attention 的维度变化：N² 从哪里来，分块把它挡在哪里</text>
+<text x="480.0" y="66.0" font-family="Arial, sans-serif" font-size="13.5" fill="#64748b" text-anchor="middle" font-weight="400" >N = 序列长度，d = head dim，B_r/B_c = 分块后的行/列块大小</text>
+<rect x="40" y="66" width="420" height="590" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="250.0" y="88.0" font-family="Arial, sans-serif" font-size="15" fill="#b91c1c" text-anchor="middle" font-weight="700" >标准实现：中间矩阵落 HBM</text>
+<rect x="500" y="66" width="420" height="590" rx="14" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+<text x="710.0" y="88.0" font-family="Arial, sans-serif" font-size="15" fill="#15803d" text-anchor="middle" font-weight="700" >FlashAttention：分块留在 SRAM</text>
+<rect x="51.0" y="114.0" width="126" height="52" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
+<text x="114.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#3730a3" text-anchor="middle" font-weight="700" >Q</text>
+<text x="114.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#4338ca" text-anchor="middle" font-weight="400" >N × d</text>
+<rect x="187.0" y="114.0" width="126" height="52" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
+<text x="250.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#3730a3" text-anchor="middle" font-weight="700" >K</text>
+<text x="250.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#4338ca" text-anchor="middle" font-weight="400" >N × d</text>
+<rect x="323.0" y="114.0" width="126" height="52" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
+<text x="386.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#3730a3" text-anchor="middle" font-weight="700" >V</text>
+<text x="386.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#4338ca" text-anchor="middle" font-weight="400" >N × d</text>
+<text x="250.0" y="186.0" font-family="Arial, sans-serif" font-size="12" fill="#64748b" text-anchor="middle" font-weight="400" >Q, K, V 各 N×d；一行 query 是 1×d</text>
+<line x1="250.0" y1="196.0" x2="250.0" y2="232.0" stroke="#64748b" stroke-width="2" marker-end="url(#ar)"/>
+<text x="262.0" y="218.0" font-family="Arial, sans-serif" font-size="13" fill="#b45309" text-anchor="start" font-weight="700" >S = Q Kᵀ</text>
+<rect x="165.0" y="234.0" width="170" height="150" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="250.0" y="305.0" font-family="Arial, sans-serif" font-size="20" fill="#7f1d1d" text-anchor="middle" font-weight="700" >S</text>
+<text x="250.0" y="329.0" font-family="Arial, sans-serif" font-size="14" fill="#b91c1c" text-anchor="middle" font-weight="600" >N × N</text>
+<text x="345.0" y="300.0" font-family="Arial, sans-serif" font-size="13" fill="#b91c1c" text-anchor="start" font-weight="700" >N² 个元素</text>
+<text x="345.0" y="320.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="start" font-weight="400" >写 2N B + 读 2N B</text>
+<text x="345.0" y="338.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="start" font-weight="400" >（每行，fp16）</text>
+<line x1="250.0" y1="388.0" x2="250.0" y2="422.0" stroke="#64748b" stroke-width="2" marker-end="url(#ar)"/>
+<text x="262.0" y="408.0" font-family="Arial, sans-serif" font-size="13" fill="#b45309" text-anchor="start" font-weight="700" >P = softmax(S)</text>
+<rect x="165.0" y="424.0" width="170" height="150" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+<text x="250.0" y="495.0" font-family="Arial, sans-serif" font-size="20" fill="#7f1d1d" text-anchor="middle" font-weight="700" >P</text>
+<text x="250.0" y="519.0" font-family="Arial, sans-serif" font-size="14" fill="#b91c1c" text-anchor="middle" font-weight="600" >N × N</text>
+<text x="345.0" y="490.0" font-family="Arial, sans-serif" font-size="13" fill="#b91c1c" text-anchor="start" font-weight="700" >又是 N² 个元素</text>
+<text x="345.0" y="508.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="start" font-weight="400" >写 2N B + 读 2N B</text>
+<text x="345.0" y="526.0" font-family="Arial, sans-serif" font-size="11.5" fill="#64748b" text-anchor="start" font-weight="400" >（每行，fp16）</text>
+<line x1="250.0" y1="578.0" x2="250.0" y2="610.0" stroke="#64748b" stroke-width="2" marker-end="url(#ar)"/>
+<text x="262.0" y="598.0" font-family="Arial, sans-serif" font-size="13" fill="#b45309" text-anchor="start" font-weight="700" >O = P V</text>
+<rect x="323.0" y="612.0" width="126" height="52" rx="10" fill="#e0e7ff" stroke="#6366f1" stroke-width="2"/>
+<text x="386.0" y="636.0" font-family="Arial, sans-serif" font-size="15" fill="#3730a3" text-anchor="middle" font-weight="700" >O</text>
+<text x="386.0" y="656.0" font-family="Arial, sans-serif" font-size="12.5" fill="#4338ca" text-anchor="middle" font-weight="400" >N × d</text>
+<text x="250.0" y="684.0" font-family="Arial, sans-serif" font-size="12.5" fill="#b91c1c" text-anchor="middle" font-weight="600" >总计搬 8N B/行（S、P 各写一次读一次）</text>
+<rect x="536.0" y="114.0" width="108" height="52" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="590.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >Q₍ᵢ₎</text>
+<text x="590.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_r × d</text>
+<rect x="656.0" y="114.0" width="108" height="52" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="710.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >K₍ⱼ₎</text>
+<text x="710.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_c × d</text>
+<rect x="776.0" y="114.0" width="108" height="52" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="830.0" y="138.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >V₍ⱼ₎</text>
+<text x="830.0" y="158.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_c × d</text>
+<text x="710.0" y="186.0" font-family="Arial, sans-serif" font-size="12" fill="#64748b" text-anchor="middle" font-weight="400" >一次只取一个块，不取整行</text>
+<line x1="710.0" y1="196.0" x2="710.0" y2="340.0" stroke="#16a34a" stroke-width="2" marker-end="url(#ar)"/>
+<text x="722.0" y="250.0" font-family="Arial, sans-serif" font-size="13" fill="#15803d" text-anchor="start" font-weight="700" >Sᵢⱼ = Q₍ᵢ₎ K₍ⱼ₎ᵀ</text>
+<rect x="580.0" y="342.0" width="106" height="96" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="633.0" y="388.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >Sᵢⱼ</text>
+<text x="633.0" y="408.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_r × B_c</text>
+<rect x="734.0" y="342.0" width="106" height="96" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="787.0" y="388.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >Pᵢⱼ</text>
+<text x="787.0" y="408.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_r × B_c</text>
+<text x="710.0" y="458.0" font-family="Arial, sans-serif" font-size="12" fill="#64748b" text-anchor="middle" font-weight="400" >softmax 按块做，Pᵢⱼ 同样只活在片上</text>
+<line x1="710.0" y1="468.0" x2="710.0" y2="606.0" stroke="#16a34a" stroke-width="2" marker-end="url(#ar)"/>
+<text x="722.0" y="530.0" font-family="Arial, sans-serif" font-size="13" fill="#15803d" text-anchor="start" font-weight="700" >Oᵢ += Pᵢⱼ V₍ⱼ₎</text>
+<rect x="776.0" y="608.0" width="108" height="52" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+<text x="830.0" y="632.0" font-family="Arial, sans-serif" font-size="15" fill="#14532d" text-anchor="middle" font-weight="700" >Oᵢ</text>
+<text x="830.0" y="652.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="400" >B_r × d</text>
+<text x="710.0" y="684.0" font-family="Arial, sans-serif" font-size="12.5" fill="#15803d" text-anchor="middle" font-weight="600" >HBM 只搬 Q, K, V, O；S、P 一块都不落</text>
+<defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M2 2 L8 5 L2 8 Z" fill="#64748b"/></marker></defs>
+</svg>
