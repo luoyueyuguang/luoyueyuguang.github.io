@@ -129,6 +129,98 @@ blockquote {
   border-left-color: var(--dark);
 }
 
+/* 伪代码：按论文算法列表的版式排版（algorithm2e 的 ruled 风格，见 quartz/plugins/transformers/pseudocode.ts）
+   上下两条粗线夹住正文，标题下方一条细线；左侧行号栏，缩进由 --lvl 控制，注释右置斜体。 */
+.algo {
+  margin: 1.5rem 0;
+  border-top: 2px solid var(--dark);
+  border-bottom: 2px solid var(--dark);
+  background-color: var(--light);
+  font-size: 0.85rem;
+}
+
+.algo-caption {
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--dark);
+  color: var(--dark);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.algo-lines {
+  margin: 0;
+  padding: 0.55rem 0;
+  list-style: none;
+  counter-reset: algo-line;
+}
+
+.algo-line {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.06rem 1rem 0.06rem 3rem;
+  counter-increment: algo-line;
+
+  /* 行号栏：定宽右对齐，让数字按位对齐 */
+  &::before {
+    content: counter(algo-line);
+    position: absolute;
+    left: 0;
+    width: 2.1rem;
+    text-align: right;
+    color: var(--gray);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.algo-line {
+  position: relative;
+}
+
+.algo-code {
+  margin-left: calc(var(--lvl, 0) * 1.5em);
+  color: var(--dark);
+  font-family: var(--codeFont);
+  white-space: pre-wrap;
+}
+
+/* 关键字加粗：论文里 for / if / return 这类都是正体加粗 */
+.algo-kw {
+  font-weight: 700;
+}
+
+/* 注释右置斜体，和算法正文分开 */
+.algo-comment {
+  flex: 0 0 auto;
+  margin-left: auto;
+  max-width: 46%;
+  color: var(--gray);
+  font-style: italic;
+  text-align: right;
+}
+
+@media (max-width: 800px) {
+  .algo-line {
+    padding-left: 2.4rem;
+  }
+
+  .algo-line::before {
+    width: 1.7rem;
+  }
+
+  /* 窄屏时注释换到下一行，避免挤压算法正文 */
+  .algo-line {
+    flex-wrap: wrap;
+  }
+
+  .algo-comment {
+    max-width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
 /* 表格：加外框、表头底色、斑马纹，让表格在正文里更醒目（深浅模式均适配） */
 /* 仅屏幕启用；打印时回落到 base 的 border-collapse: collapse */
 @media screen {
@@ -325,10 +417,28 @@ blockquote {
   article code,
   article blockquote,
   article .callout,
-  article .highlight {
+  article .highlight,
+  article .algo,
+  article .algo-code,
+  article .algo-comment {
     background-color: #ffffff !important;
     border-color: #ddd !important;
     color: #111 !important;
+  }
+
+  /* 伪代码：上下两条线用实黑，行号与注释转灰，保证纸上可读 */
+  article .algo {
+    border-top-color: #111 !important;
+    border-bottom-color: #111 !important;
+  }
+
+  article .algo-caption {
+    border-bottom-color: #111 !important;
+  }
+
+  article .algo-line::before,
+  article .algo-comment {
+    color: #555 !important;
   }
 
   article pre {

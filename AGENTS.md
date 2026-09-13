@@ -55,7 +55,26 @@ content/
 - **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-flash-attention.md`, `16-block-sparse.md`); config/component files `kebab-case.ts`.
 - **Sections**: a new section is a directory under `content/` plus an `index.md` with `title`/`date` frontmatter.
 - **One paragraph is one long line.** Do not hard-wrap Chinese prose.
-- **Code fences always declare a language** (`python`, `cpp`, `text`, `bash`, `ptx`). `text` is used for program output.
+- **Code fences always declare a language** (`python`, `cpp`, `text`, `bash`, `ptx`, `pseudocode`). `text` is used for program output.
+
+### 伪代码用 pseudocode 围栏，不要用 text
+
+论文里的算法（Algorithm 1、Algorithm 2 这类）排版成算法列表：上下两条粗线、标题行、左侧行号栏、关键字加粗、注释右置。这是 LaTeX `algorithm2e` 的样子，也是读者对"论文算法"的预期版式。渲染器在 `quartz/plugins/transformers/pseudocode.ts`，样式在 `quartz/styles/custom.scss` 的 `.algo*`。
+
+````
+```pseudocode title="Algorithm 1: FlashAttention 前向"
+for j in 1..T_c:
+    for i in 1..T_r:
+        S_ij = Q_i K_j^T        # 在片上算
+```
+````
+
+- **行号自动生成**，不要在正文里手写 `1.` `2.`；手写的行首编号会被剥掉。
+- 缩进取块内最小非零缩进量，2 空格 / 4 空格都行。
+- **行内注释**写作同行尾随的 `▷` / `//` / `#`（前面要有空白），会被移到右侧斜体显示；跨行铺开的注释做不到。**不要用 `←` 写注释**——它在算法记法里是赋值号（`O_i ← diag(ℓ)^{-1} O_i`），渲染器不会把它当注释。
+- `title=` 用论文里的算法名；不是照搬某篇论文的，用一句描述。
+- 块内的数学记号（`S_ij`、`K_j^T`）**保持平文本**——这里不是 KaTeX 渲染区，和自绘 SVG 同理。
+- **不要**把程序输出、ASCII 图、代码结构说明也改成 `pseudocode`；那三类继续用 `text`。
 
 ### Adding an article
 1. Create the `.md` under the right section (or series folder with an `NN-` prefix).

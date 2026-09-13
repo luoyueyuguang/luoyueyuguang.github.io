@@ -147,7 +147,11 @@ function setupRunBlock(codeBlock: HTMLElement): void {
 }
 
 document.addEventListener("nav", () => {
-  const blocks = document.querySelectorAll('pre > code[data-language="python"]')
+  // data-runnable="false" 由构建期的 RunnableMarking 标注：块要么导入运行器没有的包，
+  // 要么是用 `...` 省略的源码摘录。这类块给按钮只会让人点出一串报错。
+  const blocks = document.querySelectorAll(
+    'pre > code[data-language="python"]:not([data-runnable="false"])',
+  )
   for (const el of Array.from(blocks)) {
     if (el instanceof HTMLElement) setupRunBlock(el)
   }
