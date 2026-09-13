@@ -2,12 +2,12 @@
 
 先看最核心的循环。中间只做四件事，和 [[learning/flash-attention/02-online-softmax|算法]] 一一对应：
 
-```text
+```pseudocode title="CUTLASS 前向主循环（compute_attn_1rowblock）"
 for each column block j (reverse order):
-    S = Q_i · K_j^T                    ← GEMM（QK^T）
-    softmax_rescale_o(S, O)           ← online softmax 加点
-    P = fp16(S)                       ← 转成 tensor core 的输入精度
-    O += P · V_j                      ← GEMM（P·V）
+    S = Q_i · K_j^T                    # GEMM（QK^T）
+    softmax_rescale_o(S, O)            # online softmax 加点
+    P = fp16(S)                        # 转成 tensor core 的输入精度
+    O += P · V_j                       # GEMM（P·V）
 ```
 
 ## 三个 cuTe 概念

@@ -532,9 +532,9 @@ RNN 的固定状态思想
 
 GDN 推理时很自然：
 
-```text
+```pseudocode title="Algorithm 1: 逐 token 的循环更新"
 for token in sequence:
-    update state
+    update state      # 用门控改写记忆
     produce output
 ```
 

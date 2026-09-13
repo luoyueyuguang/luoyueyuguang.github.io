@@ -506,7 +506,7 @@ $$
 
 论文里的 MSE 版算法可以写成这样：
 
-```text
+```pseudocode title="Algorithm 1: TurboQuant_mse"
 Setup(d, b):
     生成随机旋转矩阵 Π
     预计算 2^b 个 codebook 中心 c_1 ... c_{2^b}

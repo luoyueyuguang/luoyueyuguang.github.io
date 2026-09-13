@@ -151,23 +151,22 @@ $$
 
 FA1 的 forward 伪代码（外层扫列块 $ j $，内层扫行块 $ i $）：
 
-```text
-1. 初始化 O=0, l=0, m=-inf（在 HBM）
-2. 把 Q 切成 T_r 个行块，把 K、V 切成 T_c 个列块
-3. for j in 1..T_c:                       # 外层：key/value 列块
-4.     把 K_j, V_j 加载进 SRAM
-5.     for i in 1..T_r:                   # 内层：query 行块
-6.         把 Q_i, O_i, l_i, m_i 加载进 SRAM
-7.         S_ij = Q_i K_j^T               # 在片上算
-8.         m̃_ij = rowmax(S_ij)
-9.         P̃_ij = exp(S_ij - m̃_ij)
-10.        l̃_ij = rowsum(P̃_ij)
-11.        m_i_new = max(m_i, m̃_ij)
-12.        l_i_new = e^{m_i - m_i_new} l_i + e^{m̃_ij - m_i_new} l̃_ij
-13.        O_i ← diag(l_i_new)^{-1} ( diag(l_i) e^{m_i - m_i_new} O_i
-                                        + e^{m̃_ij - m_i_new} P̃_ij V_j )
-14.        把 O_i, l_i, m_i 写回 HBM
-15. 返回 O
+```pseudocode title="Algorithm 1: FlashAttention 前向"
+初始化 O=0, l=0, m=-inf（在 HBM）
+把 Q 切成 T_r 个行块，把 K、V 切成 T_c 个列块
+for j in 1..T_c:                       # 外层：key/value 列块
+    把 K_j, V_j 加载进 SRAM
+    for i in 1..T_r:                   # 内层：query 行块
+        把 Q_i, O_i, l_i, m_i 加载进 SRAM
+        S_ij = Q_i K_j^T               # 在片上算
+        m̃_ij = rowmax(S_ij)
+        P̃_ij = exp(S_ij - m̃_ij)
+        l̃_ij = rowsum(P̃_ij)
+        m_i_new = max(m_i, m̃_ij)
+        l_i_new = e^{m_i - m_i_new} l_i + e^{m̃_ij - m_i_new} l̃_ij
+        O_i ← diag(l_i_new)^{-1} ( diag(l_i) e^{m_i - m_i_new} O_i + e^{m̃_ij - m_i_new} P̃_ij V_j )
+        把 O_i, l_i, m_i 写回 HBM
+返回 O
 ```
 
 第 13 行是重点（行号按上面这份紧凑写法编；论文 Algorithm 1 里对应的是第 15 行 $ O_i \leftarrow \operatorname{diag}(\ell_i^{new})^{-1}\big(\operatorname{diag}(\ell_i)e^{m_i-m_i^{new}}O_i + e^{\tilde m_{ij}-m_i^{new}}\widetilde{P}_{ij}V_j\big) $）。它把两个块的结果"对齐到新的 $ m $ 再合并"。具体看：
@@ -185,7 +184,7 @@ FA1 证明了 IO 复杂度。设 SRAM 大小 $ M $ 满足 $ d \le M \le Nd $：
 | 标准 attention | $ \Theta(Nd + N^2) $ |
 | FlashAttention | $ \Theta(N^2 d^2 M^{-1}) $ |
 
-标准实现要把 $ N \times N $ 的 $ S $、$ P $ 写 HBM，光是这两个就是 $ \Theta(N^2) $。注意这里变的**只是常数**：$ d^2 / M $ 在 $ d \in [64, 128] $、$ M \approx 10^5 $ 个 fp16 元素（A100 的 192 KB SRAM）时远小于 1，所以 HBM 访问少数十倍到上百倍，但随 $ N $ 的**阶仍是 $ O(N^2) $**，不是次二次。
+标准实现要把 $ N \times N $ 的 $ S $、$ P $ 写 HBM，光是这两个就是 $ \Theta(N^2) $。这里变的**只是常数**：$ d^2 / M $ 在 $ d \in [64, 128] $、$ M \approx 10^5 $ 个 fp16 元素（A100 的 192 KB SRAM）时远小于 1，所以 HBM 访问少了十倍到上百倍，**但随 $ N $ 的阶仍是 $ O(N^2) $**——省下来的是常数因子，不是把二次降成更低次。
 
 而且对精确 attention 而言，这个复杂度是**下界**，即渐近最优。FA1 论文的 **Proposition 3** 用反证证明：不存在一个算法，能对 $ M $ 的整个区间 $ [d, Nd] $ **同时**做到 $ o(N^2 d^2 M^{-1}) $ 次 HBM 访问。证明思路：取极端情形 $ M = \Theta(Nd) $，此时 $ N^2 d^2 M^{-1} = \Theta(Nd) $；但输入 $ Q,K,V $（各 $ N\times d $）和输出 $ O $（$ N\times d $）本来就躺在 HBM 里，任何精确算法至少要把它们各读写一遍，所以 HBM 访问注定 $ \Omega(Nd) $。于是没有算法能对所有 $ M $ 同时超越 $ \Theta(N^2 d^2 M^{-1}) $。精确计算下这份 IO 复杂度是**渐近最优**的，能优化的只剩常数因子。
 

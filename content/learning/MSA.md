@@ -375,12 +375,11 @@ $$
 
 可以用伪代码理解：
 
-```text
+```pseudocode title="Index Branch：逐 query 给 KV block 打分并选 Top-K"
 for each query token i:
   for each GQA group r:
     for each visible KV block b:
       block_score[b] = max(score(i, token_j) for token_j in block b and j <= i)
-
     selected_blocks = top_k(block_score, k)
     selected_blocks must include local block
     output = normal_attention(query_i, K/V inside selected_blocks)
@@ -737,7 +736,7 @@ TopK 这一步看起来不像 attention 本体，但 indexer 的选择本身一�
 
 拿到 TopK blocks 后，最自然的 sparse attention 写法是 **Q-outer**：
 
-```text
+```pseudocode title="Q-outer sparse attention"
 for each query:
   blocks = TopK(query)
   for each block in blocks:
@@ -805,7 +804,7 @@ $$
 
 MSA 论文选择的是 **KV-outer sparse attention**。它把循环反过来：
 
-```text
+```pseudocode title="KV-outer sparse attention"
 for each KV block:
   找出哪些 query 选择了这个 KV block
   把这些 query 聚在一起

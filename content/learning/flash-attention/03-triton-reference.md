@@ -1,3 +1,7 @@
+---
+runCode: false
+---
+
 [[learning/flash-attention/04-forward-kernel|FA1/FA2 的 CUDA 内核]] 用了大量 cuTe/CUTLASS 抽象（`partition_fragment_A`、`SmemLayoutQ`、cp.async），对没读过 CUTLASS 的人几乎是天书。仓库里另有一版 **Triton 实现** `flash_attn/flash_attn_triton_og.py`，只用 `tl.dot` / `tl.max` / `tl.exp` 这几个原语，把同一个算法写得清清楚楚。逐行读下来，就能看懂 [[learning/flash-attention/02-online-softmax|online softmax]] 怎么落到代码。
 
 > **Triton 实现的价值在可读性。** 它把"一个程序块负责一段 query 行、内层循环扫 key/value 块"这个结构直接写了出来。FA2 论文把两件事明确归功于 Tillet 的 Triton 实现：**外层扫 Q 行块、内层扫 K/V 列块**这个循环顺序（FA1 论文 Algorithm 1 里是反过来的：外层 K/V、内层 Q），以及**沿序列维并行**（见 [[learning/flash-attention/06-flashattention2|FA2]] §3.2）；"把 Q 切给各个 warp、K/V 对所有 warp 可见"则是 FA2 自己加的（同篇 §3.3）。
