@@ -1,18 +1,26 @@
-.run-button {
+.run-toolbar {
   position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+  top: 0;
   right: 2.1rem;
-  padding: 0.28rem 0.7rem;
+  display: flex;
+  gap: 0.4rem;
   margin: 0.3rem;
+  opacity: 0;
+  transition: 0.2s;
+
+  /* 编辑时也保持可见：这时光标在下面的文本框里，不该因为离开 <pre> 就找不到"完成" */
+  .editing > & {
+    opacity: 1;
+  }
+}
+
+.run-button {
+  padding: 0.28rem 0.7rem;
   color: var(--gray);
   border-color: var(--dark);
   background-color: var(--light);
   border: 1px solid;
   border-radius: 5px;
-  opacity: 0;
-  transition: 0.2s;
   font:
     600 12px system-ui,
     -apple-system,
@@ -35,9 +43,35 @@
   }
 }
 
-pre:hover > .run-button {
+pre:hover > .run-toolbar {
   opacity: 1;
   transition: 0.2s;
+}
+
+.code-editor {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  /* 与高亮块的排版对齐：pre 的左右内边距 0.5rem、行高 1.6rem、字号 0.85rem，
+     行号那一栏在编辑时不显示，所以左边留 0.75rem 即可 */
+  padding: 0.5rem 0.75rem;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background-color: transparent;
+  color: var(--dark);
+  font-family: var(--codeFont);
+  font-size: 0.85rem;
+  line-height: 1.6rem;
+  /* 代码不折行，靠横向滚动，和上面的高亮块一致 */
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+
+  &[hidden] {
+    display: none;
+  }
 }
 
 .code-output {

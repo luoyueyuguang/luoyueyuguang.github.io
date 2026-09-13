@@ -50,7 +50,7 @@ content/
 
 - **首页就是 `content/index.md`**：个人介绍写在正文里，最近文章由 `autoRecent: true` 触发的 `HomeRecentNotes` 渲染在正文之后（`afterBody`）。所以没有单独的「关于」页——介绍和文章列表在同一页上。
 
-- **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags.
+- **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags. The one exception is `runCode: false`（见下方 Runnable Python Snippets），它只影响运行按钮，不参与标题/日期/标签。
 - **A series is a folder.** Files named `NN-` order the series; the folder path is the series slug. `article-index.json` `series` entries only override the title/description. Do **not** add `series`/`seriesOrder` fields to article records — the build errors.
 - **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-flash-attention.md`, `16-block-sparse.md`); config/component files `kebab-case.ts`.
 - **Sections**: a new section is a directory under `content/` plus an `index.md` with `title`/`date` frontmatter.
@@ -86,8 +86,11 @@ for j in 1..T_c:
 
 ## Runnable Python Snippets
 
-`quartz/components/scripts/runCode.inline.ts` turns every `python` block into a **▶ 运行** button. Blocks execute in **Pyodide 0.26.4** (browser), which ships **NumPy 1.26.4** and **mpmath**; there is **no torch, no CUDA, no transformer_engine**. All blocks in one page share one interpreter and persist their state, so a later block may use names defined earlier on the same page — the same is true of your reproduction environment.
+`quartz/components/scripts/runCode.inline.ts` turns every `python` block into a **▶ 运行 / ✎ 编辑** toolbar. Blocks execute in **Pyodide 0.26.4** (browser), which ships **NumPy 1.26.4** and **mpmath**; there is **no torch, no CUDA, no transformer_engine**. All blocks in one page share one interpreter and persist their state, so a later block may use names defined earlier on the same page — the same is true of your reproduction environment.
 
+- **读者可以改代码再跑。**「✎ 编辑」把高亮块换成可编辑文本框（Tab 缩进 4 空格，Esc 收起），改过之后点运行跑的就是改过的代码；内容与原文不同时才会出现「↺ 还原」。所以把结论打印出来的块要写得经得起改——不要把关键中间量藏在不可修改的地方。
+- **跑不了的块不给按钮。**`quartz/plugins/transformers/runnable.ts` 在构建期给这类块打 `data-runnable="false"`：导入 torch / triton / flash_attn 等 Pyodide 没有的包，`tl.` 内核调用，或用 `...` 省略签名的源码摘录。它们保留语法高亮，只是不承诺可运行。
+- **整页都是源码摘录的**（例如逐行读 Triton 实现那一篇），在 frontmatter 里写 `runCode: false` 整页关掉按钮——摘录里的片段引用了未定义的变量，逐块静态判断看不出来。
 - Any block whose output the article prints must reproduce **byte-for-byte** under NumPy 1.26.4. Verify with a NumPy 1.26.4 interpreter, not a newer one; `np.trapezoid` (NumPy 2.0+) is a recurring trap and the wrapper here has been wrong before.
 - Label printed output with the environment that produced it when it was not the browser runner, e.g. `真实输出（Python 3.12；与站点内置运行器的 Pyodide 0.26.4 + NumPy 1.26.4 一致）`.
 - A snippet that genuinely needs a GPU or torch must say so in the surrounding prose. Never fabricate an output block for one.
