@@ -2,190 +2,125 @@
 
 ## Project Overview
 
-This is a **static HTML/JavaScript blog** hosted on GitHub Pages. It's a minimal hand-maintained website with client-side dynamic content loading. No build system, framework, or testing setup - pure static files.
+A Chinese-language technical blog built with **Quartz 4** and published to GitHub Pages. `content/` holds plain Markdown notes; the build renders them into `public/`. `quartz/` is vendored Quartz with a handful of local components, and `README.md` documents the content model in detail.
 
 ### Technology Stack
-- **Languages**: HTML5, CSS3, JavaScript (ES6+)
-- **External Library**: marked.js (CDN for markdown parsing)
-- **Content Format**: Markdown (.md files) + JSON (metadata index)
-- **Deployment**: GitHub Pages (static hosting)
+- **Build**: Quartz 4.0 (`npm run build` → `quartz` CLI + `scripts/create-clean-url-pages.mjs`)
+- **Languages**: TypeScript (build/components), SCSS, Markdown
+- **Content**: Markdown + `content/article-index.json` for titles, dates and tags
+- **Markdown pipeline**: remark/rehype — GFM, Obsidian-flavored Markdown, `rehype-pretty-code`, `rehype-katex`
+- **Runtime extras**: in-browser Pyodide runner for `python` code blocks, KaTeX, client-side search
+- **Deployment**: GitHub Pages via `.github/workflows/deploy.yml` on push to `main`
 
 ---
 
 ## Build, Lint, Test Commands
 
-**No build system, no linter, no tests.**
+```bash
+npm ci                 # install
+npm run serve          # build + local preview
+npm run build          # write public/
+npm run check          # tsc --noEmit + prettier --check
+npm run format         # prettier --write
+npm test               # tsx quartz/util/path.test.ts && tsx quartz/depgraph.test.ts
+npm run ci             # check + build
+```
 
-This is a simple static site. To work with it:
-- **Run locally**: Open HTML files directly in a browser or use any static file server
-- **Deploy**: Push to GitHub Pages branch (or use root `/` for user/org pages)
-- **No single test command**: Manual browser testing only
+- `npm run build` regenerates `public/` (gitignored). Never edit `public/` by hand.
+- `npm run check` runs Prettier over the repo. `.prettierignore` excludes `content/**/*.md` (Prettier reinterprets LaTeX underscores as emphasis) and `quartz/static/katex/`, so article prose is never reformatted — keep paragraphs on one line yourself.
+- Tests are Quartz's own TS tests; there is no test suite for article content. Article correctness is established by re-running the embedded Python snippets (see below).
+
+---
+
+## Content Model
+
+```
+content/
+├── article-index.json      # titles, dates, tags, series descriptions
+├── about.md  index.md  articles.md
+├── learning/
+│   ├── index.md            # section landing page (has frontmatter)
+│   ├── assets/             # every image, referenced as /learning/assets/<name>
+│   ├── *.md                # standalone notes (camelCase.md)
+│   └── <series>/           # e.g. flash-attention/, precision/
+│       └── NN-kebab-name.md
+└── pitfalls/
+```
+
+- **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags.
+- **A series is a folder.** Files named `NN-` order the series; the folder path is the series slug. `article-index.json` `series` entries only override the title/description. Do **not** add `series`/`seriesOrder` fields to article records — the build errors.
+- **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-flash-attention.md`, `16-block-sparse.md`); config/component files `kebab-case.ts`.
+- **Sections**: a new section is a directory under `content/` plus an `index.md` with `title`/`date` frontmatter.
+- **One paragraph is one long line.** Do not hard-wrap Chinese prose.
+- **Code fences always declare a language** (`python`, `cpp`, `text`, `bash`, `ptx`). `text` is used for program output.
+
+### Adding an article
+1. Create the `.md` under the right section (or series folder with an `NN-` prefix).
+2. Add an `articles` entry keyed by slug with `title`, `date` (`YYYY-MM-DD`) and at least one tag.
+3. Add the tag list consistently with siblings — `/tags`, search and RSS pick it up automatically.
+4. `npm run build`, then check `public/<slug>.html`.
+
+---
+
+## Runnable Python Snippets
+
+`quartz/components/scripts/runCode.inline.ts` turns every `python` block into a **▶ 运行** button. Blocks execute in **Pyodide 0.26.4** (browser), which ships **NumPy 1.26.4** and **mpmath**; there is **no torch, no CUDA, no transformer_engine**. All blocks in one page share one interpreter and persist their state, so a later block may use names defined earlier on the same page — the same is true of your reproduction environment.
+
+- Any block whose output the article prints must reproduce **byte-for-byte** under NumPy 1.26.4. Verify with a NumPy 1.26.4 interpreter, not a newer one; `np.trapezoid` (NumPy 2.0+) is a recurring trap and the wrapper here has been wrong before.
+- Label printed output with the environment that produced it when it was not the browser runner, e.g. `真实输出（Python 3.12；与站点内置运行器的 Pyodide 0.26.4 + NumPy 1.26.4 一致）`.
+- A snippet that genuinely needs a GPU or torch must say so in the surrounding prose. Never fabricate an output block for one.
+- `cpp`/`ptx`/CuTe-DSL fences are excerpts for reading, not runnable demos.
+
+---
+
+## Math Rendering (KaTeX)
+
+Quartz `Plugin.Latex` with `renderEngine: "katex"`; the CSS and fonts are **self-hosted** at `/static/katex/` (see `quartz/plugins/transformers/latex.ts`), not loaded from a CDN.
+
+- **Inline math** — single dollar signs: `$...$`
+- **Display math** — double dollar signs on their own lines: `$$...$$`
+- **NEVER wrap math in backticks.** `` `$...$` `` renders as literal code (the `$` and `\command` visible) and KaTeX never runs. This was a site-wide bug in the flash-attention series (637 spans). Write `$...$` directly in prose, table cells and list items.
+- Keep `$` delimiters balanced on the same line; do not put `$...$` inside a code span or a backtick-wrapped title (e.g. a paper title like `Self-attention Does Not Need $O(n^2)$ Memory`).
+- If a built page shows raw `$...$` / `\command` text, look for stray backticks around the formula first — they swallow the `$$...$$` block too.
+- Unbalanced `$` in a **table row** breaks the row; escape `\|` inside `[[wikilinks]]` used in tables.
+
+---
+
+## Figures（图片与引用）
+
+- **优先使用现有/官方图**（论文、官方文档、官方博客），不要为了美观重画论文或官方的关键概念图。
+- **任何从外部来源借用的图片**，必须在其下方标注来源（含 Figure 编号）：
+  `> 图源：<来源名>《<标题>》（<链接或出处>）Figure N`
+  示例：`> 图源：Dao-AILab《FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness》（arXiv:2205.14135）Figure 1`
+- **自绘示意图**（自定义 SVG 等）在下方标注：`> 自绘示意图`。版式与论文一致但坐标数据是摘要式转写的，写 `> 图源：…（按原论文源码重绘）`，不要冒充原图。
+- 图片统一放 `content/learning/assets/`，用站点路径引用（`/learning/assets/...`），不要留孤立图片。
+- 图片下方的说明文字遵循 KaTeX 约定，不要用反引号包 `$...$`。
 
 ---
 
 ## Code Style Guidelines
 
-### File Naming Conventions
-- **HTML files**: `kebab-case.html` (e.g., `pitfalls.html`, `view.html`)
-- **Markdown files**: `camelCase.md` (e.g., `cuda13onFedora.md`)
-- **JSON files**: `kebab-case.json` (e.g., `index.json`)
-- **All lowercase**, no spaces, use hyphens for UI/config files, camelCase for content
+### TypeScript / TSX (`quartz/`)
+- Existing Quartz conventions: Prettier defaults from `.prettierrc`, 2-space indent, no semicolons.
+- Components are functions returning JSX; client scripts are `*.inline.ts` and must attach/detach listeners via `window.addCleanup` because the site uses SPA navigation and re-fires `nav` events.
+- Never assume a DOM node survives navigation — rebind on every `nav`.
 
-### Directory Structure
-```
-/
-├── index.html              # Main landing page
-├── [section].html          # Section listing pages
-└── [section]/
-    ├── index.json          # Metadata index for section content
-    ├── view.html           # Markdown viewer page
-    └── article.md          # Individual markdown articles
-```
+### SCSS (`quartz/styles/`)
+- Site overrides go in `custom.scss`; `base.scss`, `variables.scss`, `syntax.scss`, `callouts.scss` are Quartz upstream. Keep local edits in `custom.scss` where possible.
+- Class names `kebab-case`; keep dark-mode rules paired with light via the `[saved-theme]` attribute, not `prefers-color-scheme` alone.
 
-### JavaScript Naming Patterns
-- **Functions**: `camelCase` for async functions (`loadPitfalls()`, `renderPitfalls()`, `loadPitfall()`, `showError()`)
-- **Variable names**: `camelCase`
-- **Use async/await pattern** for all async operations
-- **Always handle errors** with try-catch blocks
-
-### CSS Naming Patterns
-- **Classes**: `kebab-case` (e.g., `.pitfall-list`, `.link-card`, `.back-link`, `.content`)
-- **IDs**: `camelCase` (e.g., `#pitfallList`, `#content`)
-- **No shared stylesheets**: All CSS is inline in `<style>` tags within HTML files
-- **Consistent theme**: Purple gradient (#667eea to #764ba2)
-- **Typography**: System fonts stack (-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif)
-
-### HTML Structure Patterns
-- **Semantic HTML5**: Use `<header>`, `<section>`, `<nav>`, etc.
-- **Viewport meta tag**: `<meta name="viewport" content="width=device-width, initial-scale=1.0">` (always include)
-- **Language attribute**: `<html lang="zh-CN">` or appropriate language code
-- **Self-contained pages**: Each HTML file includes its own CSS/JS
-
-### Error Handling Patterns
-```javascript
-// Always use try-catch for async operations
-async function loadData() {
-    try {
-        const response = await fetch('path/to/data.json');
-        if (!response.ok) {
-            throw new Error('File not found');
-        }
-        const data = await response.json();
-        // process data
-    } catch (error) {
-        console.error('Failed to load data:', error);
-        // Show user-friendly error message in DOM
-        document.getElementById('container').innerHTML = `
-            <div class="error-state">
-                <h3>Error</h3>
-                <p>${error.message}</p>
-            </div>
-        `;
-    }
-}
-```
-
-### Adding New Content
-1. Create markdown file in appropriate section directory (e.g., `pitfalls/newArticle.md`)
-2. Update section's `index.json` with metadata:
-   ```json
-   {
-     "id": "uniqueId",
-     "title": "Article Title",
-     "date": "2026-01-21",
-     "file": "newArticle.md"
-   }
-   ```
-3. Follow existing markdown patterns (use fenced code blocks with language specified)
-4. Test by opening `view.html?file=section/newArticle.md` in browser
-
-### External Libraries
-- **Use CDN links** in script tags when needed
-- **Example**: `<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>`
-- **No npm/yarn**: Add external deps via CDN only
-
-### Math Rendering (KaTeX)
-
-The site renders math with **KaTeX** via Quartz `Plugin.Latex` (`renderEngine: "katex"`); the KaTeX CSS/JS load from the cdnjs CDN.
-
-- **Inline math** — wrap in single dollar signs: `$...$`
-- **Display math** — wrap in double dollar signs on their own lines: `$$...$$`
-- **NEVER wrap math in backticks.** `` `$...$` `` renders as literal code (with the `$` and `\command` visible) and KaTeX never runs, so the formula does not display as math. This was a site-wide bug in the flash-attention series (637 spans wrapped this way). Always write `$...$` directly in prose, table cells, and list items.
-- Keep `$` delimiters balanced on the same line; do not place `$...$` inside a code span or a backtick-wrapped title (e.g. a paper title like `Self-attention Does Not Need $O(n^2)$ Memory`).
-- If a built page shows math as raw `$...$` / `\command` text, check for stray backticks around the formula first — they swallow the `$$...$$` block too.
-
-### Figures（图片与引用）
-
-- **优先使用现有/官方图**（论文、官方文档、官方博客），不要为了美观重画论文或官方的关键概念图。
-- **任何从外部来源借用的图片**，必须在其下方标注来源，格式：
-  `> 图源：<来源名>（<链接或出处>）`
-  示例：`> 图源：Dao-AILab《FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness》（arXiv:2205.14135）Figure 1`
-- **自绘示意图**（自定义 SVG 等）在下方标注：`> 自绘示意图`。
-- 图片放在 `content/<section>/assets/`，用站点路径引用（如 `/learning/assets/...`）。
-- 图片下方的说明文字遵循 KaTeX 约定，不要用反引号包 `$...$`。
-
-### URL Parameter Handling
-```javascript
-// Parse query parameters
-const params = new URLSearchParams(window.location.search);
-const file = params.get('file');
-
-// Check if parameter exists
-if (!file) {
-    showError('Missing required parameter');
-    return;
-}
-```
-
-### CSS Best Practices
-- **Mobile-first**: Add media queries at bottom of CSS blocks
-- **Flexbox/Grid**: Use for layouts
-- **Box-sizing**: Set `* { box-sizing: border-box; }` at top of all styles
-- **Reset**: Include basic margin/padding reset
-- **Gradients**: Use `linear-gradient(135deg, #667eea 0%, #764ba2 100%)` for backgrounds
-- **Shadows**: Consistent shadow depths: `0 10px 30px rgba(0, 0, 0, 0.1)` for cards
-- **Transitions**: Use `transition: all 0.3s ease;` for hover effects
-- **Border radius**: 12px for cards, 8px for smaller elements
-
-### Code Comments
-- **Chinese comments**: Content and UI are in Chinese, use Chinese for comments too
-- **Keep it minimal**: Code is straightforward, don't over-comment
-
----
-
-## Working with This Codebase
-
-### When Adding a New Section
-1. Create section directory (e.g., `articles/`)
-2. Create `index.json` with empty array `[]`
-3. Copy and modify `pitfalls.html` as `[section].html`
-4. Copy `pitfalls/view.html` to section directory and update paths
-5. Link from `index.html` if needed
-
-### Common Tasks
-- **Add article**: Create `.md` file, update `index.json`
-- **Style change**: Edit inline `<style>` block in relevant HTML file
-- **Change layout**: Modify HTML structure and corresponding CSS
-- **Debug**: Use browser DevTools, check console for errors
-
-### Git Workflow
-- **Branching**: Simple workflow, no strict branching rules
-- **Commit**: Write commit messages in [Conventional Commits](https://www.conventionalcommits.org/) style.
-  - Format: `<type>: <subject>` — subject in **imperative mood**, ≤ 50 chars when possible, **no trailing period**.
-  - Types: `feat` (new capability), `fix` (bug fix), `content` (markdown/article changes), `docs` (documentation), `style` (formatting), `refactor`, `perf`, `chore` (build/maintenance), `ci`, `test`, `revert`. This repo uses `content` for article/content edits.
-  - Add a body when the change isn't obvious from the subject: a blank line, then text wrapped at ~72 chars explaining **what** changed and **why**.
-  - **One type per commit** — split mixed changes (e.g., a feature plus content edits) into separate commits. Example:
-    - `feat: add in-browser Python runner for code blocks`
-    - `content: enrich precision docs with references and ULP notes`
-- **Deployment**: Push to GitHub Pages, automatic deployment
+### Commits
+- [Conventional Commits](https://www.conventionalcommits.org/): `<type>: <subject>`, imperative mood, ≤ 50 chars, no trailing period.
+- Types: `feat`, `fix`, `content` (article edits), `docs`, `style`, `refactor`, `perf`, `chore`, `ci`, `test`, `revert`.
+- **One type per commit** — split a feature from content edits. Add a body (blank line, wrapped at ~72 chars) when the subject doesn't carry the *what* and *why*.
+  - `content: correct CUDA 13 Fedora support facts`
+  - `fix: preload mpmath before running mpmath snippets`
 
 ---
 
 ## Notes for Agents
 
-- This is a **minimal static site** - don't over-engineer
-- No type checking, no linter - you're responsible for maintaining consistency
-- Follow existing patterns exactly (color scheme, layout, naming)
-- Test changes manually in browser before completing
-- If something seems wrong, ask - the patterns here are simple and intentional
-- **Most article content is AI-generated and reviewed by hand.** Treat the prose as unverified: expect AI-writing artifacts such as inconsistent math notation (backtick-wrapped `$...$`, mixed `$...$` vs monospace symbols), formulaic transitions, redundant explanation, and occasional factual/technical drift. Before trusting a claim, cross-check it against the surrounding math and linked sources, and fix inconsistencies rather than reproduce them.
+- Quartz is vendored under `quartz/`; prefer editing `content/`, `quartz/components/`, `quartz/styles/custom.scss` and config. Changes under `quartz/plugins/` and `quartz/util/` are upstream code — touch them only when the task needs it.
+- **Most article content is AI-generated and reviewed by hand.** Treat the prose as unverified: expect inconsistent math notation (backtick-wrapped `$...$`, mixed `$...$` vs monospace symbols), formulaic transitions, redundant explanation, and factual/technical drift. Cross-check a claim against the surrounding math and the linked source before trusting it, and fix inconsistencies rather than reproduce them.
+- Chinese is the content and UI language; write comments in Chinese.
+- Before finishing a content change: `npm run build` succeeds and the affected page renders (math as math, images present, links resolving).
