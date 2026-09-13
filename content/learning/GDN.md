@@ -1,4 +1,4 @@
-这篇文章讲 **GDN**，也就是 **Gated DeltaNet / Gated Delta Networks**。
+**GDN** 是 **Gated DeltaNet / Gated Delta Networks** 的缩写。
 
 把 GDN 当“另一个 Transformer 变体”看会走偏。它更像把三条线合到一起：
 
@@ -23,12 +23,12 @@ RNN
 
 > 自绘示意图
 
-本文有两类图：
+图分两类：
 
 - **教学图**：为了从零解释概念重新画的简化图。
 - **原文图转写**：根据论文 LaTeX 源码/TikZ/pgfplots 数据重绘为本地 SVG，便于博客直接展示。它们不是我凭空画的示意图，但也不是论文 PDF 的截图。
 
-读论文时可以重点对照下面几张图：
+读论文时可以重点对照论文的几张图：
 
 | 原文图   | 内容                                                                              | 建议什么时候看                                                  |
 | -------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -38,7 +38,7 @@ RNN
 
 > 原文图源：Gated Delta Networks: Improving Mamba2 with Delta Rule，arXiv:2412.06464，HTML 版本见 <https://ar5iv.labs.arxiv.org/html/2412.06464>，PDF 版本见 <https://arxiv.org/pdf/2412.06464>。
 
-下面三张是根据论文源码重绘/转写到本地的版本。
+另有三张根据论文源码重绘/转写到本地的版本。
 
 ![GDN 原论文 Figure 1 架构图转写](/learning/assets/gdn-paper-architecture.svg)
 
@@ -58,7 +58,7 @@ RNN
 
 横轴是 sequence length × batch size（2K×16、4K×8、8K×4、16K×2），纵轴是 Kt/s。八条曲线是 Transformer++、DeltaNet、Gated DeltaNet、Mamba1、Mamba2、Gated DeltaNet-H1、Samba、Gated DeltaNet-H2。
 
-这篇文章面向没接触过线性注意力和 SSM 的读者，先看一个问题：
+面向没接触过线性注意力和 SSM 的读者，先看一个问题：
 
 > 模型读完很多 token 以后，过去的信息到底存在哪里？
 
@@ -104,7 +104,7 @@ RNN 的优点：
 
 > 一个向量状态太小，历史信息被反复压缩，容易忘。
 
-比如前文 10 万 token 之前出现了一个变量定义，后文才问这个变量的类型。朴素 RNN 要把这个信息一直藏在 $h_t$ 里，中间经过很多次更新，很容易被冲掉。
+比如 10 万 token 之前出现了一个变量定义，很久之后才问这个变量的类型。朴素 RNN 要把这个信息一直藏在 $h_t$ 里，中间经过很多次更新，很容易被冲掉。
 
 所以 RNN 的核心矛盾是：
 
@@ -138,7 +138,7 @@ $$
   按相关性读取对应 value
 ```
 
-这就是 Transformer 强大的原因：它能重新访问完整历史。
+Transformer 之所以强，靠的就是它能重新访问完整历史。
 
 但是代价也很直接：
 
@@ -165,7 +165,7 @@ Linear attention 就是这个方向。
 
 Linear attention 的思路是：把 attention kernel 改写成特征映射的内积。
 
-先不纠结细节，可以把 softmax 相似度：
+把 softmax 相似度：
 
 $$
 \exp(q^T k)
@@ -235,7 +235,7 @@ $$
 S_t = S_{t-1} + k_t v_t^T
 $$
 
-这里为了写得简单，我省略 $\phi$，直接用 $k_t$。不同论文里会把状态写成 $S$ 或 $W$，也会因为行向量/列向量约定不同，把外积写成 $k_t v_t^T$ 或 $v_t k_t^T$。本文的原则是：**状态矩阵要能用 key 读出 value**。
+为简单起见，这里省略 $\phi$，直接用 $k_t$。不同论文里会把状态写成 $S$ 或 $W$，也会因为行向量/列向量约定不同，把外积写成 $k_t v_t^T$ 或 $v_t k_t^T$。这里的原则是：**状态矩阵要能用 key 读出 value**。
 
 这很像在字典里追加一条记忆。但问题是：如果相似的 key 出现多次，简单相加会把很多 value 混在一起。
 
@@ -283,7 +283,7 @@ $$
 \bar{v}_t = S_{t-1} k_t
 $$
 
-也就是旧状态在当前 key 上读出来的旧答案。
+即旧状态在当前 key 上读出来的旧答案。
 
 于是更新变成：
 
@@ -357,7 +357,7 @@ $$
 S_t k_t = (1 - \beta_t) S_{t-1} k_t + \beta_t v_t
 $$
 
-读回来的是旧答案和新 value 的凸组合：$\beta_t = 1$ 时 $S_t k_t = v_t$，旧关联被整块擦掉换成新值；$\beta_t$ 小则只挪动一点。纯加法写入 $v_t k_t^T$ 没有“先减去旧读出”这一步，同一个 key 上只会不断叠加，新旧 value 无法互相覆盖——这就是 delta rule 在 in-context retrieval 上更强的原因。
+读回来的是旧答案和新 value 的凸组合：$\beta_t = 1$ 时 $S_t k_t = v_t$，旧关联被整块擦掉换成新值；$\beta_t$ 小则只挪动一点。纯加法写入 $v_t k_t^T$ 没有“先减去旧读出”这一步，同一个 key 上只会不断叠加，新旧 value 无法互相覆盖，这是 delta rule 在 in-context retrieval 上更强的原因。
 
 同一个回归目标也可以求闭式解，Longhorn 走的是隐式在线学习（implicit online learning）；delta rule 是同一目标的单步显式梯度下降，所以两者更新式很像，但来源不同。
 
@@ -429,7 +429,7 @@ S_{t-1}\left(\alpha_t(I-\beta_t k_t k_t^T)\right)
 + \beta_t v_t k_t^T
 $$
 
-这个式子看起来更复杂，但含义和上面的三步一致：先按 $\alpha_t$ 控制旧状态，再用 delta rule 对当前 key 的映射做定向编辑。本文使用简化式，是为了让第一次接触的读者先抓住记忆更新逻辑。
+这个式子看起来更复杂，但含义和拆开的三步一致：先按 $\alpha_t$ 控制旧状态，再用 delta rule 对当前 key 的映射做定向编辑。这里用简化式，是为了让第一次接触的读者先抓住记忆更新逻辑。
 
 两个式子确实完全等价，展开一遍就能确认（$\alpha_t$ 是标量，可以自由地在矩阵乘法里换位置）：
 
@@ -469,9 +469,9 @@ $$
 
 > 自绘示意图
 
-> 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；$\alpha$、$\beta$ 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。本文上面的图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
+> 对照原文图：论文 Figure 1 画的是 Gated DeltaNet 的真实 block design。它显示 query/key/value 路径分别经过 linear projection、short convolution、SiLU，其中 query/key 还会做 L2 normalization；$\alpha$、$\beta$ 由 linear projection 产生；输出侧还包含 normalization、output gate 和 output projection。这张自绘图只抽象出“遗忘门 + delta 写入”的核心逻辑，方便先理解公式。
 
-从 delta rule 到 gated delta rule 只差一个 $\alpha_t$，在在线学习的视角下这点看得最清楚：delta rule 每步都在用 $\lVert S k_t - v_t \rVert^2$ 做回归，同时惩罚 $S$ 偏离旧状态的程度；GDN 把这个惩罚从 $\lVert S_t - S_{t-1} \rVert_F^2$ 放松成 $\lVert S_t - \alpha_t S_{t-1} \rVert_F^2$。也就是说，新状态不必贴着旧状态，允许它先缩到 $\alpha_t$ 倍再更新。等价的说法是：在每步 SGD 之前把 fast weight 整体乘一次 $\alpha_t$，即给 fast weight 加了一项自适应 weight decay。论文 Table 1 把这条主线整理成了统一的目标函数：
+从 delta rule 到 gated delta rule 只差一个 $\alpha_t$，在在线学习的视角下这点看得最清楚：delta rule 每步都在用 $\lVert S k_t - v_t \rVert^2$ 做回归，同时惩罚 $S$ 偏离旧状态的程度；GDN 把这个惩罚从 $\lVert S_t - S_{t-1} \rVert_F^2$ 放松成 $\lVert S_t - \alpha_t S_{t-1} \rVert_F^2$。新状态不必再贴着旧状态，可以先缩到 $\alpha_t$ 倍再更新。等价的说法是：在每步 SGD 之前把 fast weight 整体乘一次 $\alpha_t$，即给 fast weight 加了一项自适应 weight decay。论文 Table 1 把这条主线整理成了统一的目标函数：
 
 | 方法 | 在线学习目标 | 在线更新 |
 | --- | --- | --- |
@@ -480,15 +480,15 @@ $$
 | DeltaNet | $\lVert S_t - S_{t-1}\rVert_F^2 - 2\langle S_t k_t, \beta_t(v_t - S_{t-1}k_t)\rangle$ | $S_t = S_{t-1}(I - \beta_t k_t k_t^T) + \beta_t v_t k_t^T$ |
 | Gated DeltaNet | $\lVert S_t - \alpha_t S_{t-1}\rVert_F^2 - 2\langle S_t k_t, \beta_t(v_t - \alpha_t S_{t-1}k_t)\rangle$ | $S_t = S_{t-1}\left(\alpha_t(I - \beta_t k_t k_t^T)\right) + \beta_t v_t k_t^T$ |
 
-从表里能直接读出 GDN 的位置：Mamba2 有 $\alpha_t$ 但没有回归项 $\lVert S k_t - v_t\rVert^2$，DeltaNet 有回归项但没有 $\alpha_t$，GDN 两个都有——这就是“gating 与 delta rule 互补”的确切含义。
+从表里能直接读出 GDN 的位置：Mamba2 有 $\alpha_t$ 但没有回归项 $\lVert S k_t - v_t\rVert^2$，DeltaNet 有回归项但没有 $\alpha_t$，GDN 两个都有，论文所说的“gating 与 delta rule 互补”指的就是这一点。
 
-还有一点：公式里 $\alpha_t$、$\beta_t$ 写成标量只是记号上的简化。论文在 block design 里说明 $\alpha$、$\beta$ 各由一个 linear projection 产生，并注明 $\alpha$ 沿用 Mamba2 的参数化；在官方的参考实现里，两者都是“每个 token、每个 head 一个标量”的衰减/写入强度（$\beta$ 由 sigmoid 得到，开启 allow_negative_eigenvalues 时乘 2，从而可以取到负特征值），对整个 head 的状态矩阵统一生效。
+还有一点：公式里 $\alpha_t$、$\beta_t$ 写成标量只是记号上的简化。论文在 block design 里说明 $\alpha$、$\beta$ 各由一个 linear projection 产生，并注明 $\alpha$ 沿用 Mamba2 的参数化；在官方的参考实现里，两者都是“每个 token、每个 head 一个标量”的衰减/写入强度（$\beta$ 由 sigmoid 得到，开启 `allow_neg_eigval` 时乘 2，从而可以取到负特征值），对整个 head 的状态矩阵统一生效。
 
 GDN 的核心是：
 
 > Gating 负责控制记忆寿命，delta rule 负责精准修改 key-value 映射。
 
-GDN 论文的核心观察也正是：gating 和 delta rule 是互补的。gating 擅长快速擦除无用记忆，delta rule 擅长对已有映射做有目标的更新。
+论文的核心观察是：gating 和 delta rule 互补。gating 擅长快速擦除无用记忆，delta rule 擅长对已有映射做有目标的更新。
 
 ## 8. 为什么 GDN 和 Mamba2 有关系？
 
@@ -585,14 +585,24 @@ $$
 其中 $W_{[t]}$ 的递推形式是 $w^r = \beta^r\left(k^r - \sum_{i<r} w^i (k^{iT}k^r)\right)$。再用 UT 变换把这串递推组织成矩阵运算，代价只是一次 $C\times C$ 的三角矩阵求逆：
 
 $$
+T^0_{[t]} = \left[I + \mathrm{strictLower}\left(\mathrm{diag}(\beta_{[t]}) K_{[t]} K_{[t]}^T\right)\right]^{-1}\mathrm{diag}(\beta_{[t]})
+$$
+
+$$
+W_{[t]} = T^0_{[t]}K_{[t]}
+$$
+
+写回 $\tilde{U}_{[t]}$ 的递推（它含衰减比 $\gamma^i_{[t]}/\gamma^j_{[t]}$）时，同一个 UT 变换要带上 $\Gamma_{[t]}$ 权重，论文把这一版单独写出：
+
+$$
 T_{[t]} = \left[I + \mathrm{strictLower}\left(\mathrm{diag}(\beta_{[t]})\left(\Gamma_{[t]} \odot K_{[t]} K_{[t]}^T\right)\right)\right]^{-1}\mathrm{diag}(\beta_{[t]})
 $$
 
 $$
-\tilde{U}_{[t]} = T_{[t]}V_{[t]}, \qquad W_{[t]} = T_{[t]}K_{[t]}
+\tilde{U}_{[t]} = T_{[t]}V_{[t]}
 $$
 
-（论文把这个 UT 矩阵记作 $T_{[t]}$，它和转置上标 $^T$ 是两回事。）
+（论文把 UT 矩阵记作 $T_{[t]}$，它和转置上标 $^T$ 是两回事。）$P_{[t]}$ 是不带衰减的 Householder 乘积，它的 WY 因子只能用 $T^0_{[t]}$；$\tilde{U}_{[t]}$ 用带 $\Gamma_{[t]}$ 的 $T_{[t]}$，两者不能互换。
 
 这里 $\odot$ 是逐元素乘，$\Gamma_{[t]}$ 是 chunk 内带衰减的因果系数矩阵（$i \ge j$ 时取 $\gamma^i_{[t]}/\gamma^j_{[t]}$，上三角为 0），strictLower 取下三角但不含对角线。于是整个 chunk 的 state 更新和输出都变成矩阵乘：
 
@@ -604,15 +614,15 @@ $$
 O_{[t]} = \overleftarrow{Q_{[t]}} S_{[t]}^T + \left(Q_{[t]}K_{[t]}^T \odot \mathcal{M}\right)\left(\tilde{U}_{[t]} - \overleftarrow{W_{[t]}}S_{[t]}^T\right)
 $$
 
-带箭头的量表示按累计衰减缩放：左箭头乘 $\gamma^r_{[t]}$（把 chunk 内的位置衰减到 chunk 首），右箭头乘 $\gamma^C_{[t]}/\gamma^r_{[t]}$（衰减到 chunk 末），$\mathcal{M}$ 是 chunk 内的因果掩码（论文记作 $M$）。
+带箭头的量表示按累计衰减缩放：左箭头乘 $\gamma^r_{[t]}$（把 chunk 内的位置衰减到 chunk 首），右箭头乘 $\gamma^C_{[t]}/\gamma^r_{[t]}$（衰减到 chunk 末），$\mathcal{M}$ 就是 $\Gamma_{[t]}$ 本身（$r \ge j$ 时取 $\gamma^r_{[t]}/\gamma^j_{[t]}$，上三角为 0；论文正文在这一式里写作 $M$），换成 0/1 的普通因果掩码等式不再成立。
 
-这两个式子是整个 chunkwise 算法的骨架。$S_{[t]}$ 那一项负责 chunk 之间的状态传递，只需要处理 $N/C$ 个 chunk；括号里的 $\tilde{U} - \overleftarrow{W}S^T$ 和 $QK^T\odot\mathcal{M}$ 都在 chunk 内部，是规模 $C\times C$ 的小矩阵乘，正好喂给 tensor core。$C$ 越大，chunk 间那次状态更新的开销越能被摊薄（chunk 内项的绝对计算量随 $C$ 上升，所以实际实现要在两者间取平衡），而 chunk 间只有一次 rank-$C$ 的状态修正，总计算量仍然随 $N$ 线性增长。边界情况也说明这套式子是原递推的精确重排：$C=1$ 时它退化成逐 token 的递推，$\alpha_t \equiv 1$ 时退化成 DeltaNet 的 chunkwise 算法——这正是论文说“把 DeltaNet 的并行算法扩展到 gated 版本”的意思。
+这两个式子是整个 chunkwise 算法的骨架。$S_{[t]}$ 那一项负责 chunk 之间的状态传递，只需要处理 $N/C$ 个 chunk；括号里的 $\tilde{U} - \overleftarrow{W}S^T$ 和 $QK^T\odot\mathcal{M}$ 都在 chunk 内部，是规模 $C\times C$ 的小矩阵乘，正好喂给 tensor core。$C$ 越大，chunk 间那次状态更新的开销越能被摊薄（chunk 内项的绝对计算量随 $C$ 上升，所以实际实现要在两者间取平衡），而 chunk 间只有一次 rank-$C$ 的状态修正，总计算量仍然随 $N$ 线性增长。边界情况也说明这套式子是原递推的精确重排：$C=1$ 时它退化成逐 token 的递推，$\alpha_t \equiv 1$ 时退化成 DeltaNet 的 chunkwise 算法，对应论文“把 DeltaNet 的并行算法扩展到 gated 版本”的说法。
 
 这也是现代 RNN-like 模型和 1990 年代 RNN 的一大区别：它们既提出递推公式，也提出能在 GPU 上训练的算法。
 
 > 对照原文图：论文 Figure 3 是 1.3B 模型在单张 H100 GPU 上的训练吞吐对比，横轴 2K×16 到 16K×2，八条曲线覆盖 Transformer++、DeltaNet、Gated DeltaNet、Mamba1、Mamba2、Gated DeltaNet-H1、Samba、Gated DeltaNet-H2。论文正文给出的结论是：gated delta rule 相比原始 delta rule 只带来边际开销，Gated DeltaNet 的吞吐与 DeltaNet 基本持平；两者因为 transition matrix 更具表达力，比 Mamba2 慢 2–3K tokens/sec。所以这张图回答的是“chunkwise 形式 + tensor core 友好”在工程上值多少。
 
-你可以回看本文开头的 Figure 3 转写图：Transformer++ 在短上下文里很快，但随着序列长度变长吞吐会掉下来；Gated DeltaNet、DeltaNet、Mamba2 这类 recurrent/SSM-like 模型曲线更平。这就是“线性序列混合”在长上下文训练里的工程价值。
+对照 Figure 3 的转写图：Transformer++ 在短上下文里很快，但随着序列长度变长吞吐会掉下来；Gated DeltaNet、DeltaNet、Mamba2 这类 recurrent/SSM-like 模型曲线更平，长上下文训练里“线性序列混合”的工程价值就体现在这条更平的曲线上。
 
 ## 10. Decode 时 GDN 真的总是更快吗？
 
@@ -632,7 +642,7 @@ GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 tok
 
 2026 年有一篇关于 GDN decode 加速的 FPGA 工作就指出，GDN 用固定 recurrent state 替代增长的 KV cache，但 batch-1 GPU decode 会被状态往返 HBM 的访存卡住。它们的思路是把状态常驻在 FPGA 片上 BRAM 里，在 AMD Alveo U55C（Vitis HLS）上实现，减少每 token 的状态搬运。
 
-那篇工作把瓶颈讲得很具体：所有 subquadratic 序列模型在 decode 时算术强度都低于 **1 FLOP/B**，也就是每搬一个字节还做不到一次乘加，因此比普通 Transformer 更受限于访存（它们算出的 GDN decode 算术强度约 0.87 FLOP/B，而 H100 PCIe 的 ridge point 是 25.6 FLOP/B，差了近 30 倍）。GDN 的 recurrent state 在它们的配置里是 32 个 $128\times128$ 的矩阵、约 **2 MB**，而一个 token 的算术量只有约 4.2 MFLOPs，所以每个 token 都要把整块状态读、改、写回。把状态常驻到 FPGA 片上 BRAM 后，它们测得最快配置 **63 μs / token**，比 H100 PCIe 上的 GPU 参考实现快 **4.5x**，post-implementation 功耗约 9.96 W，折算下来每个 token 的能量效率最高提升约 **60x**。
+那篇工作把瓶颈讲得很具体：所有 subquadratic 序列模型在 decode 时算术强度都低于 **1 FLOP/B**，即每搬一个字节还做不到一次乘加，因此比普通 Transformer 更受限于访存（它们算出的 GDN decode 算术强度约 0.87 FLOP/B，而 H100 PCIe 的 ridge point 是 25.6 FLOP/B，差了近 30 倍）。GDN 的 recurrent state 在它们的配置里是 32 个 $128\times128$ 的矩阵、约 **2 MB**，而一个 token 的算术量只有约 4.2 MFLOPs，所以每个 token 都要把整块状态读、改、写回。把状态常驻到 FPGA 片上 BRAM 后，它们测得最快配置 **63 μs / token**，比 H100 PCIe 上的 GPU 参考实现快 **4.5x**，post-implementation 功耗约 9.96 W，折算下来每个 token 的能量效率最高提升约 **60x**。
 
 这说明 GDN 的工程判断要更细：
 
@@ -650,7 +660,7 @@ GDN 的状态通常是每层、每个 head 的矩阵状态。每生成一个 tok
 
 ## 11. 和其他模型对比
 
-先放一张表：
+各方法的定位对比：
 
 | 方法             | 历史怎么存                    | 优点                                 | 主要问题                                 |
 | ---------------- | ----------------------------- | ------------------------------------ | ---------------------------------------- |
@@ -695,7 +705,7 @@ GDN 往里面加入更像“可编辑 key-value 记忆”的 delta 更新。
 
 > 对照原文图：论文 Figure 2 展示了六个长上下文 benchmark 的 length extrapolation 曲线。作者的结论是，在 RNN 类模型中，Gated DeltaNet 整体 perplexity 更低，长序列上更稳健；hybrid 版本借助 attention 做局部上下文建模，还能进一步改善表现。
 
-这张图别只看某一个点，要看趋势：随着长度从 4K 增到 20K，普通 recurrent/SSM 模型容易出现记忆管理问题，Gated DeltaNet 系列通常更稳。这个结果和前面的机制解释是对得上的：gating 帮助清理旧记忆，delta rule 帮助把当前 key 对应的 value 改写得更准。
+这张图重在趋势：随着长度从 4K 增到 20K，普通 recurrent/SSM 模型容易出现记忆管理问题，Gated DeltaNet 系列通常更稳。这个结果和前面的机制解释是对得上的：gating 帮助清理旧记忆，delta rule 帮助把当前 key 对应的 value 改写得更准。
 
 ## 14. GDN vs DeltaNet
 
@@ -759,9 +769,9 @@ GDN-2 的思路是把两个 gate 拆开：
 
 ## 16. 一个完整例子：模型读代码时发生什么
 
-假设模型正在读一段代码：
+假设模型正在读这样一段代码（省略号表示中间省略的代码）：
 
-```python
+```text
 timeout = 30
 ...
 timeout = config.request_timeout
@@ -773,7 +783,7 @@ client = Client(timeout=timeout)
 
 读到第一行：
 
-```python
+```text
 timeout = 30
 ```
 
@@ -786,7 +796,7 @@ value: 30
 
 读到第二次赋值：
 
-```python
+```text
 timeout = config.request_timeout
 ```
 
@@ -802,7 +812,7 @@ delta = target - old_read
 
 如果门控判断旧定义已经过时，$\alpha_t$ 会让旧状态快速衰减。这样后面读到：
 
-```python
+```text
 client = Client(timeout=timeout)
 ```
 
@@ -810,7 +820,7 @@ client = Client(timeout=timeout)
 
 当然真实模型存的是高维向量。GDN 在维护一张会随上下文不断改写的压缩记忆表。
 
-## 17. 这篇文章最值得带走的点
+## 17. 最值得带走的点
 
 GDN 可以从 RNN 一步步理解：
 
@@ -842,4 +852,5 @@ GDN 可以从 RNN 一步步理解：
 - Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention: <https://arxiv.org/abs/2605.22791>
 - A Persistent-State Dataflow Accelerator for Memory-Bound Linear Attention Decode on FPGA: <https://arxiv.org/abs/2603.05931>
 - Preconditioned DeltaNet: Curvature-aware Sequence Modeling for Linear Recurrences: <https://arxiv.org/abs/2604.21100>
-- Gated DeltaNet 官方实现（flash-linear-attention）: <https://github.com/fla-org/flash-linear-attention>
+- Gated DeltaNet 参考实现（flash-linear-attention，论文作者维护）: <https://github.com/fla-org/flash-linear-attention>
+- Gated DeltaNet 论文官方代码仓库: <https://github.com/NVlabs/GatedDeltaNet>

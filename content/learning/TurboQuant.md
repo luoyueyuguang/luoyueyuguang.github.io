@@ -1,6 +1,6 @@
-> 本文与 codex 5.5 协作撰写。
+> 与 codex 5.5 协作撰写。
 
-这篇文章按三个层次来讲 TurboQuant：
+TurboQuant 按三个层次来讲：
 
 1. **直觉**：为什么 AI 里有很多向量，为什么要量化，为什么 KV cache 特别占显存。
 2. **数学**：TurboQuant 到底在优化什么，随机旋转为什么有用，MSE 量化和内积量化为什么不是一回事。
@@ -27,7 +27,7 @@
 
 向量就是“用很多数字描述一个东西”。一个人可以用身高、体重、年龄、收入这些数字描述；AI 也用很多数字描述一个词或一段上下文。
 
-现实里的大模型向量不会只有 4 个数字。它们可能有 128、256、1024、4096 个数字。我们把维度记作 $d$。
+现实里的大模型向量不会只有 4 个数字。它们可能有 128、256、1024、4096 个数字。维度记作 $d$。
 
 数学上写成：
 
@@ -76,14 +76,14 @@ TurboQuant 特别关心的一类数据是 **KV cache**。
 
 上下文越长，笔记越多。长文本聊天、长文档问答、多轮对话都会让 KV cache 变大。
 
-所以，如果我们能把 KV cache 的向量压小，同时不让模型明显变差，就能：
+所以，把 KV cache 的向量压小、同时不让模型明显变差，就能：
 
 - 降低显存占用。
 - 支持更长上下文。
 - 同时服务更多请求。
 - 减少显存读写，让推理更快。
 
-这就是量化的现实动机。
+量化的动机主要落在显存容量和显存带宽这两项上。
 
 ## 4. 量化是什么
 
@@ -101,7 +101,7 @@ TurboQuant 特别关心的一类数据是 **KV cache**。
 172 cm
 ```
 
-这就是量化。它丢掉了一点精度，但节省了表达成本。
+量化丢掉了一点精度，但节省了表达成本。
 
 计算机里也类似。原来一个小数可能用 16 bit 或 32 bit 存。量化后可能只用 8 bit、4 bit、2 bit，甚至 1 bit 存。
 
@@ -152,7 +152,7 @@ $$
 
 能不能恢复出原向量本身，是次要的。
 
-这是后面 MSE 量化和内积量化分开的原因。
+MSE 量化和内积量化后来分成两条路线，原因就在这里。
 
 ## 6. 两种误差：MSE 和内积误差
 
@@ -281,7 +281,7 @@ $$
 \|\mathbf{\Pi}\mathbf{x}\|_2 = \|\mathbf{x}\|_2
 $$
 
-也就是说，旋转不会改变长度。
+旋转不会改变长度。
 
 它也不会改变两个向量的点积：
 
@@ -383,9 +383,7 @@ $$
 
 ## 11. codebook 是怎么来的：一维 k-means
 
-现在我们把 codebook 说清楚。
-
-随机旋转后，每个坐标的分布是 $f_X(t)$。我们要用 $2^b$ 个中心去表示这个一维随机变量。
+随机旋转后，每个坐标的分布是 $f_X(t)$。需要用 $2^b$ 个中心表示这个一维随机变量。
 
 假设中心是：
 
@@ -420,7 +418,7 @@ $$
 - 积分就是把所有可能的 $t$ 按概率加权平均。
 - 最小化这个值，就是找最好的代表点。
 
-这就是连续版的一维 k-means，也叫 Lloyd-Max 量化。
+连续版的一维 k-means 也叫 Lloyd-Max 量化。
 
 论文预先算好常用 bit-width 的 codebook，实际运行时直接查表，并不会每次量化都重新算。
 
@@ -458,11 +456,11 @@ D_{\text{mse}}
 d \cdot \mathcal{C}(f_X,b)
 $$
 
-这一步很关键。它说明：高维向量量化被随机旋转后，可以拆成很多个一维量化问题。
+这一步说明：高维向量量化被随机旋转后，可以拆成很多个一维量化问题。
 
 这里不要被外面的 $d$ 吓到。随机旋转后，单个坐标 $z_j$ 的方差大约是 $1/d$，所以一维误差 $\mathcal{C}(f_X,b)$ 自己也带着一个大约 $1/d$ 的缩放。外面的 $d$ 和里面的 $1/d$ 会抵消。因此总 MSE 不会因为维度变大就线性暴涨；在论文的单位向量设定下，主导误差主要由 bit-width $b$ 决定。
 
-把这一步算清楚。论文用的是一维量化器的 Panter-Dite 高分辨率公式：
+论文用的是一维量化器的 Panter-Dite 高分辨率公式：
 
 $$
 \mathcal{C}(f_X,b)
@@ -470,14 +468,14 @@ $$
 \frac{1}{12}\left(\int f_X(x)^{1/3}\,dx\right)^3 \cdot \frac{1}{4^b}
 $$
 
-对 $f_X \to \mathcal{N}(0,1/d)$ 有 $\left(\int f_X^{1/3}\,dx\right)^3 = \frac{6\sqrt{3}\pi}{d}$（对 $\mathcal{N}(0,\sigma^2)$ 这个积分等于 $6\sqrt{3}\pi\sigma^2$，再代入 $\sigma^2 = 1/d$），于是
+对 $f_X \to \mathcal{N}(0,1/d)$ 有 $\left(\int f_X^{1/3}\,dx\right)^3 = \frac{6\sqrt{3}\pi}{d}$（对 $\mathcal{N}(0,\sigma^2)$，这个三次方等于 $6\sqrt{3}\pi\sigma^2$，再代入 $\sigma^2 = 1/d$），于是
 
 $$
 \mathcal{C}(f_X,b)\le \frac{1}{12}\cdot\frac{6\sqrt{3}\pi}{d}\cdot\frac{1}{4^b}
 =\frac{\sqrt{3}\pi}{2d}\cdot\frac{1}{4^b}
 $$
 
-乘回 $d$ 个坐标，就是下面的 $\frac{\sqrt{3}\pi}{2}\cdot\frac{1}{4^b}$。常数 $\sqrt{3}\pi/2$ 是从这个积分来的，不是另外凑的。
+乘回 $d$ 个坐标得 $\frac{\sqrt{3}\pi}{2}\cdot\frac{1}{4^b}$。常数 $\sqrt{3}\pi/2$ 直接来自这个积分。
 
 论文证明的上界是：
 
@@ -497,7 +495,7 @@ $$
 
 论文还给了低 bit 的更精细数值：
 
-| bit-width b | MSE 近似上界 |
+| bit-width b | MSE 近似值 |
 | --- | --- |
 | 1 | 0.36 |
 | 2 | 0.117 |
@@ -528,15 +526,19 @@ DeQuant_mse(idx):
 
 对应 NumPy 教学版如下。
 
-注意：这不是生产级代码。论文使用的是 Beta 分布对应的最优 codebook；下面为了可读性，用高维下的正态近似 $\mathcal{N}(0, 1/d)$ 来用 Lloyd-Max 数值求 codebook。生产系统还需要 bit packing、CUDA kernel、快速旋转、norm 存储和 outlier channel 处理。
+这不是生产级代码。论文使用的是 Beta 分布对应的最优 codebook；这里为了可读性，用高维下的正态近似 $\mathcal{N}(0, 1/d)$ 数值求 Lloyd-Max codebook。生产系统还需要 bit packing、CUDA kernel、快速旋转、norm 存储和 outlier channel 处理。
 
-这段代码要用梯形法做数值积分，而函数名在不同 NumPy 版本里不一样：站点内置的运行器是 Pyodide 0.26.4，它带的 NumPy 是 **1.26.4**，函数叫 `np.trapz`；NumPy 2.0 起改名为 `np.trapezoid`（`trapz` 保留为过时别名）。所以第一行先按版本取一个别名 `_trapz`，两个版本都能跑。
+这段代码要用梯形法做数值积分，而函数名在不同 NumPy 版本里不一样：站点内置的运行器是 Pyodide 0.26.4，它带的 NumPy 是 **1.26.4**，只有 `np.trapz`；NumPy 2.0 起改名为 `np.trapezoid`，`np.trapz` 先被弃用、到 NumPy 2.4 被移除。所以开头按版本取一个别名 `_trapz`，1.26 与 2.x 都能跑。
 
 ```python
 import numpy as np
 
-# NumPy 2.0 把 trapz 改名为 trapezoid；Pyodide 0.26.4 带的是 NumPy 1.26.4，只有 trapz。
-_trapz = getattr(np, "trapezoid", np.trapz)
+# NumPy 2.0 起把 trapz 改名为 trapezoid，2.4 起移除 trapz；
+# Pyodide 0.26.4 带的 NumPy 1.26.4 只有 trapz，所以不能写成默认参数形式。
+try:
+    _trapz = np.trapezoid
+except AttributeError:
+    _trapz = np.trapz
 
 
 def random_rotation(d, rng):
@@ -618,7 +620,7 @@ class TurboQuantMSE:
 
 到这里，`TurboQuant_mse` 已经能把向量压小，并且重建误差不错。
 
-但如果我们的目标是点积，它还有一个问题：**有偏**。
+但如果目标是点积，它还有一个问题：**有偏**。
 
 无偏是什么意思？
 
@@ -677,9 +679,9 @@ $$
 
 $2/\pi \approx 0.637$。
 
-也就是说，如果真实点积是 $1.0$，它平均估计成 $0.637$。这是系统性偏小，不是随机噪声。
+真实内积是 $1.0$ 时，它平均估计成 $0.637$。这是系统性偏小，不是随机噪声。
 
-这就是为什么 TurboQuant 还需要第二版算法：`TurboQuant_prod`。
+TurboQuant 因此还需要第二版算法：`TurboQuant_prod`。
 
 ## 15. QJL：用 1 bit 做无偏内积估计
 
@@ -705,7 +707,7 @@ $$
 
 也就是每个投影结果是正还是负。
 
-这就是 1 bit：
+这个正负号只占 1 bit：
 
 ```text
 正 -> +1
@@ -732,7 +734,7 @@ $$
 \langle \mathbf{y}, \mathbf{u} \rangle
 $$
 
-这就是无偏。
+这里的期望是对随机矩阵 $\mathbf{S}$ 取的。
 
 为什么？把估计按行展开。记 $\mathbf{s}_1, \ldots, \mathbf{s}_d$ 是 $\mathbf{S}$ 的 $d$ 行，则
 
@@ -773,7 +775,7 @@ $$
 - 维度 $d$ 越大，方差越小。
 - 所以高维反而帮了忙。
 
-再强调一次：上面这个无偏公式的前提是 $u$ 是单位向量。对于非单位向量 $v$，要先写成：
+这个无偏公式的前提是 $u$ 是单位向量。对于非单位向量 $v$，要先写成：
 
 $$
 \mathbf{v} = \gamma \mathbf{u},
@@ -834,7 +836,7 @@ $$
 \gamma = \|\mathbf{r}\|_2
 $$
 
-这一步就是在处理“残差不是单位向量”的问题。严格地说，我们是把残差写成：
+这一步处理的是“残差不是单位向量”的问题。严格地说，把残差写成：
 
 $$
 \mathbf{r} = \gamma \mathbf{u},
@@ -867,7 +869,7 @@ $$
 \operatorname{sign}(\mathbf{S}\mathbf{r})
 $$
 
-这就是论文里的 `TurboQuant_prod`。
+上式就是论文 Algorithm 2 里 `TurboQuant_prod` 的解码步骤。
 
 它不完整恢复残差，只用 1 bit 草图帮忙修正内积。
 
@@ -875,7 +877,7 @@ $$
 
 这一段是整篇文章最关键的数学。
 
-我们想证明：
+要证明的是：
 
 $$
 \mathbb{E}
@@ -929,7 +931,7 @@ $$
 
 这正是 `TurboQuant_prod` 里保存并乘回残差长度 $\gamma = \|\mathbf{r}\|_2$ 的原因。少了这个缩放，残差非单位向量会破坏无偏性。
 
-因此我们可以写：
+条件期望因此可以写成：
 
 $$
 \mathbb{E}
@@ -977,7 +979,7 @@ $$
 \langle \mathbf{y}, \mathbf{x} \rangle
 $$
 
-这就是无偏。
+条件期望无偏，再由全期望律即可得到无条件无偏。
 
 普通话总结：
 
@@ -985,7 +987,7 @@ $$
 
 ## 18. 为什么误差也小
 
-QJL 的方差上界告诉我们：
+QJL 的方差上界给出：
 
 $$
 \text{残差修正造成的内积方差}
@@ -1033,7 +1035,7 @@ $$
 
 这里的 $\pi^2$ 就是 $\pi/2$ 乘上 $D_{\text{mse}}$ 自带的 $\pi$：代入 $D_{\text{mse}}(b-1)\le\frac{\sqrt{3}\pi}{2}\cdot 4^{-(b-1)}$，且 $4^{-(b-1)}=4\cdot 4^{-b}$，于是 $\frac{\pi}{2d}\cdot 4\cdot\frac{\sqrt{3}\pi}{2}=\frac{\sqrt{3}\pi^2}{d}$，常数刚好对上。
 
-这就是 TurboQuant 的组合逻辑：
+TurboQuant 的组合逻辑：
 
 1. 用 $b-1$ bit 把残差压小。
 2. 用最后 1 bit 的 QJL 保证内积无偏。
@@ -1241,7 +1243,7 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 因为一个向量的维度通常不大，比如 128、256。一个 block 里的线程可以一起处理这些 channel，最后把结果打包写回全局内存。
 
-但是要先讲清楚一个重要限制：
+有一个重要限制：
 
 > 论文里的随机旋转 $\Pi\,x$ 是算法定义。工程热路径里，如果真的每来一个 KV 向量都做 dense $d\times d$ 矩阵乘法，代价会很重。
 
@@ -1331,7 +1333,7 @@ __device__ __forceinline__ void set_2bit_idx_in_word(
 
 ## 24. Kernel 1：`Quant_mse` 的 2-bit 教学实现
 
-这一节实现：
+这里要做三件事：
 
 ```text
 z = Πx 已经算好
@@ -1343,7 +1345,7 @@ z = Πx 已经算好
 
 > 自绘示意图
 
-为了让代码短一点，我们先只写 $b = 2$。这时 codebook 有 4 个中心：
+为了代码短一点，这里只写 $b = 2$。这时 codebook 有 4 个中心：
 
 ```text
 c0, c1, c2, c3
@@ -1433,7 +1435,7 @@ $$
 
 ## 25. Kernel 2：不要先完整解压，再算 attention
 
-如果我们先把 packed KV cache 全部解压回 float16 大矩阵，再做 attention，会浪费很多带宽。
+先把 packed KV cache 全部解压回 float16 大矩阵，再做 attention，会浪费很多带宽。
 
 更好的思路是：
 
@@ -1548,9 +1550,9 @@ $$
 \langle \mathbf{\Pi}\mathbf{q}, \tilde{\mathbf{z}} \rangle
 $$
 
-这就是为什么我们不用真的先算出 $\hat{k} = \Pi^T \hat{z}$。只要把 query 旋转到同一个坐标系，直接和 $\hat{z}$ 做点积就行。
+这样就不用真的先算出 $\hat{k} = \Pi^T \hat{z}$：只要把 query 旋转到同一个坐标系，直接和 $\hat{z}$ 做点积。
 
-这一步非常重要，因为它省掉了大量解压写回。
+它省掉了大量解压写回。
 
 ## 26. Kernel 3：QJL 残差项怎么融合
 
@@ -1684,7 +1686,7 @@ $$
 \langle \mathbf{S}\mathbf{y}, \mathbf{s} \rangle
 $$
 
-不过要注意：如果 $S$ 是普通 dense Gaussian 矩阵，提前算 $S\,y$ 本身也要 $O(d^2)$，这在热路径里很贵。生产实现需要考虑：
+如果 $S$ 是普通 dense Gaussian 矩阵，提前算 $S\,y$ 本身也要 $O(d^2)$，这在热路径里很贵。生产实现需要考虑：
 
 - 用结构化随机投影降低 $S\,y$ 的代价。
 - 把 QJL 修正只用于最需要的路径。
@@ -1710,7 +1712,7 @@ $$
 - $D_i$ 是随机正负号对角矩阵，只需要给每个 channel 乘 $+1$ 或 $-1$。
 - $H$ 是 Hadamard 矩阵，可以用 Fast Walsh-Hadamard Transform, FWHT, 的蝴蝶结构快速计算。
 
-这样原本 dense $S\,y$ 的 $O(d^2)$ 乘法，可以降到 $O(d\log d)$。如果 $d$ 是 128 或 256，这个差别在热路径里非常实在。更进一步，结构化投影还更容易和量化、解码、attention 打分融合到同一个 kernel 里。
+这样原本 dense $S\,y$ 的 $O(d^2)$ 乘法，可以降到 $O(d\log d)$。如果 $d$ 是 128 或 256，这个差别在热路径里很实在。更进一步，结构化投影还更容易和量化、解码、attention 打分融合到同一个 kernel 里。
 
 这属于工程实现路线，不等于说论文中每个定理都可以无条件把 dense Gaussian $S$ 换成任意结构化矩阵。数学保证和工程实现之间通常还要补额外分析或实验验证。但从性能角度看，没有结构化随机投影，`TurboQuant_prod` 的 QJL 项很难成为真正轻量的热路径组件。
 
@@ -1796,7 +1798,7 @@ packed cache
   -> 直接参与 dot / weighted sum
 ```
 
-这就是 kernel 实现的核心：
+两部分的分工是：
 
 > 量化算法解决“存什么”，kernel 解决“不要把存下来的东西反复搬来搬去”。
 
@@ -1837,12 +1839,12 @@ Google 的官方博客（2026 年 3 月 24 日发布）进一步公开了几组�
 
 | 名字 | 解决的问题 | 在 TurboQuant 里的位置 |
 | --- | --- | --- |
-| PolarQuant | 从长度和方向角度理解/量化向量 | 提供直觉和相关背景 |
+| PolarQuant | 从长度和方向角度理解/量化向量 | 论文里是被对比的 baseline；博客把第一阶段直接叫作 PolarQuant |
 | QJL | 1 bit 下做无偏内积估计 | 用来量化残差 |
 | TurboQuant_mse | 用随机旋转 + 标量最优量化降低 MSE | 第一阶段主量化 |
 | TurboQuant_prod | MSE 主量化 + QJL 残差修正 | 面向内积的完整版本 |
 
-这里有一个容易混的地方：Google 博客把第一阶段（随机旋转 + 逐坐标标量量化）直接叫做 "the PolarQuant method"，但论文里 PolarQuant 是另一条独立路线，用递归的两两极坐标变换去量化角度，在 TurboQuant 论文里它是被对比的 baseline 之一。本文按论文的说法，把 TurboQuant_mse 的第一阶段记作旋转 + Lloyd-Max，不做极坐标变换。
+这里有一个容易混的地方：Google 博客把第一阶段（随机旋转 + 逐坐标标量量化）直接叫做 "the PolarQuant method"，但论文里 PolarQuant 是另一条独立路线，用递归的两两极坐标变换去量化角度，在 TurboQuant 论文里它是被对比的 baseline 之一。这里按论文的说法，把 TurboQuant_mse 的第一阶段记作旋转 + Lloyd-Max，不做极坐标变换。
 
 TurboQuant 的核心数学是下面这几步：
 
@@ -1890,9 +1892,9 @@ $$
 \approx 2.7
 $$
 
-也就是说，它和理论下界只差一个常数倍，而不是差一个数量级。
+它和理论下界之间只隔一个常数倍。
 
-这就是论文标题里 “near-optimal distortion rate” 的意思。
+论文标题里的 “near-optimal distortion rate” 说的就是这个常数倍差距。
 
 ## 32. 从零复述一遍算法
 
@@ -1952,7 +1954,7 @@ QJL 只保存正负号草图，它不能完整恢复残差。它的目标是内�
 
 如果你是第一次读这方向，建议顺序是：
 
-1. 先理解本文的第 1 到 6 节：向量、量化、点积、MSE、内积误差。
+1. 先理解第 1 到 6 节：向量、量化、点积、MSE、内积误差。
 2. 再理解第 9 到 13 节：随机旋转和 `TurboQuant_mse`。
 3. 再理解第 14 到 19 节：为什么有偏，QJL 如何修正。
 4. 如果关心实现，再读第 22 到 28 节：packed cache、量化 kernel、融合 attention 打分和 QJL 残差项。
