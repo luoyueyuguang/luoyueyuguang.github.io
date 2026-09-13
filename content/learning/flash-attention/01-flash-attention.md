@@ -109,13 +109,13 @@ $ N $ 被约掉了：**这个上限只由 SRAM 大小 $ M $ 和 head dim $ d $ �
 - **FLOPs**：FA 反而更高（75.2 > 66.6），因为反向要重算 $ S $、$ P $。换来的收益全在流量上，压掉约 9 倍。
 - **口径**：$ I_\text{asym} $ 是渐近上限、单看 forward、且不计 $ \Theta(Nd) $ 项；表里两行是端到端实测，反向还要多搬 $ dO $、$ dS $、$ dP $ 好几个 $ N\times N $ 张量。
 
-所以实测的 $ I \approx 17 $ 比理论上限的三千多差两个数量级。它相对标准实现的 $ 1.65 $ 抬了一个数量级，方向正确，但**仍在 ridge 左边**——这正是 FA2 继续优化算力利用率的原因。
+所以实测的 $ I \approx 17 $ 比理论上限的三千多差两个数量级。它相对标准实现的 $ 1.65 $ 抬了一个数量级，方向正确，但**仍在 ridge 左边**：瓶颈还在带宽侧，FA1 只做到该点理论峰值的 25–40%。
 
 **消除 attention 的瓶颈，关键是减少 HBM 读写、提高算术强度，而不是减少 FLOPs。**
 
-![Roofline：标准实现与 FlashAttention 的实测强度都落在 ridge 左侧的 memory-bound 区，只有 2M/d 的渐近上限越过 ridge](/learning/assets/roofline.svg)
+![Roofline：实测点都在 ridge 左侧且低于带宽上限，那段垂直距离就是效率缺口；空心绿点是渐近上限 2M/d](/learning/assets/roofline.svg)
 
-> 自绘示意图（两个实测点取自 FA1 论文 Figure 2 左：66.6 GFLOPs / 40.3 GB 与 75.2 GFLOPs / 4.4 GB）
+> 自绘示意图（实测点取自 FA1 论文 Figure 2 左：66.6 GFLOPs / 40.3 GB / 41.7 ms 与 75.2 GFLOPs / 4.4 GB / 7.3 ms）
 
 ## FlashAttention 的三件套
 
