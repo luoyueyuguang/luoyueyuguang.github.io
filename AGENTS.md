@@ -92,7 +92,9 @@ Quartz `Plugin.Latex` with `renderEngine: "katex"`; the CSS and fonts are **self
 - **任何从外部来源借用的图片**，必须在其下方标注来源（含 Figure 编号）：
   `> 图源：<来源名>《<标题>》（<链接或出处>）Figure N`
   示例：`> 图源：Dao-AILab《FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness》（arXiv:2205.14135）Figure 1`
-- **自绘示意图**（自定义 SVG 等）在下方标注：`> 自绘示意图`。版式与论文一致但坐标数据是摘要式转写的，写 `> 图源：…（按原论文源码重绘）`，不要冒充原图。
+- **自绘示意图**（自定义 SVG 等）在下方标注：`> 自绘示意图`。
+- **转写/重绘的论文图**要经得起对照。写 `按原论文 pgfplots 坐标转写` 就意味着图里每条曲线都必须来自论文源码里的真实坐标，系列名和系列数也要和论文图例一致；只想画其中几条就在正文写明省了哪几条。**不许拿手画的示意数据冒充转写**——这类图看起来最可信，实际最难查。改动前先从论文 e-print（`https://arxiv.org/e-print/<id>`，解包后是 TeX 源码）取出坐标，再据此生成 SVG。
+- 借来的图若是**原始图片裁剪**（如论文 Figure 的 PNG 导出），写 `> 图源：…Figure N`；转写的写 `按原论文 <源码文件> 转写`。两者不要混用同一句标注。版式与论文一致但坐标数据是摘要式转写的，写 `> 图源：…（按原论文源码重绘）`，不要冒充原图。
 - 图片统一放 `content/learning/assets/`，用站点路径引用（`/learning/assets/...`），不要留孤立图片。
 - 图片下方的说明文字遵循 KaTeX 约定，不要用反引号包 `$...$`。
 
