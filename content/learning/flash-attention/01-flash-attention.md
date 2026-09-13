@@ -6,7 +6,9 @@ FlashAttention 要解决的是 attention 的 memory bound 问题，不同代际�
 
 ## 为什么 attention 慢
 
-先看 attention 的标准做法。给定 $ Q, K, V \in \mathbb{R}^{N \times d} $，输出 $ O = \mathrm{softmax}(QK^\top) V $。朴素实现把它拆成三步，每一步都在 HBM 读写：
+先看 attention 的标准做法。真实的张量是四维的：批 $ b $、头数 $ h $、序列长度 $ N $、head dim $ d $，即 $ Q, K, V \in \mathbb{R}^{b \times h \times N \times d} $。论文为了记号干净，按单个 $ (b, h) $ 切片写成 $ \mathbb{R}^{N \times d} $——下面沿用这个约定，只在涉及总量时把 $ b \cdot h $ 乘回来。
+
+单个切片内，输出是 $ O = \mathrm{softmax}(QK^\top) V $。朴素实现把它拆成三步，每一步都在 HBM 读写：
 
 $$
 S = Q K^\top, \qquad P = \mathrm{softmax}(S), \qquad O = P V
@@ -16,17 +18,19 @@ $$
 2. 把 $ S $ 读出来算出 $ P $ 再写回去；
 3. 把 $ P $ 读出来乘 $ V $。
 
-$ S $ 和 $ P $ 都是 $ N \times N $ 的矩阵，所以**显存占用是 $ O(N^2) $，HBM 读写也是 $ O(N^2) $ 次**。把每步的张量形状写出来，$ N^2 $ 出现在哪里就很清楚了：
+**$ N^2 $ 出现在 $ S $ 和 $ P $ 的最后两维上**，把每步的形状写全就很清楚：
 
-| 步骤 | 运算 | 结果形状 | 元素个数 |
-| --- | --- | --- | --- |
-| 1 | $ S = QK^\top $ | $ N \times N $ | $ N^2 $ |
-| 2 | $ P = \mathrm{softmax}(S) $ | $ N \times N $ | $ N^2 $ |
-| 3 | $ O = PV $ | $ N \times d $ | $ Nd $ |
+| 步骤 | 运算 | 切片内形状 | 四维形状 | 元素个数 |
+| --- | --- | --- | --- | --- |
+| 1 | $ S = QK^\top $ | $ N \times N $ | $ b \times h \times N \times N $ | $ b h N^2 $ |
+| 2 | $ P = \mathrm{softmax}(S) $ | $ N \times N $ | $ b \times h \times N \times N $ | $ b h N^2 $ |
+| 3 | $ O = PV $ | $ N \times d $ | $ b \times h \times N \times d $ | $ bhdN $ |
 
-输入和输出都是 $ N \times d $（每行一个 token），便宜的；涨到 $ N^2 $ 的只有 $ S $ 和 $ P $ 这两个中间结果。**FlashAttention 要挡的就是这两个矩阵落到 HBM 上**，做法是分块：一次只取 $ B_r $ 行 query、$ B_c $ 列 key，算 $ B_r \times B_c $ 的小块 $ S_{ij} $、$ P_{ij} $，它们只活在片上。
+输入和输出都只有 $ Nd $（每行一个 token），涨到 $ N^2 $ 的只有 $ S $ 和 $ P $ 这两个中间结果。$ b $ 和 $ h $ 不改变形状，只是把同一份切片复制 $ b \cdot h $ 次：**显存占用是 $ O(bhN^2) $，HBM 读写也是同样的量级。**
 
-![Attention 的维度变化：左边标准实现把 N×N 的 S、P 写进 HBM 再读回；右边 FlashAttention 分块后 Sᵢⱼ、Pᵢⱼ 只留在 SRAM，HBM 只搬 Q,K,V,O](/learning/assets/fa-attn-dims.svg)
+**FlashAttention 要挡的就是这两个矩阵落到 HBM 上**，做法是分块：一次只取 $ B_r $ 行 query、$ B_c $ 列 key，算 $ B_r \times B_c $ 的小块 $ S_{ij} $、$ P_{ij} $，它们只活在片上（$ B_r $、$ B_c $ 是分块大小，与批大小 $ b $ 无关）。
+
+![Attention 的四个维度：左边标准实现把 b×h×N×N 的 S、P 写进 HBM 再读回；右边 FlashAttention 在单个切片内按 B_r×B_c 分块，Sᵢⱼ、Pᵢⱼ 只留在 SRAM，HBM 只搬 Q,K,V,O](/learning/assets/fa-attn-dims.svg)
 
 > 自绘示意图
 
@@ -73,7 +77,7 @@ A100（80GB SXM）上 BF16 张量核的稠密峰值约 $ \pi = 312 $ TFLOPS、HB
 
 attention 落在左侧。head dim $ d $ 不大（几十），标准实现又把 $ N \times N $ 的 $ S $、$ P $ 写进 HBM 再读出来：一行 query 花 $ 4Nd $ FLOPs（两次 $ N \times d $ 的 GEMM），却要搬 $ 8N $ 字节（$ S $、$ P $ 各写一次读一次，fp16），算术强度只有 $ \approx d/2 $（$ d = 64 $ 时约 32），远低于 ridge。所以它是 memory-bound：**瓶颈是 HBM 带宽，不是算力。**
 
-FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $，但流量**并没有降到 $ \Theta(Nd) $**：分块之后，每个 $ Q $ 行块还是得把整条 $ K,V $ 扫一遍。把账拆成三问：
+FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $，但流量**并没有降到 $ \Theta(Nd) $**：分块之后，每个 $ Q $ 行块还是得把整条 $ K,V $ 扫一遍。下面的账都在**单个 $ (b, h) $ 切片**内算；$ b $、$ h $ 只是把它复制 $ b \cdot h $ 份，FLOPs 和访存同比放大，所以算术强度 $ I $ 与 $ b $、$ h $ 无关（总显存和总时间才要乘上 $ b \cdot h $）。把账拆成三问：
 
 - **块能开多大？** 片上要同时容下 $ Q_i $（$ B_r \times d $）、$ K_j $ 与 $ V_j $（各 $ B_c \times d $）、以及输出累加器 $ O_i $（$ B_r \times d $），合计约 $ 4Bd $ 个元素。所以 $ B \approx M/(4d) $，其中 $ M $ 是片上 SRAM 能放的元素数。
 - **块对有多少个？** 外层循环切 $ Q $、内层循环切 $ K,V $，块对总数 $ T_r T_c = (N/B)^2 $。
@@ -121,7 +125,7 @@ $ N $ 被约掉了：**这个上限只由 SRAM 大小 $ M $ 和 head dim $ d $ �
 
 FA1 用了三个技巧，关键是**不让 $ N\times N $ 的 $ S $、$ P $ 落回 HBM**。结果是：
 
-- 显存从 $ O(N^2) $ 降到 $ O(N) $；
+- 显存从 $ O(bhN^2) $ 降到 $ O(bhN) $；
 - HBM 读写的**阶**仍是 $ O(N^2) $，只是**常数**从约 $ 4 $（标准做法写、读 $ S,P $ 各一次）降到约 $ d^2/M $（$ M $ 为片上 SRAM 大小，$ d^2/M\ll1 $）：理论上少约 $ 4M/d^2 $ 倍，GPT-2 medium 实测 40.3 GB → 4.4 GB（约 9×）。
 
 三个技巧是：
@@ -163,9 +167,10 @@ FA1 用了三个技巧，关键是**不让 $ N\times N $ 的 $ S $、$ P $ 落�
 
 | 符号 | 含义 |
 | --- | --- |
+| $ b $ | batch 大小 |
+| $ h $ | head 数 |
 | $ N $ | 序列长度 |
 | $ d $ | head 维度（head dim） |
-| $ H $ | head 数 |
 | $ M $ | 片上 SRAM 大小 |
 | $ B_r $ | query row block size |
 | $ B_c $ | key/value column block size |
@@ -179,7 +184,7 @@ FA1 用了三个技巧，关键是**不让 $ N\times N $ 的 $ S $、$ P $ 落�
 
 ## 从 FA1 到 FA4：速度是怎么涨上去的
 
-FA1 先把 $ S, P $ 的显存从 $ O(N^2) $ 降到 $ O(N) $（只多存 $ O $ 和统计量，FA2 起合并成一个 $ L $），长序列这才跑得起来。之后三代追的是同一件事：把 attention 的实际效率推到接近 GEMM。三篇论文各留了一张实测图，连起来看就是这条曲线。
+FA1 先把 $ S, P $ 的显存从 $ O(bhN^2) $ 降到 $ O(bhN) $（只多存 $ O $ 和统计量，FA2 起合并成一个 $ L $），长序列这才跑得起来。之后三代追的是同一件事：把 attention 的实际效率推到接近 GEMM。三篇论文各留了一张实测图，连起来看就是这条曲线。
 
 ### A100：FA1 → FA2
 
