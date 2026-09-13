@@ -113,9 +113,9 @@ $ N $ 被约掉了：**这个上限只由 SRAM 大小 $ M $ 和 head dim $ d $ �
 
 **消除 attention 的瓶颈，关键是减少 HBM 读写、提高算术强度，而不是减少 FLOPs。**
 
-![Roofline：实测点都在 ridge 左侧且低于带宽上限，那段垂直距离就是效率缺口；空心绿点是渐近上限 2M/d](/learning/assets/roofline.svg)
+![Roofline：标准实现与 FlashAttention 的实测强度都落在 ridge 左侧的 memory-bound 区，只有 2M/d 的渐近上限越过 ridge](/learning/assets/roofline.svg)
 
-> 自绘示意图（实测点取自 FA1 论文 Figure 2 左：66.6 GFLOPs / 40.3 GB / 41.7 ms 与 75.2 GFLOPs / 4.4 GB / 7.3 ms）
+> 自绘示意图（两个实测点取自 FA1 论文 Figure 2 左：66.6 GFLOPs / 40.3 GB 与 75.2 GFLOPs / 4.4 GB）
 
 ## FlashAttention 的三件套
 
@@ -177,15 +177,35 @@ FA1 用了三个技巧，关键是**不让 $ N\times N $ 的 $ S $、$ P $ 落�
 | $ L_i $ | logsumexp $= m_i + \log \ell_i $ |
 | $ \tilde{O}_i $ | 未除 $ \ell $ 的输出累计 |
 
-## 几个数字
+## 从 FA1 到 FA4：速度是怎么涨上去的
 
-先摆出几个结果，感受一下 FA 的加速比：
+FA1 先把 $ S, P $ 的显存从 $ O(N^2) $ 降到 $ O(N) $（只多存 $ O $ 和统计量，FA2 起合并成一个 $ L $），长序列这才跑得起来。之后三代追的是同一件事：把 attention 的实际效率推到接近 GEMM。三篇论文各留了一张实测图，连起来看就是这条曲线。
 
-- FA1 在 A100 上训练 GPT-2（seq len 1K）比 HuggingFace 实现快最多 3×、比 Megatron-LM 快最多 1.7×；BERT-large（512）端到端比 MLPerf 1.1 的训练速度记录快 15%（8×A100，10 次平均）。
-- FA1 把 $ S, P $ 的 $ O(N^2) $ 显存降到 $ O(N) $（多存 $ O $ 和统计量 $ (m, \ell) $，FA2 起合并为一个 $ L $），这是长序列能跑起来的前提。
-- FA2 是纯速度优化：FA1 的 forward 只到 30–50%、backward 只有 25–35% 的理论峰值算力，FA2 提到 forward 最高 73%、backward 最高 63%，训练 GPT 式模型到 225 TFLOPs/s（72% 模型 FLOPs 利用率）。
-- FA3 是 Hopper 优化 + FP8。H100 上 FA2 只有 35% 利用率，FA3 的 FP16 到 740 TFLOPs/s（75%），FP8 接近 1.2 PFLOPs/s。
-- FA4 是 Blackwell 优化。B200 上 BF16 到 1613 TFLOPs/s（71%），比 cuDNN 9.13 快 1.3×、比 Triton 快 2.7×；整个 kernel 用 CuTe-DSL（Python）写，编译快 20–30×。
+### A100：FA1 → FA2
+
+![A100 上 forward+backward 的实测速度：四个子图分别是 causal / 非 causal 与 head dim 64 / 128 的组合，橙色 FlashAttention 是 FA1，紫色 FlashAttention-2 在每个子图里都最高](/learning/assets/fa2-a100-fwd-bwd-speed.png)
+
+> 图源：Tri Dao《FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning》（arXiv:2307.08691）Figure 4（四个子图合为一张）
+
+纵轴是 TFLOPs/s，橙色 FlashAttention 是 FA1、紫色是 FA2。FA1 的成绩：A100 上训练 GPT-2（seq 1K）比 HuggingFace 实现快最多 3×、比 Megatron-LM 快最多 1.7×，BERT-large（512）端到端比 MLPerf 1.1 的训练速度记录快 15%（8×A100，10 次平均）。但 FA2 论文同时给出了一组更说明问题的数字：FA1 的 forward 只到理论峰值的 30–50%、backward 只有 25–35%，而优化良好的 GEMM 能到 80–90%。差距不在内存带宽，在 work partitioning——低占用率、以及多余的共享内存读写。FA2 就是冲着这个去的：forward 提到最高 73%、backward 最高 63%，端到端训练 GPT 式模型到 225 TFLOPs/s（72% 模型 FLOPs 利用率）。
+
+### H100：FA3
+
+![H100 上 FP16/BF16 forward 的实测速度：六个子图是 head dim 64/128/256 与 causal / 非 causal 的组合，逐代对比 FlashAttention-2、cuDNN 与 FlashAttention-3](/learning/assets/fa3-h100-fwd-speed.png)
+
+> 图源：Jay Shah 等《FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision》（arXiv:2407.08608）Figure 5（六个子图合为一张）
+
+换到 Hopper，参照物里多了 cuDNN。同样是 FP16/BF16 的 forward，FA3 把 H100 推到 740 TFLOPs/s（75% 理论峰值），而 FA2 那一代只有约 35%；FP8 接近 1.2 PFLOPs。这一代的收益来自异步（warp specialization + pingpong）和对 FP8 的正确使用。
+
+### B200：FA4
+
+![B200 上 FP16/BF16 forward 的实测 TFLOPS：上为非 causal、下为 causal，head dim 128，参照物是 cuDNN 9.13/9.19、Triton 3.6、Gluon 3.6 与 FA2](/learning/assets/fa4-b200-fwd-tflops.png)
+
+> 图源：Ted Zadouri 等《FlashAttention-4: Algorithm and Kernel Pipelining Co-Design for Asymmetric Hardware Scaling》（arXiv:2603.05451）Figure 4（原图左右两半改为上下排列）
+
+到 Blackwell，参照物换成了 cuDNN 和 Triton。B200 上 BF16 到 1613 TFLOPs/s（约 71% 理论峰值），比 cuDNN 9.13 快 1.1–1.3×、比 Triton 快 2.1–2.7×。这一代的 kernel 整个用 CuTe-DSL（Python）写成，单核编译时间比 FA3 的 C++ 模板快 20–30×。
+
+三张图的纵轴口径不同（TFLOPs/s 与 TFLOPS），且是三代不同的卡，**不要跨图比绝对值**——能横向看的只有同一张图里各条柱子的相对高低。
 
 ## Reference
 
