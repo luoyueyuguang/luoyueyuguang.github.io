@@ -1043,7 +1043,7 @@ TurboQuant 的组合逻辑：
 
 ## 19. TurboQuant_prod 的伪代码
 
-```text
+```pseudocode title="Algorithm 2: TurboQuant_prod"
 Setup(d, b):
     初始化 TurboQuant_mse(d, b-1)
     生成随机投影矩阵 S
