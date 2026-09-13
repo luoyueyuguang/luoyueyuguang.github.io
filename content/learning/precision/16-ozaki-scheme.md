@@ -115,7 +115,7 @@ for i = 1..s:
 return C
 ```
 
-注意 $\odot$ 是逐元素乘法：$e_A$（m 维）与 $e_B$（n 维）的外积给每个输出元素一个行/列共享比例，$2^{-(i+j)\alpha}$ 是每对切片对应的尾数位权。**第 2 步的 A^(i)·B^(j) 是纯整数 GEMM（INT8×INT8 → INT32），这就是喂给现有不精确 Tensor Core 的"精确原料"。**
+注意 $\odot$ 是逐元素乘法：$e_A$（m 维）与 $e_B$（n 维）的外积给每个输出元素一个行/列共享比例，$2^{-(i+j)\alpha}$ 是每对切片对应的尾数位权。**第 2 步的 A^(i)·B^(j) 是纯整数 GEMM（INT8×INT8 → INT32），整数单元上不产生舍入，喂给 Tensor Core 的就是"精确原料"。**
 
 ### 对比：Ozaki-on-INT8 vs 其他路线
 
@@ -123,7 +123,7 @@ return C
 | --- | --- | --- | --- | --- | --- |
 | double-double / quad-double | elementwise（逐元素拆 hi/lo） | 无特殊硬件 | 53/106 | 若干 FP64 运算 | 不依赖专用硬件 |
 | FP16-Tensor-Core Ozaki（Mukunoki） | shared-place（共享位） | FP16 TC（累加 FP32） | α（随 k 减小） | 55～210 | 依赖 FP16 单元 |
-| **INT8-Tensor-Core Ozaki（Ootomo/Ozaki/Yokota）** | shared-place（共享位） | INT8 TC（累加 INT32） | **7（k<2¹⁸ 无浪费）** | **45～108** | 更快、更省内存 |
+| **INT8-Tensor-Core Ozaki（Ootomo/Ozaki/Yokota）** | shared-place（共享位） | INT8 TC（累加 INT32） | **7（$k \le 2^{17}$ 无浪费）** | **45～108** | 更快、更省内存 |
 | Ozaki-II（CRT 模法） | 中国剩余定理 | INT8/FP8/FP4 TC | 可变 | 可调 | 精度随次数提升，可超原生 |
 
 INT8 版相对 FP16 版的理论优势：**① 每片存更多有效位 → 用更少片数；② 共享指数省内存（省 50%～75% 的 working memory）；③ GEMM 次数按片数二次方下降；④ 吃满 IMMU 更高的吞吐。**
@@ -148,7 +148,7 @@ INT8 版相对 FP16 版的理论优势：**① 每片存更多有效位 → 用�
 
 ### 硬件与软件现状
 
-**这是"计算格式"而非"存储格式"。** INT8 本身不是一种新的浮点格式；Ozaki scheme 只是把 INT8 张量核当作**计算单元**来用，切片以 INT8 + 行共享指数（block-float）存储。因此不存在"int8 表示的数"，而是"用 int8 硬件算出来的结果"。
+**Ozaki 把 INT8 张量核当作计算单元来用，没有引入新的存储格式。** INT8 本身不是一种新的浮点格式，切片仍以 INT8 + 行共享指数（block-float）的形式驻留；没有"int8 表示的数"这回事，只有"用 int8 硬件算出来的结果"。
 
 带 INT8→INT32 整数矩阵乘法的硬件（论文 Table 1）：
 
@@ -167,12 +167,12 @@ NVIDIA 还有一条 **DP4A** 指令，可对 4 元素 INT8 向量做内积并累
 - **ozIMMU**（github.com/enp1s0/ozimmu）：Ootomo 等的 INT8 版库，用 `cublasGemmEx` 做内部 GEMM，自定义 kernel 做位切分与合成。
 - **cuBLAS / CUTLASS**：提供 INT8×INT8→INT32 的高性能 GEMM 原语，是 Ozaki 实现的底层积木（论文正是借"可复用高度优化的 BLAS"这一大优势）。
 - **框架**：主流框架当前不直接暴露 Ozaki，多把它包装在"仿真 DGEMM/精确推理"类库里；学术界在 FP8、FP4 上继续扩展（FP8 版、FP4 版、Ozaki-II CRT 版等）。
-- **硬件/库吸收：cuBLAS 的浮点仿真**。NVIDIA 已把"低精度核逼近高精度"做成 cuBLAS 的原生能力。cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+，覆盖 CC 8.x/9.0/10.0/11.0/12.x）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享行/列缩放因子合成——与本文算法同构，且库明确说明结果"非 IEEE-754 兼容"、切片数随尾数位二次增长；另有 **BF16x9** 算法（Blackwell CC 10.0/10.3，CUDA 12.9+）把 FP32 拆成 3 个 BF16 分量仿真 FP32。关键差异在于：Ozaki 是**数据相关的**——FP64 统一拆几片不够，因为对齐指数后需要的"尾数位数"取决于输入；所以 cuBLAS 内建了一个 **ADP（automatic dynamic precision）框架**，先分析输入决定能否安全仿真、自动配置仿真参数，保证"等于或优于原生 FP64"，并对小问题回退到原生算法避免惩罚。cuBLAS 对 FP64 的一个常见自动配置是 **55 尾数位**（略多于 IEEE-754 的 53，因为只需总精度不低于原生），而更激进的 39 位可再提速——代价是应用级精度下降。所以在只有 INT8 核的消费 GPU 上，ozIMMU 这类库仍是主力；在 Blackwell/Rubin 上，同样的分解由 cuBLAS 直接承担。
-- **学术界沿 Ozaki-II / 融合内核继续走**。两个方向值得留意：一是 **Ozaki-II 的严格误差分析**（Uchino、Ozaki、Imamura，arXiv:2602.02549），它给出确定性误差界，并据此估计"达到某精度需要多少次低精度乘法"——正好补齐 Ozaki 一族"指数分布宽时精度骤降"的定量刻画；二是 **EmuGEMM**（arXiv:2606.25453），在 Hopper/Blackwell 上把两个 Ozaki 方案的中间结果**融合到寄存器里**、避免反复落全局内存，以 Scheme I 达到 1639 Top/s（Hopper）和 3654 Top/s（Blackwell，均约 8 成 INT8 峰值），并在大矩阵上比 cuBLAS TF32 快 1.4×（Hopper）/1.7×（Blackwell），用 Scheme II 处理复数时比 cuBLAS ZGEMM 快 2.3×（Hopper）/5.5×（Blackwell）。这都说明"低精度核仿高精度"还在往**更高带宽利用率、更强误差控制**两个方向演进。
+- **硬件/库吸收：cuBLAS 的浮点仿真**。NVIDIA 已把"低精度核逼近高精度"做成 cuBLAS 的原生能力。cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+，覆盖 CC 8.x/9.0/10.x/11.0/12.x）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享行/列缩放因子合成，与上面的算法同构；库明确说明结果"非 IEEE-754 兼容"，切片数随尾数位二次增长。另有 **BF16x9** 算法（Blackwell CC 10.0/10.3，CUDA 12.9+）把 FP32 拆成 3 个 BF16 分量仿真 FP32。两者的关键差异在于 Ozaki 是**数据相关的**：FP64 统一拆几片不够，因为对齐指数后需要的"尾数位数"取决于输入。所以 cuBLAS 内建了一个 **ADP（automatic dynamic precision）框架**，先分析输入决定能否安全仿真、自动配置仿真参数，保证"等于或优于原生 FP64"，并对小问题回退到原生算法避免惩罚。cuBLAS 对 FP64 的一个常见自动配置是 **55 尾数位**（略多于 IEEE-754 的 53，因为只需总精度不低于原生），而更激进的 39 位可再提速，代价是应用级精度下降。所以在只有 INT8 核的消费 GPU 上，ozIMMU 这类库仍是主力；在 Blackwell/Rubin 上，同样的分解由 cuBLAS 直接承担。
+- **学术界沿 Ozaki-II / 融合内核继续走**。两个方向值得留意：一是 **Ozaki-II 的严格误差分析**（Uchino、Ozaki、Imamura，arXiv:2602.02549），它给出确定性误差界，并据此估计"达到某精度需要多少次低精度乘法"，正好补齐 Ozaki 一族"指数分布宽时精度骤降"的定量刻画；二是 **EmuGEMM**（arXiv:2606.25453），在 Hopper/Blackwell 上把两个 Ozaki 方案的中间结果**融合到寄存器里**、避免反复落全局内存，以 Scheme I 达到 1639 Top/s（Hopper）和 3654 Top/s（Blackwell，均约 8 成 INT8 峰值），并在大矩阵上比 cuBLAS TF32 快 1.4×（Hopper）/1.7×（Blackwell），用 Scheme II 处理复数时比 cuBLAS ZGEMM 快 2.3×（Hopper）/5.5×（Blackwell）。这都说明"低精度核仿高精度"还在往**更高带宽利用率、更强误差控制**两个方向演进。
 
 ### 代码示例
 
-用 Python + NumPy 给出**概念级的忠实实现**：按行取共享指数，把矩阵切成 INT8 片，用 `np.matmul`（int32 累加）模拟 INT8 张量核，再按位权合成。你会看到它复现了 Ozaki 的核心结构，且精度逼近高精度参考。
+用 Python + NumPy 给出**概念级的忠实实现**：按行取共享指数，把矩阵切成 INT8 片，用 `np.matmul`（int32 累加）模拟 INT8 张量核，再按位权合成。它复现了 Ozaki 的核心结构，精度也逼近高精度参考。
 
 ```python
 import numpy as np
@@ -216,11 +216,11 @@ for s in (4, 8):
     print("s = %d  rel_err = %.3e" % (s, rel))
 ```
 
-运行你会看到：用 4 片（28 bits）时相对误差在 $10^{-7}$ 量级（接近 FP32 水平，且这里指数范围很窄）；把片数加到 8（56 bits），误差降到 $10^{-15}$，逼近 FP64。把这个拆分/合成逻辑换成 CUDA kernel，把 `np.matmul` 换成 `cublasGemmEx` 的 INT8 模式，就是真实的 ozIMMU。
+运行你会看到：用 4 片时相对误差在 $10^{-7}$ 量级（这个 demo 的首片只承载符号位，实际约 22 位有效，接近 FP32 水平，且这里指数范围很窄）；把片数加到 8，误差降到 $10^{-15}$（约 50 位），逼近 FP64。把这个拆分/合成逻辑换成 CUDA kernel，把 `np.matmul` 换成 `cublasGemmEx` 的 INT8 模式，就是真实的 ozIMMU。
 
 ```text
 s = 4  rel_err = 3.915e-07
-s = 8  rel_err = 1.532e-15
+s = 8  rel_err = 1.548e-15
 ```
 
 ### 一些 tips
@@ -246,4 +246,4 @@ s = 8  rel_err = 1.532e-15
 - Error Analysis of Matrix Multiplication Emulation Using Ozaki-II Scheme（arXiv:2602.02549）：<https://arxiv.org/abs/2602.02549>
 - EmuGEMM: Fused Tensor Core Kernels for Precision Emulation in Matrix Multiplication（arXiv:2606.25453）：<https://arxiv.org/abs/2606.25453>
 - Unlocking Tensor Core Performance with Floating Point Emulation in cuBLAS（NVIDIA Technical Blog，确认 cuBLAS Fixed-Point=Ozaki + BF16x9 + ADP 框架）：<https://developer.nvidia.com/blog/unlocking-tensor-core-performance-with-floating-point-emulation-in-cublas/>
-- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.0/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>
+- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.x/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>

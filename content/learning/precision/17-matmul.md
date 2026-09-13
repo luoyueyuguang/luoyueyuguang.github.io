@@ -1,6 +1,6 @@
 前面的笔记都在讲"单个数字长什么样"：fp8、bf16、int8、fp4 每种格式的位布局和精度。但决定一个模型快不快、准不准的，是**这些数字在矩阵乘法（GEMM）里怎么被乘起来、加起来的**。神经网络里绝大部分计算量都是矩阵乘法，所以"低精度矩阵乘"才是这些格式发挥价值的地方。想先看清整个精度家族，见 [[learning/precision/01-overview|精度总览]]。
 
-> **低精度矩阵乘的关键是乘法和累加在哪个精度进行，输入精度反而是次要的。** 张量核心用低精度输入、高精度累加，精度问题集中在三处：输入怎么量化、累加放哪个精度、结果怎么缩放回去。
+> **低精度矩阵乘的关键是乘法、累加和缩放各自放在哪个精度，光看输入格式的位宽不够。** 张量核心用低精度输入、高精度累加，精度问题集中在三处：输入怎么量化、累加放哪个精度、结果怎么缩放回去。
 
 ## 为什么矩阵乘法是重点
 
@@ -91,7 +91,7 @@ $s$ 称为缩放因子（scale）。$s$ 怎么取，直接决定误差有多大�
 
 ### 3. Ozaki / 误差自由分解：用 int8 拿 fp32 精度
 
-[[learning/precision/16-ozaki-scheme|Ozaki Scheme]] 把一个数**拆成一串 int8 残差**，每个残差都是精确的（误差自由变换），再用 int8 张量核把这些残差矩阵乘起来，最终合成接近 fp32 的结果。它用 int8 的吞吐拿到 fp32 的精度，代价是计算量增大（残差个数倍）。**这个思路已被 NVIDIA 吸收进 cuBLAS**：cuBLAS 的 **BF16x9** 算法把 FP32 拆成 3 个 BF16 分量、在 Blackwell（CC 10.0/10.3，CUDA 12.9+）上仿真 FP32（静态分解，一把刀覆盖所有 normal/subnormal FP32）；cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享缩放因子合成。与 BF16x9 不同，Ozaki 方案是**数据相关的**：因为对齐指数后用固定点表示，需要的"尾数位数"取决于输入，且必须 ≥ 53 位才能不差于原生 FP64。所以 cuBLAS 内置了一个 **ADP（automatic dynamic precision）** 框架：先分析输入判断能否安全仿真，再自动配置仿真参数、对不划算的小问题回退到原生算法——把"到底拆几片"这个麻烦从用户手里接走。软件版就是这种误差自由分解——在只有 int8 核的旧硬件上靠手写实现，在 Blackwell/Rubin 上由 cuBLAS 直接承担。
+[[learning/precision/16-ozaki-scheme|Ozaki Scheme]] 把一个数**拆成一串 int8 残差**，每个残差都是精确的（误差自由变换），再用 int8 张量核把这些残差矩阵乘起来，最终合成接近 fp32 的结果。它用 int8 的吞吐拿到 fp32 的精度，代价是计算量增大（残差个数倍）。**这个思路已被 NVIDIA 吸收进 cuBLAS**：cuBLAS 的 **BF16x9** 算法把 FP32 拆成 3 个 BF16 分量、在 Blackwell（CC 10.0/10.3，CUDA 12.9+）上仿真 FP32（静态分解，一次配置就能覆盖全部 normal / subnormal FP32）；cuBLAS 的 **Fixed-Point** 算法（`CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT`，CUDA 13.0u2+）**正是按 Ozaki Scheme** 把 FP64 拆成 8-bit 整数切片、以共享缩放因子合成。与 BF16x9 不同，Ozaki 方案是**数据相关的**：因为对齐指数后用固定点表示，需要的"尾数位数"取决于输入，且必须 ≥ 53 位才能不差于原生 FP64。所以 cuBLAS 内置了一个 **ADP（automatic dynamic precision）** 框架：先分析输入判断能否安全仿真，再自动配置仿真参数、对不划算的小问题回退到原生算法，把"到底拆几片"这个麻烦从用户手里接走。
 
 - 适用：需要 fp32 / fp64 精度但又想在低精度张量核上跑的 GEMM（科学计算、参考实现）。在 Blackwell/Rubin 上，simulated 高精度由硬件/库承担；在只有 INT8 核的旧硬件上则靠手写 Ozaki。
 
@@ -103,7 +103,7 @@ $$
 \Delta C_{ij}=\sum_k\left(\Delta A_{ik}\,B_{kj}+A_{ik}\,\Delta B_{kj}\right)
 $$
 
-round-to-nearest 让每个元素的绝对误差不超过半个量化步长 $\tfrac12 s$。所以相对误差的关键**不是位宽 $u$，而是一个"消去比" $\rho$**：
+round-to-nearest 让每个元素的绝对误差不超过半个量化步长 $\tfrac12 s$。所以相对误差主要由**消去比** $\rho$ 决定，位宽 $u$ 只是其中一个因子：
 
 $$
 \frac{|\Delta C_{ij}|}{|C_{ij}|}\ \sim\ u\cdot\rho,\qquad
@@ -112,9 +112,9 @@ $$
 
 $\rho$ 衡量"各项的尺度"和"它们相加得到的结果"差多远：
 
-- **$\rho\approx 1$（几乎无消去）**：$\sqrt{\sum_k(AB)^2}\approx|C_{ij}|$，相对误差 $\approx u$，与 $K$ 无关。随机、同量级、符号各异的矩阵就是这样——所以下面实验里 $K$ 从 256 涨到 8192，总相对误差钉在 0.4%。
+- **$\rho\approx 1$（几乎无消去）**：$\sqrt{\sum_k(AB)^2}\approx|C_{ij}|$，相对误差 $\approx u$，与 $K$ 无关。随机、同量级、符号各异的矩阵就是这样；下面实验里 $K$ 从 256 涨到 8192，总相对误差稳定在 0.4% 上下。
 - **$\rho<1$（各项同向、放大 $|C_{ij}|$）**：相对误差反而小于 $u$，是最好情形，不用管。
-- **$\rho$ 很大（严重消去）**：$C_{ij}$ 因正负项相消而比各项本身的量级小得多，相对误差被放大约 $\rho$ 倍。项越多、向量越接近正交，越容易消出小值，所以 $\rho$ 可能随 $K$ 变大。attention 的 $QK^\top$ 里 query 与 key 往往近乎正交，某些位置的打分本就接近 0——这才是"长上下文用 fp8 危险"的真正原因：**不是位宽随 $K$ 累积，而是长序列里更容易出现近消去的小分数，被放大。**
+- **$\rho$ 很大（严重消去）**：$C_{ij}$ 因正负项相消而比各项本身的量级小得多，相对误差被放大约 $\rho$ 倍。项越多、向量越接近正交，越容易消出小值，所以 $\rho$ 可能随 $K$ 变大。attention 的 $QK^\top$ 里 query 与 key 往往近乎正交，某些位置的打分本就接近 0，这才是"长上下文用 fp8 危险"的原因：**长序列里更容易出现近消去的小分数，被放大，与位宽随 $K$ 累积无关。**
 
 实测最直观。下面用 per-tensor E4M3 量化一个随机矩阵乘，先看相对误差随 $K$ 怎么变，再看一个离群行把 per-tensor 和 per-row（per-token 缩放）拉开多大差距：
 
@@ -166,7 +166,7 @@ per-tensor rel_err=0.0362
 per-row    rel_err=0.0039
 ```
 
-注意实验算的是**总相对误差** $\|C_q-C\|/\|C\|$（弗罗贝尼乌斯范数），它反映的是**大多数条件良好的输出**（$\rho$ 平均 $\approx 1$），所以与 $K$ 无关。它不能说明每个元素都安全：**近消去的那一小部分元素 $\rho$ 很大，相对误差远高于 0.4%**。这里有个容易踩的坑：下面的量化器用的是**固定步长** $s=\mathrm{amax}/448$ 的整数网格（与 E4M3 同满量程，但步长均匀），典型元素的相对误差约 $s/(2|x|)$ ≈ 0.4%，远低于 E4M3 的 worst-case 单位舍入 $u=2^{-4}=6.25\%$；若真按 E4M3 逐 binade 舍入，总相对误差约为 3%～4%。**$K$ 无关性（$\rho$ 结构）不随量化器改变**，改的是 $u$ 的取值。真正让误差放大的是两类 $\rho$ 来源：
+注意实验算的是**总相对误差** $\|C_q-C\|/\|C\|$（弗罗贝尼乌斯范数），它反映的是**大多数条件良好的输出**（$\rho$ 平均 $\approx 1$），所以与 $K$ 无关。它不能说明每个元素都安全：**近消去的那一小部分元素 $\rho$ 很大，相对误差远高于 0.4%**。这里有个容易踩的坑：下面的量化器用的是**固定步长** $s=\mathrm{amax}/448$ 的整数网格（与 E4M3 同满量程，但步长均匀），典型元素的相对误差（舍入误差的 RMS）约 $s/(2\sqrt{3}\,|x|)$ ≈ 0.4%，远低于 E4M3 的 worst-case 单位舍入 $u=2^{-4}=6.25\%$；若真按 E4M3 逐 binade 舍入，总相对误差约为 3%～4%。**$K$ 无关性（$\rho$ 结构）不随量化器改变**，改的是 $u$ 的取值。真正让误差放大的是两类 $\rho$ 来源：
 
 - **离群值 / 宽动态范围**：下面这个离群行实验里，per-tensor 从 0.4% 涨到 3.6%（$s$ 被 outlier 撑大，其余行被压进很少的档位），per-row 缩放基本不变（0.4%）。离群值抬高的是动态范围，从而拉大 $\rho$，和"近消去"是两条独立路径。
 - **近正交 / 近消去**：$\sum_k(AB)^2$ 大但 $|C_{ij}|$ 小（如 attention 里接近 0 的打分），$\rho$ 随 $K$ 变大。
@@ -190,9 +190,9 @@ per-row    rel_err=0.0039
 合并的方式决定结果**是不是确定**：
 
 - **固定顺序（顺序累加 / 固定归约树）**：partial 按固定顺序相加，结果可复现。张量核心内部的加法树本来就是固定树序，舍入误差也最低。
-- **atomic 累加**：多个 CTA 算完 partial，直接 atomically 加进同一个 fp32 输出 buffer——**谁先到谁先加**，求和顺序不稳定，每次运行结果会差在最后几位。fp32 累加下这点差异通常可接受；但换成低精度累加，顺序带来的差异会被放大，跑出来不再可复现。
+- **atomic 累加**：多个 CTA 算完 partial，直接 atomically 加进同一个 fp32 输出 buffer：**谁先到谁先加**，求和顺序不稳定，每次运行结果会差在最后几位。fp32 累加下这点差异通常可接受；但换成低精度累加，顺序带来的差异会被放大，跑出来不再可复现。
 
-所以生产内核里的 split-K 合并，几乎都在 fp32 / int32 accumulator 上做固定归约，避免"低精度累加 + 乱序"把误差和不确定性同时放大。这也是把**累加精度和归约顺序**一起放进"怎么选"的原因——它们共同决定误差会不会随 $K$ 累积，以及每次跑出来是不是同一个数。
+所以生产内核里的 split-K 合并，几乎都在 fp32 / int32 accumulator 上做固定归约，避免"低精度累加 + 乱序"把误差和不确定性同时放大。这也是把**累加精度和归约顺序**一起放进"怎么选"的原因：它们共同决定误差会不会随 $K$ 累积，以及每次跑出来是不是同一个数。
 
 ## 怎么选
 
@@ -240,12 +240,12 @@ print(f"fp8 matmul relative error: {rel_err:.4f}")
 fp8 matmul relative error: 0.0047
 ```
 
-$K = 4096$ 时这段代码跑出 $4.7\times10^{-3}$，比 fp32 累加的 $10^{-6}$ 量级差三到四个数量级，但吞吐翻倍或更多。注意这里量化的步长是均匀的 $s = \mathrm{amax}/448$（和上一节同一个示意量化器），所以误差对应的是"典型元素约 0.4%"那一档；真正按 E4M3 逐 binade 舍入时，总相对误差会到 3%～4%。真实系统还会用每通道缩放、clipping calibration 或块缩放把误差往下压。
+$K = 4096$ 时这段代码跑出 $4.7\times10^{-3}$，比同一尺寸下 fp32 累加的误差（$10^{-7}$ 量级）高约四个数量级，但吞吐翻倍或更多。这里的量化步长是均匀的 $s = \mathrm{amax}/448$（与上一节同一个示意量化器），误差对应"典型元素约 0.4%"那一档；按 E4M3 逐 binade 舍入时，总相对误差会到 3%～4%。真实系统还会用每通道缩放、clipping calibration 或块缩放把误差往下压。
 
 ## 一些 tips
 
 1. **先看分布和离群值，再定格式**。离群值越多、动态范围越宽，越低精度越危险；$K$ 只通过消去比 $\rho$ 间接影响，随机输入下相对误差约 $u\cdot\rho$。
-2. **累加永远用高精度**（fp32/int32）。任何"低精度累加"都在同时毁掉输入和累加两层精度。
+2. **累加一律用高精度**（fp32/int32）。任何"低精度累加"都在同时毁掉输入和累加两层精度。
 3. **per-tensor 要小心 outlier**。一个异常大的数就能撑大 $s$，让整块精度崩塌；用 per-channel / per-block 或 clipping 校准。
 4. **训练用延迟缩放，推理用动态缩放**。避免为了等 amax 而同步，吞吐损失往往比精度损失更痛。
 5. **量化不是免费的误差**。fp8 的 $u \approx 6\%$ 在长上下文 attention 里，容易被离群值和跨层传播放大成可见的偏差，别无脑用 fp8。
@@ -259,4 +259,4 @@ $K = 4096$ 时这段代码跑出 $4.7\times10^{-3}$，比 fp32 累加的 $10^{-6
 - NVIDIA Transformer Engine（张量核心低精度）：<https://github.com/NVIDIA/TransformerEngine>
 - CUTLASS：高性能 GEMM 内核模板（K-tiling / split-K / 累加与归约顺序）：<https://github.com/NVIDIA/cutlass>
 - Unlocking Tensor Core Performance with Floating Point Emulation in cuBLAS（NVIDIA Technical Blog，确认 cuBLAS BF16x9=FP32 仿真 / Fixed-Point=Ozaki 方案并内建 ADP 框架）：<https://developer.nvidia.com/blog/unlocking-tensor-core-performance-with-floating-point-emulation-in-cublas/>
-- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.0/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>
+- cuBLAS Floating Point Emulation 文档（BF16x9 CC 10.0/10.3 CUDA 12.9+；Fixed-Point CC 8.x/9.0/10.x/11.0/12.x CUDA 13.0u2+）：<https://docs.nvidia.com/cuda/cublas/#floating-point-emulation>
