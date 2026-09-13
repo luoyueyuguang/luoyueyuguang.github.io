@@ -87,7 +87,26 @@ Quartz `Plugin.Latex` with `renderEngine: "katex"`; the CSS and fonts are **self
 - If a built page shows raw `$...$` / `\command` text, look for stray backticks around the formula first — they swallow the `$$...$$` block too.
 - Unbalanced `$` in a **table row** breaks the row; escape `\|` inside `[[wikilinks]]` used in tables.
 
+### 自绘 SVG 里的数学（KaTeX 管不到）
+
+KaTeX 只处理 Markdown，**不会进入 SVG**。所以 `content/learning/assets/*.svg` 里写 `$...$` 只会原样显示美元符号，写 `S_ij` / `K_j^T` / `exp(` 就是平文本——看起来像"公式没渲染"。
+
+- SVG 经 `<img src="…svg">` 加载，因此 `<foreignObject>`、`<script>`、外部 CSS **都不执行**，别指望它们。
+- 下标/上标只能用 `<tspan>` 的 `dy` + `font-size` 做位移：
+
+  | 级别 | dy（相对上一片段） | font-size |
+  | --- | --- | --- |
+  | 基线 | 0 | 15 |
+  | 上标 | −7 | 10.5 |
+  | 下标 | +4 | 10.5 |
+  | 上标里的下标 | +2 | 8 |
+
+- **`dy` 是累积的**，每个偏移必须成对归还，否则后续文字整体漂移。改完打印 dy 序列，确认最终回到 0。
+- **只给数学记号排版**：`S_ij`、`K_j^T`、`a_hi`、`S_{t-1}` 是数学，要排成上下标。而 `two_sum`、`Quant_mse`、`idx_j`、`O_buf` 是源码里的函数名/变量名/kernel 名，**平文本才正确**，不要动。
+- 数学减号用 U+2212 `−`，不要 ASCII `-`。
+
 ---
+
 
 ## Figures（图片与引用）
 
