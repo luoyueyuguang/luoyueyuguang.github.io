@@ -16,7 +16,19 @@ $$
 2. 把 $ S $ 读出来算出 $ P $ 再写回去；
 3. 把 $ P $ 读出来乘 $ V $。
 
-$ S $ 和 $ P $ 都是 $ N \times N $ 的矩阵，所以**显存占用是 $ O(N^2) $，HBM 读写也是 $ O(N^2) $ 次**。
+$ S $ 和 $ P $ 都是 $ N \times N $ 的矩阵，所以**显存占用是 $ O(N^2) $，HBM 读写也是 $ O(N^2) $ 次**。把每步的张量形状写出来，$ N^2 $ 出现在哪里就很清楚了：
+
+| 步骤 | 运算 | 结果形状 | 元素个数 |
+| --- | --- | --- | --- |
+| 1 | $ S = QK^\top $ | $ N \times N $ | $ N^2 $ |
+| 2 | $ P = \mathrm{softmax}(S) $ | $ N \times N $ | $ N^2 $ |
+| 3 | $ O = PV $ | $ N \times d $ | $ Nd $ |
+
+输入和输出都是 $ N \times d $（每行一个 token），便宜的；涨到 $ N^2 $ 的只有 $ S $ 和 $ P $ 这两个中间结果。**FlashAttention 要挡的就是这两个矩阵落到 HBM 上**，做法是分块：一次只取 $ B_r $ 行 query、$ B_c $ 列 key，算 $ B_r \times B_c $ 的小块 $ S_{ij} $、$ P_{ij} $，它们只活在片上。
+
+![Attention 的维度变化：左边标准实现把 N×N 的 S、P 写进 HBM 再读回；右边 FlashAttention 分块后 Sᵢⱼ、Pᵢⱼ 只留在 SRAM，HBM 只搬 Q,K,V,O](/learning/assets/fa-attn-dims.svg)
+
+> 自绘示意图
 
 ![FlashAttention 论文 Figure 1（左）：朴素实现会把 N×N 的注意力矩阵（虚线框，即 S、P）物化到较慢的 HBM；FlashAttention 用分块把它们留在片上 SRAM，右图是 GPT-2 上的加速](/learning/assets/fa-fig1.png)
 
@@ -61,23 +73,29 @@ A100（80GB SXM）上 BF16 张量核的稠密峰值约 $ \pi = 312 $ TFLOPS、HB
 
 attention 落在左侧。head dim $ d $ 不大（几十），标准实现又把 $ N \times N $ 的 $ S $、$ P $ 写进 HBM 再读出来：一行 query 花 $ 4Nd $ FLOPs（两次 $ N \times d $ 的 GEMM），却要搬 $ 8N $ 字节（$ S $、$ P $ 各写一次读一次，fp16），算术强度只有 $ \approx d/2 $（$ d = 64 $ 时约 32），远低于 ridge。所以它是 memory-bound：**瓶颈是 HBM 带宽，不是算力。**
 
-FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $，但流量**并没有降到 $ \Theta(Nd) $**。这笔账分三步算：
+FlashAttention 把 $ S $、$ P $ 留在 SRAM，HBM 只搬 $ Q,K,V,O $，但流量**并没有降到 $ \Theta(Nd) $**：分块之后，每个 $ Q $ 行块还是得把整条 $ K,V $ 扫一遍。把账拆成三问：
 
-1. **块能开多大。** 片上要同时放下 $ Q_i $（$ B_r \times d $）、$ K_j $ 与 $ V_j $（各 $ B_c \times d $）、以及输出累加器 $ O_i $（$ B_r \times d $）。取 $ B_r \approx B_c \approx B $，占用约 $ 4Bd $ 个元素，于是 $ B \approx M/(4d) $。
-2. **块对有多少个。** 外层循环切 $ Q $、内层循环切 $ K,V $，块对总数是 $ T_r T_c = (N/B)^2 $。
-3. **每个块对搬多少。** 内层每前进一格，都要把 $ K_j $、$ V_j $ 两个块读进来，即 $ 2Bd $ 个元素。这就是"每个 $ Q $ 行块都得把整条 $ K,V $ 扫一遍"的代价。
+- **块能开多大？** 片上要同时容下 $ Q_i $（$ B_r \times d $）、$ K_j $ 与 $ V_j $（各 $ B_c \times d $）、以及输出累加器 $ O_i $（$ B_r \times d $），合计约 $ 4Bd $ 个元素。所以 $ B \approx M/(4d) $，其中 $ M $ 是片上 SRAM 能放的元素数。
+- **块对有多少个？** 外层循环切 $ Q $、内层循环切 $ K,V $，块对总数 $ T_r T_c = (N/B)^2 $。
+- **每个块对搬多少？** 内层每前进一格都要读进 $ K_j $ 和 $ V_j $ 两个块，即 $ 2Bd $ 个元素。
 
-三步相乘：$ (N/B)^2 \cdot 2Bd = 2N^2d/B $，代入 $ B \approx M/(4d) $ 得 $ 8N^2d^2/M $，也就是论文 Theorem 2 给出的 $ \Theta(N^2 d^2 M^{-1}) $ 次访问（Theorem 2 按**元素个数**计数）。除此之外还有 $ \Theta(Nd) $ 的输入输出项。
-
-按这个阶算算术强度：分子是 forward 的 $ 4N^2d $ FLOPs（$ QK^\top $ 与 $ PV $ 各 $ 2N^2d $），分母是 $ 2N^2d^2M^{-1} $ 字节（每个 fp16 元素 2 字节），相除得
+三者相乘
 
 $$
-I = \frac{4N^2d}{2N^2d^2M^{-1}} = \frac{2M}{d}
+T_r T_c \cdot 2Bd = \left(\frac{N}{B}\right)^2 \cdot 2Bd = \frac{2N^2 d}{B} = \frac{8N^2 d^2}{M}
 $$
 
-**结果只由 SRAM 大小 $ M $ 和 head dim $ d $ 决定，与 $ N $ 无关。** A100 上 $ M \approx 10^5 $ 个 fp16 元素（192 KB）、$ d = 64 $，代入得三千多 FLOPs/byte，远在 ridge（156）右侧。
+就是论文 Theorem 2 给出的 $ \Theta(N^2 d^2 M^{-1}) $ 次访问（Theorem 2 是按**元素个数**计数的）。除此之外还有 $ \Theta(Nd) $ 的输入输出项。
 
-但这个阶要 $ N $ 足够大才成立。两项之比约 $ M/(Nd) $：$ N $ 越大这个比值越小，$ \Theta(Nd) $ 项才越可忽略；而在常用规模上它还是个 $ O(1) $ 的数。把两项放到 $ N = 1024 $、$ d = 64 $ 上比一比——输入输出项 $ 4Nd \approx 2.6\times10^5 $ 个元素，分块重读项 $ N^2d^2M^{-1} \approx 4.4\times10^4 $ 个元素——**同量级，IO 项还占了上风**，所以 $ 2M/d $ 这个上限根本用不上。
+按这个阶算算术强度：分子是 forward 的 $ 4N^2 d $ FLOPs（$ QK^\top $ 与 $ PV $ 各 $ 2N^2 d $），分母是 $ 2N^2 d^2 M^{-1} $ 字节（每个 fp16 元素 2 字节），相除得
+
+$$
+I_\text{asym} = \frac{4N^2 d}{2N^2 d^2 M^{-1}} = \frac{2M}{d}
+$$
+
+$ N $ 被约掉了：**这个上限只由 SRAM 大小 $ M $ 和 head dim $ d $ 决定，与序列长度无关。** A100 上 $ M \approx 10^5 $ 个 fp16 元素（192 KB）、$ d = 64 $，代入得三千多 FLOPs/byte，远在 ridge（156）右侧。
+
+但这个阶要 $ N $ 足够大才成立。两项之比约 $ M/(Nd) $，$ N $ 越大它才越小；在常用规模上它还是个 $ O(1) $ 的数。代入 $ N = 1024 $、$ d = 64 $：输入输出项 $ 4Nd \approx 2.6\times10^5 $ 个元素，分块重读项 $ N^2d^2M^{-1} \approx 4.4\times10^4 $ 个元素——**同量级，IO 项反而更大**，所以 $ 2M/d $ 这个上限此时根本用不上。
 
 论文 Figure 2（左）在 GPT-2 medium（$ N = 1024 $、$ d = 64 $、16 head、batch 64）上量到的正是这个结果，而且是 **forward + backward 端到端**的平均：
 
@@ -86,15 +104,18 @@ $$
 | 标准实现 | 66.6 GFLOPs | 40.3 GB | 1.65 |
 | FlashAttention | 75.2 GFLOPs | 4.4 GB | 17 |
 
-FA 的 FLOPs 反而更高，因为反向要重算 $ S $、$ P $；换来的是流量压掉约 9 倍。所以实测的 $ I \approx 17 $ 比理论上限的三千多差两个数量级，原因有三条：$ N $ 不够大，$ \Theta(Nd) $ 项没有相对变小；这是端到端平均，反向还要多搬 $ dO $、$ dS $、$ dP $ 好几个 $ N\times N $ 张量；以及实现效率本身还没榨干。**它相对标准实现的 $ 1.65 $ 抬了一个数量级。**
+注意两处口径差异，别把上面的数字和它们直接比：
 
-roofline 示意图画的是**渐近意义**上的位置（分块把 $ I $ 抬过 ridge），而实测的 FA1 仍落在 ridge 左边，这正是 FA2 继续优化算力利用率的原因。
+- **FLOPs**：FA 反而更高（75.2 > 66.6），因为反向要重算 $ S $、$ P $。换来的收益全在流量上，压掉约 9 倍。
+- **口径**：$ I_\text{asym} $ 是渐近上限、单看 forward、且不计 $ \Theta(Nd) $ 项；表里两行是端到端实测，反向还要多搬 $ dO $、$ dS $、$ dP $ 好几个 $ N\times N $ 张量。
 
-所以**消除 attention 的瓶颈，关键是减少 HBM 读写、提高算术强度，而不是减少 FLOPs。**
+所以实测的 $ I \approx 17 $ 比理论上限的三千多差两个数量级。它相对标准实现的 $ 1.65 $ 抬了一个数量级，方向正确，但**仍在 ridge 左边**——这正是 FA2 继续优化算力利用率的原因。
 
-![Roofline：朴素 attention 落在memory bound，FlashAttention 提高算术强度后进入compute bound](/learning/assets/roofline.svg)
+**消除 attention 的瓶颈，关键是减少 HBM 读写、提高算术强度，而不是减少 FLOPs。**
 
-> 自绘示意图
+![Roofline：标准实现与 FlashAttention 的实测强度都落在 ridge 左侧的 memory-bound 区，只有 2M/d 的渐近上限越过 ridge](/learning/assets/roofline.svg)
+
+> 自绘示意图（两个实测点取自 FA1 论文 Figure 2 左：66.6 GFLOPs / 40.3 GB 与 75.2 GFLOPs / 4.4 GB）
 
 ## FlashAttention 的三件套
 
