@@ -4,9 +4,9 @@ aiGenerated: true
 
 TurboQuant 按三个层次来讲：
 
-1. **直觉**：为什么 AI 里有很多向量，为什么要量化，为什么 KV cache 特别占显存。
-2. **数学**：TurboQuant 到底在优化什么，随机旋转为什么有用，MSE 量化和内积量化为什么不是一回事。
-3. **代码**：用 NumPy 写一个教学版 TurboQuant，看到每行代码对应哪条公式。最后**再落到 kernel**：看 packed cache、CUDA block/thread 映射、融合解码和 attention 打分该怎么想。
+1. 直觉：为什么 AI 里有很多向量，为什么要量化，为什么 KV cache 特别占显存。
+2. 数学：TurboQuant 到底在优化什么，随机旋转为什么有用，MSE 量化和内积量化为什么不是一回事。
+3. 代码：用 NumPy 写一个教学版 TurboQuant，看到每行代码对应哪条公式。最后再落到 kernel：看 packed cache、CUDA block/thread 映射、融合解码和 attention 打分该怎么想。
 
 > TurboQuant 是有损压缩。它承认压缩会丢信息，但让丢掉的信息尽量不影响 AI 在乎的计算，尤其是距离、相似度和内积。
 
@@ -56,7 +56,7 @@ $$
 
 如果食材太多，厨师再快也要等搬运。大模型也是这样：大量权重、激活值、KV cache 都要从显存读出来。数据越大，越慢，也越贵。
 
-TurboQuant 特别关心的一类数据是 **KV cache**。
+TurboQuant 特别关心的一类数据是 KV cache。
 
 ## 3. KV cache 是什么
 
@@ -70,7 +70,7 @@ TurboQuant 特别关心的一类数据是 **KV cache**。
 
 它可能先生成“量”，再生成“化”，再生成“可”。
 
-每生成一个新 token，模型都要回头看前面已经生成的 token。为了不每次从头重新计算，它会把前面 token 的一些中间结果缓存下来。这里最重要的一类缓存叫 Key 和 Value，合起来叫 **KV cache**。
+每生成一个新 token，模型都要回头看前面已经生成的 token。为了不每次从头重新计算，它会把前面 token 的一些中间结果缓存下来。这里最重要的一类缓存叫 Key 和 Value，合起来叫 KV cache。
 
 普通理解：
 
@@ -170,7 +170,7 @@ $$
 \tilde{\mathbf{x}}
 $$
 
-第一个目标叫 **MSE**，也就是重建误差：
+第一个目标叫 MSE，也就是重建误差：
 
 $$
 D_{\text{mse}} =
@@ -183,7 +183,7 @@ $$
 - $\hat{x}$ 是压缩后恢复出来的图。
 - MSE 问的是：两张图逐个像素差多少。
 
-第二个目标叫 **inner-product error**，也就是内积误差：
+第二个目标叫 inner-product error，也就是内积误差：
 
 $$
 D_{\text{prod}} =
@@ -205,7 +205,7 @@ $$
 
 这两个目标不一样。
 
-一个压缩方法可能很会恢复向量本身，但用它算内积会有系统性偏差。TurboQuant 论文的一个重点就是：**MSE 最优不等于内积最优**。
+一个压缩方法可能很会恢复向量本身，但用它算内积会有系统性偏差。TurboQuant 论文的一个重点就是 MSE 最优不等于内积最优。
 
 ## 7. 先归一化：把向量放到单位球上
 
@@ -295,9 +295,7 @@ $$
 
 所以随机旋转不会凭空破坏几何关系。它只是换了一个观察角度。
 
-为什么这有用？
-
-因为对任何固定的单位向量 $x$，乘上随机旋转后，$\Pi\,x$ 会像“单位球面上随机取到的一个点”。论文用到的事实是：它的每个坐标服从下面这个分布：
+它有用是因为：对任何固定的单位向量 $x$，乘上随机旋转后，$\Pi\,x$ 会像“单位球面上随机取到的一个点”。论文用到的事实是：它的每个坐标服从下面这个分布：
 
 $$
 f_X(t) =
@@ -307,7 +305,7 @@ f_X(t) =
 \quad t \in [-1, 1]
 $$
 
-这个公式看起来吓人，但它只说一件事：
+这个公式只说一件事：
 
 > 随机旋转后，每个坐标的大小会变得很可预测。高维时，每个坐标大概像均值为 0、方差为 $1/d$ 的正态分布。
 
@@ -460,7 +458,7 @@ $$
 
 这一步说明：高维向量量化被随机旋转后，可以拆成很多个一维量化问题。
 
-这里不要被外面的 $d$ 吓到。随机旋转后，单个坐标 $z_j$ 的方差大约是 $1/d$，所以一维误差 $\mathcal{C}(f_X,b)$ 自己也带着一个大约 $1/d$ 的缩放。外面的 $d$ 和里面的 $1/d$ 会抵消。因此总 MSE 不会因为维度变大就线性暴涨；在论文的单位向量设定下，主导误差主要由 bit-width $b$ 决定。
+随机旋转后，单个坐标 $z_j$ 的方差大约是 $1/d$，所以一维误差 $\mathcal{C}(f_X,b)$ 自己也带着一个大约 $1/d$ 的缩放。外面的 $d$ 和里面的 $1/d$ 会抵消。因此总 MSE 不会因为维度变大就线性暴涨；在论文的单位向量设定下，主导误差主要由 bit-width $b$ 决定。
 
 论文用的是一维量化器的 Panter-Dite 高分辨率公式：
 
@@ -622,9 +620,7 @@ class TurboQuantMSE:
 
 到这里，`TurboQuant_mse` 已经能把向量压小，并且重建误差不错。
 
-但如果目标是点积，它还有一个问题：**有偏**。
-
-无偏是什么意思？
+但如果目标是点积，它还有一个问题：有偏。
 
 假设真实点积是：
 
@@ -689,7 +685,7 @@ TurboQuant 因此还需要第二版算法：`TurboQuant_prod`。
 
 QJL 全称是 Quantized Johnson-Lindenstrauss。
 
-名字很吓人，但算法本身可以先这样看：
+算法本身可以这样看：
 
 ```text
 随机投影 -> 只保留正负号 -> 用特殊缩放还原成一个估计向量
@@ -738,7 +734,7 @@ $$
 
 这里的期望是对随机矩阵 $\mathbf{S}$ 取的。
 
-为什么？把估计按行展开。记 $\mathbf{s}_1, \ldots, \mathbf{s}_d$ 是 $\mathbf{S}$ 的 $d$ 行，则
+把估计按行展开。记 $\mathbf{s}_1, \ldots, \mathbf{s}_d$ 是 $\mathbf{S}$ 的 $d$ 行，则
 
 $$
 \langle \mathbf{y}, Q_{\text{qjl}}^{-1}(Q_{\text{qjl}}(\mathbf{u})) \rangle
@@ -877,9 +873,7 @@ $$
 
 ## 17. 为什么这样能无偏
 
-这一段是整篇文章最关键的数学。
-
-要证明的是：
+这一段要证明的是：
 
 $$
 \mathbb{E}
@@ -1241,9 +1235,7 @@ blockIdx.x = 第几个向量
 threadIdx.x = 负责若干 channel 或若干 packed word
 ```
 
-为什么一个 block 处理一个向量？
-
-因为一个向量的维度通常不大，比如 128、256。一个 block 里的线程可以一起处理这些 channel，最后把结果打包写回全局内存。
+一个 block 处理一个向量，是因为一个向量的维度通常不大，比如 128、256。一个 block 里的线程可以一起处理这些 channel，最后把结果打包写回全局内存。
 
 有一个重要限制：
 
@@ -1253,8 +1245,8 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 所以 kernel 实现常见会拆成两种讲法：
 
-1. **数学直译版**：先算好 $z = \Pi x$，然后量化 $z$。这最容易理解。
-2. **工程优化版**：用结构化随机旋转、融合上游算子、或者把旋转和量化放在同一个 kernel 里，减少 HBM 读写。
+1. 数学直译版：先算好 $z = \Pi x$，然后量化 $z$。这最容易理解。
+2. 工程优化版：用结构化随机旋转、融合上游算子、或者把旋转和量化放在同一个 kernel 里，减少 HBM 读写。
 
 下面的代码主要讲数学直译版和 kernel 设计模式。它不是直接可部署的完整 TurboQuant 库。
 
@@ -1284,7 +1276,7 @@ threadIdx.x = 负责若干 channel 或若干 packed word
 
 这个布局只在 $b$ 整除 $32$ 时成立（$b=1,2,4$ 分别装 32、16、8 个编号）。$b=3$ 不整除 32，按同样写法会出现编号跨 word 边界；常见做法是 32 个编号凑成 $32\times 3 = 96$ bit，正好打成 3 个 word。
 
-第 $j$ 个 channel 存在哪里？
+第 $j$ 个 channel 的存放位置这样算：
 
 ```text
 word_id = j / 16
@@ -1331,7 +1323,7 @@ __device__ __forceinline__ void set_2bit_idx_in_word(
 }
 ```
 
-这里没有用 atomic，因为更好的方式是：**让一个线程负责一个 packed word**。这个线程顺序处理 16 个 channel，最后一次性写出一个 `uint32_t`。这样比多个线程抢着写同一个 word 更简单。
+这里没有用 atomic，因为更好的方式是让一个线程负责一个 packed word。这个线程顺序处理 16 个 channel，最后一次性写出一个 `uint32_t`。这样比多个线程抢着写同一个 word 更简单。
 
 ## 24. Kernel 1：`Quant_mse` 的 2-bit 教学实现
 
@@ -1712,7 +1704,7 @@ $$
 这里：
 
 - $D_i$ 是随机正负号对角矩阵，只需要给每个 channel 乘 $+1$ 或 $-1$。
-- $H$ 是 Hadamard 矩阵，可以用 Fast Walsh-Hadamard Transform, FWHT, 的蝴蝶结构快速计算。
+- $H$ 是 Hadamard 矩阵，可以用 Fast Walsh-Hadamard Transform（FWHT）的蝴蝶结构快速计算。
 
 这样原本 dense $S\,y$ 的 $O(d^2)$ 乘法，可以降到 $O(d\log d)$。如果 $d$ 是 128 或 256，这个差别在热路径里很实在。更进一步，结构化投影还更容易和量化、解码、attention 打分融合到同一个 kernel 里。
 
@@ -1814,7 +1806,7 @@ $$
 \text{softmax}(\mathbf{q}\mathbf{K}^\top)\mathbf{V}
 $$
 
-不用怕这个公式。它分两步：
+这个公式分两步：
 
 1. $qK^T$：当前 query 和历史 key 做点积，得到每个历史 token 的重要性分数。
 2. $\text{softmax}(\cdots)\mathbf{V}$：根据重要性分数，把历史 value 加权平均。
@@ -1833,7 +1825,7 @@ TurboQuant 的意义在于：
 
 论文报告说，在 KV cache 量化实验里，3.5 bits per channel 可以达到接近无质量损失，2.5 bits per channel 只有轻微质量下降。具体效果当然依赖模型、任务和实现。
 
-Google 的官方博客（2026 年 3 月 24 日发布）进一步公开了几组更偏部署的测量，可以当作补充：在开源模型上，TurboQuant 能在不重训、不微调的情况下把 KV cache 压到 **3 bit** 且不损失准确度，KV cache 体积至少下降 **6x**；在 H100 上，4-bit TurboQuant 算 attention logits 相比 32-bit 未量化 key 最高约 **8x** 加速。博客同时确认 TurboQuant 入选 **ICLR 2026**、PolarQuant 入选 **AISTATS 2026**、QJL 发表在 **AAAI**（见 Reference 里的 QJL 链接）。
+Google 的官方博客（2026 年 3 月 24 日发布）进一步公开了几组更偏部署的测量，可以当作补充：在开源模型上，TurboQuant 能在不重训、不微调的情况下把 KV cache 压到 3 bit 且不损失准确度，KV cache 体积至少下降 6x；在 H100 上，4-bit TurboQuant 算 attention logits 相比 32-bit 未量化 key 最高约 8x 加速。博客同时确认 TurboQuant 入选 ICLR 2026、PolarQuant 入选 AISTATS 2026、QJL 发表在 AAAI（见 Reference 里的 QJL 链接）。
 
 ## 30. 和 PolarQuant、QJL 的关系
 
@@ -1846,7 +1838,7 @@ Google 的官方博客（2026 年 3 月 24 日发布）进一步公开了几组�
 | TurboQuant_mse | 用随机旋转 + 标量最优量化降低 MSE | 第一阶段主量化 |
 | TurboQuant_prod | MSE 主量化 + QJL 残差修正 | 面向内积的完整版本 |
 
-这里有一个容易混的地方：Google 博客把第一阶段（随机旋转 + 逐坐标标量量化）直接叫做 "the PolarQuant method"，但论文里 PolarQuant 是另一条独立路线，用递归的两两极坐标变换去量化角度，在 TurboQuant 论文里它是被对比的 baseline 之一。这里按论文的说法，把 TurboQuant_mse 的第一阶段记作旋转 + Lloyd-Max，不做极坐标变换。
+这里有一个容易混的地方：Google 博客把第一阶段（随机旋转 + 逐坐标标量量化）直接叫做“the PolarQuant method”，但论文里 PolarQuant 是另一条独立路线，用递归的两两极坐标变换去量化角度，在 TurboQuant 论文里它是被对比的 baseline 之一。这里按论文的说法，把 TurboQuant_mse 的第一阶段记作旋转 + Lloyd-Max，不做极坐标变换。
 
 TurboQuant 的核心数学是下面这几步：
 
@@ -1896,7 +1888,7 @@ $$
 
 它和理论下界之间只隔一个常数倍。
 
-论文标题里的 “near-optimal distortion rate” 说的就是这个常数倍差距。
+论文标题里的“near-optimal distortion rate”说的就是这个常数倍差距。
 
 ## 32. 从零复述一遍算法
 

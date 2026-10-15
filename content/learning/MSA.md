@@ -26,15 +26,15 @@ MiniMax Sparse Attention 在论文里简称 **MSA**。
 
 论文里的主要数字：
 
-- 在 1M context 下，MSA 的每 token attention FLOPs 比 GQA 少 **28.4x**。
-- 结合专门设计的 kernel，在 H800 上实现了 **14.2x prefill** 和 **7.6x decoding** 的端到端 attention 加速。
-- 论文在一个 **109B 参数、每 token 激活 6B 参数** 的 MoE 多模态模型上做实验，MSA 效果和 full attention GQA 相当。
+- 在 1M context 下，MSA 的每 token attention FLOPs 比 GQA 少 28.4x。
+- 结合专门设计的 kernel，在 H800 上实现了 14.2x prefill 和 7.6x decoding 的端到端 attention 加速。
+- 论文在一个 109B 参数、每 token 激活 6B 参数的 MoE（Mixture of Experts，混合专家）多模态模型上做实验，MSA 效果和 full attention GQA 相当。
 - 论文公开了 inference kernel：<https://github.com/MiniMax-AI/MSA>。
 - 使用 MSA 的公开模型是 MiniMax-M3：<https://huggingface.co/MiniMaxAI/MiniMax-M3>。
-  MiniMax-M3 是更大的生产模型，约 **428B 总参数、每 token 激活约 23B**，原生多模态、支持 1M context，
-  和上面论文里做对照实验的那个 **109B / 6B-activated** 实验模型不是同一个。
+  MiniMax-M3 是更大的生产模型，约 428B 总参数、每 token 激活约 23B，原生多模态、支持 1M context，
+  和上面论文里做对照实验的那个 109B / 6B-activated 实验模型不是同一个。
   M3 发布页单独给了一套和上一代 M2 对比的数字（和论文里 H800 上测的 14.2x/7.6x 是两套不同的对比）：
-  1M context 下 **9x prefill、15x decode** 加速，per-token compute 降到 **1/20**。
+  1M context 下 9x prefill、15x decode 加速，per-token compute 降到 1/20。
 
 想快速抓住全文，记住这条线：
 
@@ -51,10 +51,10 @@ MiniMax Sparse Attention 在论文里简称 **MSA**。
 
 | 你想知道什么 | 建议读法 |
 |---|---|
-| 只想理解 MSA 是什么 | 读 1-9 节，再读 21 节总结 |
-| 想理解训练为什么能稳定 | 读 10-13 节 |
-| 想理解为什么能省计算 | 读 14-15.10 节 |
-| 想对着公开仓库看 kernel 源码 | 重点读 15.11-15.19 节 |
+| 只想理解 MSA 是什么 | 读 1～9 节，再读 21 节总结 |
+| 想理解训练为什么能稳定 | 读 10～13 节 |
+| 想理解为什么能省计算 | 读 14～15.10 节 |
+| 想对着公开仓库看 kernel 源码 | 重点读 15.11～15.19 节 |
 | 想知道它和其他长上下文方法的区别 | 读 18 节 |
 
 先放一个符号表，后面会反复出现：
@@ -78,8 +78,6 @@ MiniMax Sparse Attention 在论文里简称 **MSA**。
 |---|---|
 | Prefill | 模型第一次读入整段 prompt，把 prompt 里的 token 全部处理一遍。长上下文场景最容易在这里爆成本 |
 | Decoding | 模型已经读完 prompt 后，一个 token 一个 token 往外生成。这里通常受 KV cache 读取、batch size、生成长度等因素影响 |
-
-下面从零开始讲。
 
 ## 1. 为什么长上下文会让大模型变慢
 
@@ -114,7 +112,7 @@ MiniMax Sparse Attention 在论文里简称 **MSA**。
 | 100K | 约 100 亿 |
 | 1M | 约 1 万亿 |
 
-长度增加 10 倍，注意力比较约增加 100 倍，这是长上下文部署成本高的直接来源。
+长度增加到 10 倍，注意力比较约增加到 100 倍，这是长上下文部署成本高的直接来源。
 
 ## 2. 注意力到底在做什么
 
@@ -122,9 +120,9 @@ MiniMax Sparse Attention 在论文里简称 **MSA**。
 
 每个 token 会产生三类向量：
 
-- **Query**：我现在想找什么信息。
-- **Key**：我这里有什么信息，可以被别人检索。
-- **Value**：如果别人觉得我重要，就实际取走什么内容。
+- Query：我现在想找什么信息。
+- Key：我这里有什么信息，可以被别人检索。
+- Value：如果别人觉得我重要，就实际取走什么内容。
 
 例如模型正在生成一句话：
 
@@ -162,7 +160,7 @@ $$
 O_i = \sum_{j \le i} \alpha_{i,j} V_j
 $$
 
-1. 当前 token 拿着 query 去问：前面每个位置和我有多相关？
+1. 当前 token 用 query 和前面每个位置算相关性分数。
 2. softmax 把相关性分数变成比例。
 3. 模型按比例读取对应 value。
 
@@ -174,7 +172,7 @@ $$
 
 ## 3. GQA：先把 KV head 变少
 
-MSA 建在 **GQA** 上，所以先解释 GQA。
+MSA 建在 GQA（Grouped-Query Attention，分组查询注意力）上，所以先解释 GQA。
 
 传统 multi-head attention 里，每个 query head 通常有自己的 key/value head。GQA 的做法是：多个 query head 共享一组 key/value head。
 
@@ -189,7 +187,7 @@ $$
 G = H_q / H_{kv} = 64 / 4 = 16
 $$
 
-也就是 16 个 query head 共享同一个 KV head。论文里把这叫一个 **GQA group**。
+也就是 16 个 query head 共享同一个 KV head。论文里把这叫一个 GQA group。
 
 ![GQA 把多个 query head 分到同一个 KV group](/learning/assets/msa-gqa.svg)
 
@@ -197,7 +195,7 @@ $$
 
 GQA 的意义是减少 KV cache 和 KV 读写。对长上下文推理来说，KV cache 很大，减少 KV head 数量很有价值。
 
-但 GQA 主要减少的是 KV 的存储和读取规模，并没有从根本上改变“每个 query 仍然要看长上下文”的问题。MSA 要做的是再往前走一步：**每个 GQA group 动态选择少量 KV blocks。**
+但 GQA 主要减少的是 KV 的存储和读取规模，并没有从根本上改变“每个 query 仍然要看长上下文”的问题。MSA 要做的是再往前走一步：每个 GQA group 动态选择少量 KV blocks。
 
 ## 4. 稀疏注意力：不看全部，只看一部分
 
@@ -243,7 +241,7 @@ MSA 的设计就是围绕这两个问题展开：
 
 GPU 擅长的是规则的大矩阵计算。一个 token 一个 token 地跳着读，会带来很多不连续内存访问和调度开销。即使理论 FLOPs 少，实际 wall-clock 也可能不快。
 
-MSA 选择的是 **KV block**。
+MSA 选择的是 KV block。
 
 假设 block size 是 $B_k = 128$，上下文被切成：
 
@@ -254,7 +252,7 @@ Block 3: token 257 - 384
 ...
 ```
 
-当前 query 不再选择单个 token，而是选择若干个 block。论文主实验用：
+当前 query 选择若干个 block，不再逐个选 token。论文主实验用：
 
 ```text
 B_k = 128
@@ -290,8 +288,8 @@ $$
 
 MSA 每层 attention 有两个逻辑分支：
 
-- **Index Branch**：轻量索引分支，只负责给 KV blocks 打分并选 Top-K。
-- **Main Branch**：主 attention 分支，对选中的 blocks 做正常 softmax attention。
+- Index Branch：轻量索引分支，只负责给 KV blocks 打分并选 Top-K。
+- Main Branch：主 attention 分支，对选中的 blocks 做正常 softmax attention。
 
 Index Branch 很轻，论文说它只在标准 GQA 上额外加入两个投影矩阵：
 
@@ -348,7 +346,7 @@ $$
 
 也就是当前位置不能偷看未来。论文里对没有任何可见 token 的 block 直接把分数记作 $-\infty$，这样它永远不会进入 Top-K。
 
-然后它把 token 分数聚合到 block 分数。MSA 用的是 **max pooling**：
+然后它把 token 分数聚合到 block 分数。MSA 用的是 max pooling：
 
 $$
 M^{idx,(r)}_{i,b}
@@ -362,9 +360,7 @@ $$
 - 对第 $b$ 个 block 里的所有可见 token 计算分数。
 - 取最大值当作这个 block 的分数。
 
-为什么用最大值？
-
-因为一个 block 里只要有一个 token 和当前 query 很相关，这个 block 就值得被读。用平均值可能会把少数重要 token 淹没掉。
+取最大值是因为一个 block 里只要有一个 token 和当前 query 很相关，这个 block 就值得被读。用平均值可能会把少数重要 token 淹没掉。
 
 最后做 Top-K：
 
@@ -387,7 +383,7 @@ for each query token i:
     output = normal_attention(query_i, K/V inside selected_blocks)
 ```
 
-还有一个稳定性设计：**local block 一定会被选中**。
+还有一个稳定性设计：local block 一定会被选中。
 
 local block 就是包含当前 query token 的那个 block（论文 §3 和 Figure 1 都把它叫 local block）。它避免索引分支早期还不可靠时把当前位置的直接上下文漏掉。论文附录 C.2 也说明，这类强制选择最初就是作为稳定手段引入的。论文的最终配方去掉了开头 block 与固定局部窗口的硬编码，只保留这个 self block；消融显示即使不强制，模型也会自发学出 sink 列和局部对角线，质量指标变化不大。
 
@@ -408,7 +404,7 @@ O^{(h)}_i =
 V^{(r)}[\mathcal{I}^{(r)}_i]
 $$
 
-这个公式看起来长，但意思很简单：
+其中：
 
 - $\mathcal{I}_i^{(r)}$ 是 Index Branch 选出的 blocks。
 - 从这些 blocks 里取出对应的 K/V。
@@ -420,7 +416,7 @@ MSA 保留了 softmax attention，只是把 full context 换成 selected blocks�
 
 ## 9. 为什么 Top-K 可以不做 softmax
 
-论文 kernel 里有一个小但重要的点：**选择 Top-K 时不需要先做 softmax**。
+论文 kernel 里有一个小但重要的点：选择 Top-K 时不需要先做 softmax。
 
 原因是 softmax 不改变排序：同一行的分母 $Z=\sum_u \exp(s_u)$ 对所有位置是同一个正数，而 $\exp$ 严格单调递增，所以 $\mathrm{softmax}(s)_i = \exp(s_i)/Z$ 是 $s_i$ 的单调增函数。
 
@@ -444,7 +440,7 @@ $$
 max -> exp -> sum -> divide
 ```
 
-这就是论文里说的 **exp-free Top-K selection**。它跳过了指数运算和归一化，减少索引阶段开销。
+这就是论文里说的 exp-free Top-K selection。它跳过了指数运算和归一化，减少索引阶段开销。
 
 ## 10. 训练难点：Top-K 不可导
 
@@ -464,11 +460,11 @@ MSA 最大的训练难点是：Top-K 是离散选择。
 
 如果只靠语言模型 loss，Index Branch 收到的训练信号会很弱。论文附录 B 的预实验（10.53B 参数、每 token 激活 1.47B 的 16 层 pilot 模型，从一开始就用 sparse attention）也说明：只有 LM Loss 时，短上下文能力还行，但长上下文检索表现不好，因为 indexer 没有直接压力去学会选相关 block。
 
-MSA 的做法是加一个辅助监督：**KL loss**。
+MSA 的做法是加一个辅助监督：KL loss（Kullback-Leibler 散度损失）。
 
 ## 11. KL Loss：让小索引分支模仿主分支
 
-KL loss 就是“分布对齐损失”。
+KL loss 就是让两个分布尽量接近的损失。
 
 在 MSA 里：
 
@@ -476,7 +472,7 @@ KL loss 就是“分布对齐损失”。
 - Index Branch 对同一批 token 也有自己的分数分布。
 - KL loss 让 Index Branch 的分布接近 Main Branch。
 
-这里 teacher 分布 $P^{(r)}_{i,\cdot}$ 是该 group 内 $G$ 个 query heads 的 Main Branch 分布在**概率层面**的平均（论文式 (9)），因为一个 group 共享同一套被选中的 block。student 分布 $P^{idx,(r)}_{i,\cdot}$ 则是 Index Branch 在选中 blocks 的 token 支持集上做 softmax。warmup 阶段 Main Branch 跑 full attention，teacher 换成 full sequence 上的分布；进入 sparse 阶段后，比较范围收缩到被选中的支持集。
+这里 teacher 分布 $P^{(r)}_{i,\cdot}$ 是该 group 内 $G$ 个 query heads 的 Main Branch 分布在概率层面的平均（论文式 (9)），因为一个 group 共享同一套被选中的 block。student 分布 $P^{idx,(r)}_{i,\cdot}$ 则是 Index Branch 在选中 blocks 的 token 支持集上做 softmax。warmup 阶段 Main Branch 跑 full attention，teacher 换成 full sequence 上的分布；进入 sparse 阶段后，比较范围收缩到被选中的支持集。
 
 主分支像老师，索引分支像学生。
 
@@ -513,7 +509,7 @@ $$
 
 > 自绘示意图（公式依据论文式 (10) 与 Algorithm 1）。
 
-这一项的范围有限：teacher 和 student 都只在**选中 blocks 的 token 支持集**上归一化，漏掉的 block 不在分布里，所以 KL loss 惩罚的是“支持集内部的权重分配”，不直接惩罚“漏选”。论文附录 B.2 的 pilot 实验把训练信号拆成三种：只用 LM loss 时短上下文能力好但长上下文检索差（indexer 没有直接压力），只用 KL loss 时检索变好但短上下文退化（去掉 $O_{idx}$ 会减少可用容量），两者合用最好。到全量规模时，由于有了 indexer warmup，论文最终把 index value head 也去掉，只保留 KL 对齐（附录 C.3、Table 6 显示去掉 value head 没有系统性退化）。
+这一项的范围有限：teacher 和 student 都只在选中 blocks 的 token 支持集上归一化，漏掉的 block 不在分布里，所以 KL loss 惩罚的是“支持集内部的权重分配”，不直接惩罚“漏选”。论文附录 B.2 的 pilot 实验把训练信号拆成三种：只用 LM loss 时短上下文能力好但长上下文检索差（indexer 没有直接压力），只用 KL loss 时检索变好但短上下文退化（去掉 $O_{idx}$ 会减少可用容量），两者合用最好。到全量规模时，由于有了 indexer warmup，论文最终把 index value head 也去掉，只保留 KL loss 监督（附录 C.3、Table 6 显示去掉 value head 没有系统性退化）。
 
 ## 12. 为什么要 stop-gradient
 
@@ -555,13 +551,13 @@ $$
 
 MSA 用两阶段训练：
 
-1. **Warmup 阶段**：Main Branch 仍然跑 full attention，Index Branch 用 KL loss 学习。
-2. **Sparse 阶段**：启用 Top-K sparse attention，继续用 KL loss 对齐。
+1. Warmup 阶段：Main Branch 仍然跑 full attention，Index Branch 用 KL loss 学习。
+2. Sparse 阶段：启用 Top-K sparse attention，继续用 KL loss 监督 indexer。
 
 在主实验里：
 
-- MSA-PT 从头训练，先做 **40B tokens indexer warmup**，再进入 sparse pretraining。
-- MSA-CPT 从 2.6T tokens 的 full-attention checkpoint 开始，替换成 MSA 后继续训练 400B tokens，其中前 **40B tokens** 是 indexer warmup。
+- MSA-PT 从头训练，先做 40B tokens indexer warmup，再进入 sparse pretraining。
+- MSA-CPT 从 2.6T tokens 的 full-attention checkpoint 开始，替换成 MSA 后继续训练 400B tokens，其中前 40B tokens 是 indexer warmup。
 
 这相当于先让索引器看一段时间标准答案，再让它正式上岗。
 
@@ -590,7 +586,7 @@ $$
 - $H_{kv}$ 远小于 $H_q$。
 - $d_{idx}$ 是轻量索引维度。
 
-第二项是主 attention 分支，它不再是 $N^2$，而是：
+第二项是主 attention 分支，它随 $N$ 线性增长：
 
 $$
 N \times kB_k
@@ -641,27 +637,27 @@ $$
 > 少算 FLOPs 不等于一定跑得快。  
 > 如果访存很乱、线程负载不均、矩阵形状太小，GPU 仍然可能很慢。
 
-所以论文第 4 节专门讲 kernel design。这里我把它拆成从入门到实现的版本。
+所以论文第 4 节专门讲 kernel design。这里按从整体到源码的顺序拆开讲。
 
 先解释几个会反复出现的 GPU 词：
 
 | 词 | 可以先这样理解 |
 |---|---|
-| HBM / global memory | GPU 显存，容量大，但访问比片上存储慢 |
+| HBM / global memory | High Bandwidth Memory，GPU 显存，容量大，但访问比片上存储慢 |
 | shared memory | 一个 CUDA thread block 内共享的片上高速缓存 |
 | register | 每个线程自己的最快存储，但数量有限 |
 | warp | NVIDIA GPU 上 32 个线程一起执行的一组线程 |
 | CTA | CUDA thread block，论文里说 CTA 时大致相当于一个线程块 |
-| tensor core / MMA | 专门做矩阵乘法的小硬件单元，形状合适时很快 |
+| tensor core / MMA | Matrix Multiply-Accumulate，专门做矩阵乘法的小硬件单元，形状合适时很快 |
 | TMA | Tensor Memory Accelerator，Hopper/Blackwell 这类 GPU 上用于高效搬运多维 tensor tile 的机制 |
 | LSE | log-sum-exp，FlashAttention 类 softmax kernel 用它稳定地合并 softmax 分母 |
 | atomic | 多个线程同时更新同一个地址时用的同步写操作，能保证正确，但热点多时会很贵 |
 
 MSA kernel 要解决三件事：
 
-1. **TopK 怎么快**：Index Branch 给每个 query/group 打出很多 block score，必须快速选出 Top-K blocks。
-2. **selected KV blocks 怎么算 attention**：不能让 K/V 读取得太碎，也不能让 tensor core 空转。
-3. **训练时 KL loss 怎么便宜**：KL 需要一些 softmax 的 LSE 信息，最好不要额外再跑一遍 forward。
+1. TopK 怎么快：Index Branch 给每个 query/group 打出很多 block score，必须快速选出 Top-K blocks。
+2. selected KV blocks 怎么算 attention：不能让 K/V 读取得太碎，也不能让 tensor core 空转。
+3. 训练时 KL loss 怎么便宜：KL 需要一些 softmax 的 LSE 信息，最好不要额外再跑一遍 forward。
 
 ### 15.1 TopK kernel：先把“选块”做快
 
@@ -701,7 +697,7 @@ score A > score B
 softmax(score) A > softmax(score) B
 ```
 
-所以 TopK 只需要看 raw score，不需要先做 `max -> exp -> sum -> divide`。这叫 **exp-free selection**。
+所以 TopK 只需要看 raw score，不需要先做 `max -> exp -> sum -> divide`。这叫 exp-free selection。
 
 更具体地，论文的 TopK kernel 做了这些事：
 
@@ -736,7 +732,7 @@ TopK 这一步看起来不像 attention 本体，但 indexer 的选择本身一�
 
 ### 15.2 为什么 Q-outer 不够好
 
-拿到 TopK blocks 后，最自然的 sparse attention 写法是 **Q-outer**：
+拿到 TopK blocks 后，最自然的 sparse attention 写法是 Q-outer：
 
 ```pseudocode title="Q-outer sparse attention"
 for each query:
@@ -800,11 +796,11 @@ $$
 
 因为主设置里 $kB_k = 2048 \gg G = 16$，分母里的 $G$ 可以忽略，比值≈$G$。Q-outer 的瓶颈在于每个 KV head 的数据只服务了 $G$ 个 query heads 就被换出，算子的 FLOPs 本身并没有变多。
 
-（论文说明：这套 IO 估算假设 2-byte 元素；换 fp8 会改变绝对量级，但不改变 Q-outer 与 KV-outer 的相对优劣。）
+论文说明：这套 IO 估算假设 2-byte 元素；换 fp8 会改变绝对量级，但不改变 Q-outer 与 KV-outer 的相对优劣。
 
 ### 15.3 KV-outer：把循环顺序反过来
 
-MSA 论文选择的是 **KV-outer sparse attention**。它把循环反过来：
+MSA 论文选择的是 KV-outer sparse attention。它把循环反过来：
 
 ```pseudocode title="KV-outer sparse attention"
 for each KV block:
@@ -876,7 +872,7 @@ block 8 -> query 1, query 2, ...
 - `k2q_q_indices`
 - `schedule`
 
-CSR 是一种压缩存储“每个 block 对应哪些 query”的格式。
+CSR（Compressed Sparse Row，压缩稀疏行）是一种压缩存储“每个 block 对应哪些 query”的格式。
 
 例如有 3 个 KV blocks：
 
@@ -925,7 +921,7 @@ KV-outer kernel 要靠这份 `k2q` 才能启动：它按 KV block 分配 CTA，�
 
 KV-outer 下，每个 KV tile 通常只对应几个到几十个 query positions。如果一个 query position 只有 $G=16$ 个 query heads，那么单独处理时，MMA 的 M 维只有 16，tensor core 吃不饱。
 
-MSA 的做法是 **query concatenation**。
+MSA 的做法是 query concatenation。
 
 在论文主设置里：
 
@@ -956,9 +952,9 @@ KV-outer 的新问题是负载不均。
 少数热点 CTA 还在慢慢干活
 ```
 
-论文的处理方式叫 **pre-scheduled tile chunking**。
+论文的处理方式叫 pre-scheduled tile chunking。
 
-做法是：调度阶段先看每个 KV tile 收到了多少 query。如果某个 tile 太热门，就沿着 query 维度切成多个 chunks。论文里提到每个 chunk 最多大约：
+做法是：调度阶段先看每个 KV tile 收到了多少 query。如果某个 tile 太热门，就沿 query 方向切成多个 chunks。论文里提到每个 chunk 最多大约：
 
 $$
 \sim 2kB_k
@@ -972,9 +968,9 @@ B_k = 128
 2kB_k = 4096 queries
 ```
 
-如果某个 KV block 被 100K 个 query 选择，就不会只给一个 CTA，而是拆成很多 chunks，让多个 CTAs 并行处理。
+如果某个 KV block 被 100K 个 query 选择，就拆成很多 chunks，交给多个 CTA 并行处理。
 
-还有一个设计是 **避免 atomic 写 output**。
+还有一个设计是避免用 atomic 写 output。
 
 因为一个 query 选了 $k$ 个 blocks，所以它会产生最多 $k$ 个 partial outputs。MSA 让 scheduler 预先给每个 `(query, chunk)` 分配一个 slot：
 
@@ -993,7 +989,7 @@ LSE_buf[slot, query, head]
 
 ### 15.7 two-phase forward：为什么 partial output 不能直接相加
 
-KV-outer 把一个 query 的 $k$ 个 selected blocks 拆给不同 CTAs 计算。每个 CTA 只看到其中一个 KV block，所以它只能得到一个 **局部 softmax** 的结果。
+KV-outer 把一个 query 的 $k$ 个 selected blocks 拆给不同 CTA 计算。每个 CTA 只看到其中一个 KV block，所以它只能得到一个局部 softmax 的结果。
 
 但真正的 attention softmax 应该是在所有 selected tokens 上一起归一化。
 
@@ -1037,7 +1033,7 @@ O[i,h]
 \sum_s w_s O_{buf}[s,i,h]
 $$
 
-为什么这几步就够了？把第 $s$ 个 block 内的 logits 记作 $z_j$，局部最大值记作 $m_s$、局部指数和记作 $p_s=\sum_{j\in s}\exp(z_j-m_s)$，那么
+把第 $s$ 个 block 内的 logits 记作 $z_j$，局部最大值记作 $m_s$、局部指数和记作 $p_s=\sum_{j\in s}\exp(z_j-m_s)$，那么
 
 $$
 \mathrm{LSE}_s = \log\sum_{j\in s}\exp(z_j) = m_s + \log p_s
@@ -1084,7 +1080,7 @@ backward 再用这些量算梯度
 
 这样太浪费。
 
-论文的优化是 **LSE fusion**：
+论文的优化是 LSE fusion：
 
 - Main Branch 正常 sparse attention forward 时，顺手把 `LSE_main` 写出来。
 - Index Branch 算 block scores 时，保存 per-block LSE。
@@ -1093,7 +1089,7 @@ backward 再用这些量算梯度
 
 这类优化看起来不改变数学公式，但对训练吞吐很重要。长上下文训练时，每多一次大规模 attention-like pass 都会很贵。
 
-Sparse KL backward 还有一个负载均衡问题：不同 tile 的 query 数量差别可能很大。论文采用 persistent grid，让 CTAs 通过一个 global atomic counter 动态领取工作：
+Sparse KL backward 还有一个负载均衡问题：不同 tile 的 query 数量差别可能很大。论文采用 persistent grid，让 CTA 通过一个 global atomic counter 动态领取工作：
 
 ```text
 CTA 干完一个 tile/sub-tile 后
@@ -1106,11 +1102,11 @@ CTA 干完一个 tile/sub-tile 后
 
 论文里报告的主要端到端加速是在 H800 上测的。论文同时公开了 inference kernel 仓库：<https://github.com/MiniMax-AI/MSA>。
 
-我查了当前公开 README。它的包名是 `fmha_sm100`，当前公开实现主要面向 NVIDIA **SM100**，并把实现分成几层：
+我查了当前公开 README。它的包名是 `fmha_sm100`，当前公开实现主要面向 NVIDIA SM100，并把实现分成几层：
 
 | 公开仓库模块 | 作用 |
 |---|---|
-| `csrc JIT` | dense FMHA、paged KV、`sparse_topk_select` indexer |
+| `csrc JIT` | dense FMHA（Fused Multi-Head Attention）、paged KV、`sparse_topk_select` indexer |
 | `CuTe-DSL` | block-sparse attention forward、paged FP8 decode、BF16/FP8/NVFP4/FP4 路径 |
 | `Bridge` | 把 `fmha_sm100` API 接到 sparse backend |
 
@@ -1228,7 +1224,7 @@ api.py::sparse_topk_select
 
 也就是把每个 query token、每一行的 Top-K KV tile indices 选出来。
 
-docstring 写明这一维服务的是 MQA proxy-KV 稀疏路径，稠密 pass 的 `num_kv_heads_dense=1`，所以 `max_score.shape[0]` 实际等于真实 KV head 数（MSA 主设置里就是 $H_{kv}=4$），每行独立处理，这个函数内部**不做 GQA 归约**。这和论文“每个 GQA group 选一套 block”是同一件事：分组的 key 数已经压到 KV head 一侧了。
+docstring 写明这一维服务的是 MQA（Multi-Query Attention）proxy-KV 稀疏路径，稠密 pass 的 `num_kv_heads_dense=1`，所以 `max_score.shape[0]` 实际等于真实 KV head 数（MSA 主设置里就是 $H_{kv}=4$），每行独立处理，这个函数内部不做 GQA 归约。这和论文“每个 GQA group 选一套 block”是同一件事：分组的 key 数已经压到 KV head 一侧了。
 
 源码逻辑可以简化成：
 
@@ -1312,15 +1308,13 @@ workspace: (Hq, qo, K) row-contig fp32
 output: (qo, num_qo_heads, topk) int32
 ```
 
-为什么要先 transpose？
-
-原始 `max_score` 的形状是：
+源码先转置，是因为原始 `max_score` 的形状是：
 
 ```text
 head, k_tile, query
 ```
 
-但 TopK 是“对一个 query 的所有 k_tile 做选择”。如果 query 不是连续维度，逐行 TopK 会很难做高效连续读取。所以源码先转置成：
+但 TopK 是“对一个 query 的所有 k_tile 做选择”，每行要扫的 k_tile 在原始布局里不连续，逐个读会很慢。所以源码先转置成：
 
 ```text
 head, query, k_tile
@@ -1708,14 +1702,14 @@ if work_idx < work_count[0]:
 
 然后 kernel 做几类工作：
 
-1. **读 CSR row 范围**：根据 `row_linear` 找到这个 KV block 对应的 query 列表。
-2. **读 qsplit**：从 `k2q_qsplit_indices` 得到 `q_idx` 和 `split_idx`。
-3. **加载 Q**：如果 `qheadperkv` 是 4/2/1，走 `gather4`；否则走 TMA load。
-4. **加载 K/V**：按 `kv_block_idx` 和 `head_kv_idx` 用 TMA 把 K/V tile 搬进 shared memory。
-5. **QK MMA**：算当前 query chunk 对当前 KV block 的 logits。
-6. **softmax**：只在当前 KV block 内做局部 softmax，并缓存 row max / row sum。
-7. **PV MMA**：算局部输出。
-8. **epilogue**：根据 `split_idx` 写 `O_partial`，并写 `LSE_partial`。
+1. 读 CSR row 范围：根据 `row_linear` 找到这个 KV block 对应的 query 列表。
+2. 读 qsplit：从 `k2q_qsplit_indices` 得到 `q_idx` 和 `split_idx`。
+3. 加载 Q：如果 `qheadperkv` 是 4/2/1，走 `gather4`；否则走 TMA load。
+4. 加载 K/V：按 `kv_block_idx` 和 `head_kv_idx` 用 TMA 把 K/V tile 搬进 shared memory。
+5. QK MMA：算当前 query chunk 对当前 KV block 的 logits。
+6. softmax：只在当前 KV block 内做局部 softmax，并缓存 row max / row sum。
+7. PV MMA：算局部输出。
+8. epilogue：根据 `split_idx` 写 `O_partial`，并写 `LSE_partial`。
 
 源码里 epilogue 写 LSE 的关键变量是：
 
@@ -1929,14 +1923,14 @@ out = sparse_atten_func(
 
 再看几个源码实现边界：
 
-1. **TopK 选择 kernel 和 sparse attention kernel 的 `topK` 支持范围不同**。`sparse_topk_select` 当前公开实现强制 `topk == 16`；但 `sparse_atten_func` 的 docstring 写的是 forward kernel 支持 `4, 8, 16, 32`。所以不要看到 forward 支持 32，就以为公开 TopK kernel 也能直接选 32。
-2. **`num_valid_pages` 最好显式传**。TopK 输入里常有为了对齐而补出来的 padding tiles。如果不告诉 kernel 真实有效 page 数，后续 sparse attention 可能读到无效 page-table 位置。公开 API 注释里也把这一点写成强烈建议。
-3. **`force_begin_blocks` 和 `force_end_blocks` 是工程上的保底机制**。前者常用来保留 attention sink，后者常用来保留当前位置附近的 local window。它们不是 MSA 公式的核心，但对长上下文质量和稳定性很实用。
-4. **`qsplit_indices` 是避免 forward 输出 atomic 的关键**。scheduler 阶段可以用 atomic 给每个 query/KV head 分 split slot；forward kernel 写 `O_partial` 时已经知道自己的 slot，所以不用多个 CTA 抢同一个输出地址。
-5. **combine 不能简单相加 `O_partial`**。每个 partial 只在自己的 KV block 内做了 softmax，它的归一化分母不同。必须先用 `LSE_partial` 还原全局 softmax 权重，再加权合并。
-6. **`head_dim` 在公开 SM100 sparse forward 里固定为 128**。这和论文主模型设置一致，但如果你拿一个 head dimension 不是 128 的模型直接套这个 kernel，就不是改几个 Python 参数的问题。
-7. **`Hq / Hkv` 只能是 `{1, 2, 4, 8, 16}`**。这是 forward kernel 的编译期支持边界，也对应 GQA group 的实现方式。
-8. **`max_score` 的第 0 维不是 query head 数**。`sparse_topk_select` 的 docstring 明确它跑在 `num_kv_heads_dense=1` 的 MQA proxy 路径上，这一维就是 KV head 数（也即 GQA group 数）；函数内部不做 GQA 归约，归约发生在产生 `max_score` 的稠密 pass 里。
+1. TopK 选择 kernel 和 sparse attention kernel 的 `topK` 支持范围不同。`sparse_topk_select` 当前公开实现强制 `topk == 16`；但 `sparse_atten_func` 的 docstring 写的是 forward kernel 支持 `4, 8, 16, 32`。所以不要看到 forward 支持 32，就以为公开 TopK kernel 也能直接选 32。
+2. `num_valid_pages` 最好显式传。TopK 输入里常有为了对齐而补出来的 padding tiles。如果不告诉 kernel 真实有效 page 数，后续 sparse attention 可能读到无效 page-table 位置。公开 API 注释里也把这一点写成强烈建议。
+3. `force_begin_blocks` 和 `force_end_blocks` 是工程上的保底机制。前者常用来保留 attention sink，后者常用来保留当前位置附近的 local window。它们不是 MSA 公式的核心，但对长上下文质量和稳定性很实用。
+4. `qsplit_indices` 是避免 forward 输出 atomic 的关键。scheduler 阶段可以用 atomic 给每个 query/KV head 分 split slot；forward kernel 写 `O_partial` 时已经知道自己的 slot，所以不用多个 CTA 抢同一个输出地址。
+5. combine 不能简单相加 `O_partial`。每个 partial 只在自己的 KV block 内做了 softmax，它的归一化分母不同。必须先用 `LSE_partial` 还原全局 softmax 权重，再加权合并。
+6. `head_dim` 在公开 SM100 sparse forward 里固定为 128。这和论文主模型设置一致，但如果你拿一个 head dimension 不是 128 的模型直接套这个 kernel，就不是改几个 Python 参数的问题。
+7. `Hq / Hkv` 只能是 `{1, 2, 4, 8, 16}`。这是 forward kernel 的编译期支持边界，也对应 GQA group 的实现方式。
+8. `max_score` 的第 0 维不是 query head 数。`sparse_topk_select` 的 docstring 明确它跑在 `num_kv_heads_dense=1` 的 MQA proxy 路径上，这一维就是 KV head 数（也即 GQA group 数）；函数内部不做 GQA 归约，归约发生在产生 `max_score` 的稠密 pass 里。
 
 如果要调试，可以按下面顺序打断点或打印 shape：
 
@@ -1960,15 +1954,15 @@ combine.py:
   check final_lse 和 O_out 是否正常
 ```
 
-这样读，kernel 源码就变成一条很清楚的数据流：**score -> TopK -> q2k -> k2q CSR -> schedule -> partial attention -> LSE merge**。
+这样读，kernel 源码就变成一条很清楚的数据流：score -> TopK -> q2k -> k2q CSR -> schedule -> partial attention -> LSE merge。
 
 ## 16. MSA 学到了什么 sparse pattern
 
 论文附录可视化了 Index Branch 的选择概率。它们观察到几个模式：
 
-1. **Local diagonal**：模型经常选当前位置附近的 blocks。
-2. **Sink column**：模型经常选序列开头的 block，也就是 attention sink。
-3. **Long-range stripes**：不同 GQA group 会选不同的远距离条带。
+1. Local diagonal：模型经常选当前位置附近的 blocks。
+2. Sink column：模型经常选序列开头的 block，也就是 attention sink。
+3. Long-range stripes：不同 GQA group 会选不同的远距离条带。
 
 可以把它理解为：
 
@@ -2009,7 +2003,7 @@ combine.py:
 - hidden size 3072。
 - 64 query heads。
 - 4 KV heads。
-- head dimension 128，RoPE 维度 64。
+- head dimension 128，RoPE（Rotary Position Embedding，旋转位置编码）维度 64。
 - $B_k = 128$。
 - $k = 16$。
 
@@ -2031,9 +2025,9 @@ combine.py:
 
 效率方面：
 
-- 1M context 下 theoretical attention FLOPs reduction 是 **28.4x**。
-- H800 上 measured prefill speedup 是 **14.2x**。
-- H800 上 measured decode speedup 是 **7.6x**。
+- 1M context 下 theoretical attention FLOPs reduction 是 28.4x。
+- H800 上 measured prefill speedup 是 14.2x。
+- H800 上 measured decode speedup 是 7.6x。
 
 论文原图里的效率对比如下：
 
@@ -2090,7 +2084,7 @@ Longformer 和 BigBird 属于比较经典的固定稀疏注意力。
 
 Longformer 用局部窗口加任务相关 global attention。BigBird 用局部窗口、随机 attention 和 global tokens 组合，把复杂度降下来。
 
-这类方法的特点是：**稀疏模式大多提前规定好**。
+这类方法的特点是：稀疏模式大多提前规定好。
 
 比如：
 
@@ -2123,7 +2117,7 @@ MSA 的选择分支是模型结构的一部分，并且在训练中通过 KL los
 
 ### 18.4 MSA vs MInference / FlexPrefill
 
-MInference 和 FlexPrefill 更关注 **prefill 加速**。
+MInference 和 FlexPrefill 更关注 prefill 加速。
 
 prefill 是模型一次性处理长 prompt 的阶段。长上下文里，prefill 的 attention matrix 很大，所以这里很容易成为瓶颈。
 
@@ -2143,7 +2137,7 @@ FlexPrefill 则根据输入和 attention head 动态调整稀疏模式和预算�
 
 InfLLM 是另一条路线：它把远距离上下文放进额外 memory units，需要时再检索相关 memory。
 
-这和 MSA 的气质很不一样。
+这和 MSA 差别很大。
 
 InfLLM 更像：
 
@@ -2161,7 +2155,7 @@ MSA 更像：
 
 ### 18.6 MSA vs NSA
 
-NSA，也就是 Native Sparse Attention，是和 MSA 最接近的一类：它也是原生可训练、硬件对齐的 sparse attention。
+NSA，也就是 Native Sparse Attention，是和 MSA 最接近的一类：它也是原生可训练、面向硬件设计的 sparse attention。
 
 NSA 采用动态层级稀疏策略，把几类信息结合起来：
 
@@ -2200,7 +2194,7 @@ MoBA 的核心思想也是：每个 query 不看全部上下文，只 attend 到
 
 - MoBA 更强调 mixture/router 式 block attention。
 - MSA 明确绑定 GQA group，每个 GQA group 选自己的 Top-K blocks。
-- MSA 的 Index Branch 只额外加索引用 Q/K 投影，并用 KL loss 对齐 Main Branch。
+- MSA 的 Index Branch 只额外加索引用 Q/K 投影，并用 KL loss 学 Main Branch 的注意力分布。
 - MSA 的论文重点之一是把算法和 KV-outer sparse attention kernel 一起设计。
 
 如果把它们都看成“按块检索上下文”，那么 MoBA 更像一类 block attention router，MSA 更像 GQA-native 的轻量 block indexer。
@@ -2358,19 +2352,19 @@ MSA 是一套为超长上下文大模型准备的结构和工程方案。
 
 ## 21. 这篇论文最值得带走的点
 
-MSA 的关键是几个设计咬合在一起：
+MSA 的关键是几个设计互相配合：
 
-1. **GQA group 级别选择**：每个 KV group 有自己的选择结果，比全局一个 sparse pattern 更灵活。
-2. **Block sparse**：选择连续 KV blocks，而不是零散 token，方便 GPU 执行。
-3. **轻量 Index Branch**：只额外加索引用 Q/K 投影，选择开销可控。
-4. **Max-pooling block score**：block 里只要有强相关 token，就能被选中。
-5. **Top-K without softmax**：选择时不需要 exp 和归一化。
-6. **KL alignment**：给不可导的 Top-K indexer 提供直接训练信号。
-7. **Gradient detach**：让 KL loss 只训练 indexer，不扰动 backbone。
-8. **Indexer warmup**：避免训练早期随机 sparse routing 破坏学习。
-9. **KV-outer kernel**：把理论稀疏转成 GPU 上的速度收益。
+1. GQA group 级别选择：每个 KV group 有自己的选择结果，比全局一个 sparse pattern 更灵活。
+2. Block sparse：选择连续 KV blocks，而不是零散 token，方便 GPU 执行。
+3. 轻量 Index Branch：只额外加索引用 Q/K 投影，选择开销可控。
+4. Max-pooling block score：block 里只要有强相关 token，就能被选中。
+5. Top-K without softmax：选择时不需要 exp 和归一化。
+6. KL loss 监督：给不可导的 Top-K indexer 提供直接训练信号。
+7. Gradient detach：让 KL loss 只训练 indexer，不扰动 backbone。
+8. Indexer warmup：避免训练早期随机 sparse routing 破坏学习。
+9. KV-outer kernel：把理论稀疏转成 GPU 上的速度收益。
 
-> MSA 是一种为超长上下文设计的、GQA 原生的、按块动态选择的 sparse softmax attention：先用轻量索引器找相关 KV blocks，再在这些 blocks 上做标准 attention，并通过 KL loss 和专门 kernel 让它既能训练稳定，又能实际跑快。
+> MSA 是一种为超长上下文设计的、GQA 原生的、按块动态选择的 sparse softmax attention：先用轻量索引器找相关 KV blocks，再在这些 blocks 上做标准 attention，并通过 KL loss 和专门 kernel 让训练稳定，实际部署也能跑快。
 
 ## Reference
 

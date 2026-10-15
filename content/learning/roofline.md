@@ -2,9 +2,9 @@
 aiGenerated: true
 ---
 
-Roofline 模型回答一个问题：**在给定的硬件上，一个 kernel 的理论性能上限是多少，以及它到底被什么卡住。** 它把"算得快不快"拆成两个硬天花板：峰值算力和峰值带宽，然后用一条折线把可达到的性能框出来。名字取自这条折线长得像房子的屋顶。
+Roofline 模型回答一个问题：在给定的硬件上，一个 kernel 的理论性能上限是多少，被什么卡住。它把“算得快不快”拆成两个天花板：峰值算力和峰值带宽，然后用一条折线把可达到的性能框出来。名字取自这条折线长得像房子的屋顶。
 
-> **一句话：可达到的性能 = min(峰值算力, 算术强度 × 峰值带宽)。** 把你分到哪一区的是"算力 / 带宽"这个比值（ridge point）。
+> 可达到的性能 = min(峰值算力, 算术强度 × 峰值带宽)。把你分到哪一区的是“算力 / 带宽”这个比值（ridge point）。
 
 ## 两个天花板
 
@@ -17,23 +17,23 @@ Roofline 模型回答一个问题：**在给定的硬件上，一个 kernel 的�
 
 ## 算术强度：把两者联系起来
 
-关键在于**算术强度**（arithmetic intensity，简称 AI），定义为一个 kernel **每搬 1 字节能做多少次浮点运算**：
+联系两者的量是算术强度（arithmetic intensity，简称 AI），定义为一个 kernel 每搬 1 字节能做的浮点运算次数：
 
 $$
 I = \frac{\text{FLOPs}}{\text{bytes}} \quad [\text{FLOPs / byte}]
 $$
 
-它是衡量"算得多还是搬得多"的标尺。这里的 bytes 指**从 DRAM 搬**的字节，不是片上 SRAM/寄存器之间的搬移：同一个 kernel，分块做得好、复用高，DRAM 流量就低，有效 $I$ 就高。
+它衡量一个 kernel 算得多还是搬得多。这里的 bytes 指从 DRAM 搬的字节，不是片上 SRAM/寄存器之间的搬移：同一个 kernel，分块做得好、复用高，DRAM 流量就低，有效 $I$ 就高。
 
 ## 折线与三区
 
-用两个天花板写出**可达到性能上限**：
+用两个天花板写出可达到性能的上限：
 
 $$
 \text{achievable} = \min\big(\pi,\; \beta \cdot I\big)
 $$
 
-这条线由两段组成，交点叫 **ridge point**：
+这条线由两段组成，交点叫 ridge point：
 
 $$
 I_{\text{ridge}} = \frac{\pi}{\beta}
@@ -41,11 +41,11 @@ $$
 
 | 区域 | 条件 | 性能由谁决定 | 优化方向 |
 | --- | --- | --- | --- |
-| **内存密集**（memory-bound） | $I < I_{\text{ridge}}$ | $\beta \cdot I$（被带宽卡住） | **减字节**：提高复用、降低精度、分块 |
-| **计算密集**（compute-bound） | $I > I_{\text{ridge}}$ | $\pi$（被算力卡住） | **减 FLOPs** 或提高算力利用率 |
-| **临界** | $I \approx I_{\text{ridge}}$ | 两者都紧 | 两头都抓 |
+| 内存密集（memory-bound） | $I < I_{\text{ridge}}$ | $\beta \cdot I$（被带宽卡住） | 减字节：提高复用、降低精度、分块 |
+| 计算密集（compute-bound） | $I > I_{\text{ridge}}$ | $\pi$（被算力卡住） | 减 FLOPs 或提高算力利用率 |
+| 临界 | $I \approx I_{\text{ridge}}$ | 两者都紧 | 两头都抓 |
 
-**内存密集 ≠ "这个硬件带宽小"**：它是一个 kernel 的算术强度太低，喂不饱算力。
+内存密集不等于“这个硬件带宽小”：它是一个 kernel 的算术强度太低，喂不饱算力。
 
 ## 一个 A100 的例子
 
@@ -94,11 +94,11 @@ BF16: ridge point =    156.0 FLOPs/byte
   大 N 的 GEMM（N=4096、bf16 操作数，I≈N/3≈1365）  I≈1365 → compute-bound（被算力卡）
 ```
 
-三个 example 的 $I$ 怎么来的：
+三个例子的 $I$ 来源：
 
-- **elementwise**：一个元素读 2 字节、写 2 字节，做约 2 次浮点运算（如 $y = \mathrm{relu}(x)$ 的比较加乘），$I = 2/4 = 0.5$。
-- **注意力**：$I \approx 17$ 是 FA1 论文 Figure 2 的实测值：GPT-2 medium（$N=1024$、$d=64$、16 head、batch 64）forward+backward 是 75.2 GFLOPs 对 4.4 GB HBM 读写，相除得 17.1。同一张表里的标准实现是 66.6 GFLOPs / 40.3 GB，$I \approx 1.65$。
-- **大 N 的 GEMM**：$N \times N$ 的 $C = AB$，FLOPs $= 2N^3$，访存是 $A, B, C$ 各 $N^2$ 个元素、bf16 每个 2 字节共 $6N^2$，于是
+- elementwise：一个元素读 2 字节、写 2 字节，做约 2 次浮点运算（如 $y = \mathrm{relu}(x)$ 的比较加乘），$I = 2/4 = 0.5$。
+- 注意力：$I \approx 17$ 是 FlashAttention（FA1）论文 Figure 2 的实测值：GPT-2 medium（$N=1024$、$d=64$、16 head、batch 64）forward+backward 是 75.2 GFLOPs 对 4.4 GB HBM 读写，相除得 17.1。同一张表里的标准实现是 66.6 GFLOPs / 40.3 GB，$I \approx 1.65$。
+- 大 N 的 GEMM（general matrix multiply）：$N \times N$ 的 $C = AB$，FLOPs $= 2N^3$，访存是 $A, B, C$ 各 $N^2$ 个元素、bf16 每个 2 字节共 $6N^2$，于是
 
 $$
 I_{\text{GEMM}} = \frac{2N^3}{6N^2} = \frac{N}{3}
@@ -106,20 +106,26 @@ $$
 
 N=4096 时约 1365。这个式子对字节数敏感：同样 $N$，操作数换成 4 字节（FP32/TF32）就掉到 $N/6 \approx 683$。
 
-**ridge 跟着"用哪条计算路径"变**：attention 用的是 tensor core，所以必须对照 BF16 的 ridge（156），而不是 FP32 的（9.75）。同一份 $I$ 在不同 ridge 下可能属于不同区，所以先得确认"拿什么算"，再查表归类。
+ridge 跟着“用哪条计算路径”变：attention 用的是 tensor core，所以必须对照 BF16 的 ridge（156），而不是 FP32 的（9.75）。同一份 $I$ 在不同 ridge 下可能属于不同区，所以先得确认“拿什么算”，再查表归类。
 
 ## 怎么用
 
-Roofline 的用法是**先定位瓶颈，再改对地方**：
+Roofline 的用法是先定位瓶颈，再改对地方：
 
-1. **先算 $I$，再对照 ridge。** $I < I_{\text{ridge}}$ → 改字节；$I > I_{\text{ridge}}$ → 改 FLOPs 或利用率。改错方向等于白干。
-2. **memory-bound 的直觉**：$\beta I$ 这条斜线上，性能被带宽压住。提速无非两条：提高复用降 bytes（分块、把数据留在片上），或降精度减字节（见 [[learning/precision/01-overview|精度系列]]）。
-3. **compute-bound 的直觉**：性能贴着 $\pi$ 这条平线，已经跑满算力，再降字节也没用；要么减少需要算的量，要么把利用率从 30% 提到 70%。
-4. **一个 kernel 可以跨区移动**。同一个 GEMM，块小、复用差时落在内存密集区；做 blocking 把 DRAM 流量降下来，$I$ 上升，就可能滑到计算密集区。这是分块优化在数学上生效的原因。
+1. 先算 $I$，再对照 ridge。$I < I_{\text{ridge}}$ → 改字节；$I > I_{\text{ridge}}$ → 改 FLOPs 或利用率。改错方向等于白干。
+2. memory-bound 的直觉：$\beta I$ 这条斜线上，性能被带宽压住。提速无非两条：提高复用降 bytes（分块、把数据留在片上），或降精度减字节（见 [[learning/precision/01-overview|精度系列]]）。
+3. compute-bound 的直觉：性能贴着 $\pi$ 这条平线，已经跑满算力，再降字节也没用；要么减少需要算的量，要么把利用率从 30% 提到 70%。
+4. 一个 kernel 可以跨区移动。同一个 GEMM，块小、复用差时落在内存密集区；做 blocking 把 DRAM 流量降下来，$I$ 上升，就可能滑到计算密集区。这是分块优化在数学上生效的原因。
 
 ## 和 attention 的关系
 
-attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少。朴素实现会把 $N \times N$ 的 $S$、$P$ 写进 HBM 再读出来，单行 forward 的理论估算是每行 query 花 $4Nd$ FLOPs、搬约 $8N$ 字节，$I \approx d/2$（$d=64$ 时 32），远低于 ridge。FlashAttention 把 $S$、$P$ 留在片上，但**流量也不是线性的**：每个 query 行块都要重读整条 $K, V$，总 HBM 读写是 $\Theta(N^2 d^2 M^{-1})$（$M$ 为片上 SRAM 元素数），比朴素实现的 $\Theta(Nd + N^2)$ 少了 $M/d^2$ 倍。按这个阶算理论 $I \approx 2M/d$（$M \approx 10^5$、$d=64$ 时三千多，已越过 ridge），但这个阶要 $N$ 足够大才成立。FA1 论文 Figure 2 那张表算的是 forward+backward 端到端：$N=1024$、$d=64$ 下标准实现 66.6 GFLOPs / 40.3 GB，$I \approx 1.65$，FlashAttention 是 75.2 GFLOPs / 4.4 GB，$I \approx 17$。端到端口径下 FA 把 $I$ 抬了一个数量级，但两者都还在 ridge（156）左边，原因有两个：$N$ 不够大，$\Theta(Nd)$ 那一项和 $N^2d^2M^{-1}$ 同量级；反向还要多搬 $dO$、$dS$、$dP$ 好几个 $N\times N$ 的中间量。所以 $I$ 是被大幅抬向 ridge，没有一步跨过去。而 FA4 在 Blackwell 上先做多资源 roofline 判断瓶颈**是否已经换人**：B200 的 BF16 tensor core 吞吐是 H100 的两倍（2.25 PFLOPS vs 1 PFLOPS），但共享内存读带宽仍是 128 B/clock/SM、指数单元仍是 16 op/clock/SM（和 Hopper 相同；B300 才把 exp 翻倍到 32），于是瓶颈从 MMA 转到 smem 流量和 exp，再决定改 kernel 还是改算法。
+attention 是典型的内存密集操作：softmax 是 reduction，大量 HBM 读写、算术很少。朴素实现会把 $N \times N$ 的 $S$、$P$ 写进 HBM 再读出来，单行 forward 的理论估算是每行 query 花 $4Nd$ FLOPs、搬约 $8N$ 字节，$I \approx d/2$（$d=64$ 时 32），远低于 ridge。
+
+FlashAttention 把 $S$、$P$ 留在片上，但流量也不是线性的：每个 query 行块都要重读整条 $K, V$，总 HBM 读写是 $\Theta(N^2 d^2 M^{-1})$（$M$ 为片上 SRAM 元素数），比朴素实现的 $\Theta(Nd + N^2)$ 少了 $M/d^2$ 倍。按这个阶算理论 $I \approx 2M/d$（$M \approx 10^5$、$d=64$ 时三千多，已越过 ridge），但这个阶要 $N$ 足够大才成立。
+
+FA1 论文 Figure 2 那张表算的是 forward+backward 端到端：$N=1024$、$d=64$ 下标准实现 66.6 GFLOPs / 40.3 GB，$I \approx 1.65$，FlashAttention 是 75.2 GFLOPs / 4.4 GB，$I \approx 17$。端到端口径下 FA 把 $I$ 抬了一个数量级，但两者都还在 ridge（156）左边，原因有两个：$N$ 不够大，$\Theta(Nd)$ 那一项和 $N^2d^2M^{-1}$ 同量级；反向还要多搬 $dO$、$dS$、$dP$ 好几个 $N\times N$ 的中间量。所以 $I$ 朝 ridge 大幅上升，没有一步跨过去。
+
+FA4 在 Blackwell 上先做多资源 roofline，判断瓶颈是否已经转移：B200 的 BF16 tensor core 吞吐是 H100 的两倍（2.25 PFLOPS vs 1 PFLOPS），但共享内存读带宽仍是 128 B/clock/SM、指数单元仍是 16 op/clock/SM（和 Hopper 相同；B300 才把 exp 翻倍到 32），于是瓶颈从 MMA（矩阵乘加）转到 smem 流量和 exp，再决定改 kernel 还是改算法。
 
 ## Reference
 
