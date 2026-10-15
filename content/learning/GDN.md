@@ -1,3 +1,7 @@
+---
+aiGenerated: true
+---
+
 **GDN** 是 **Gated DeltaNet / Gated Delta Networks** 的缩写。
 
 把 GDN 当“另一个 Transformer 变体”看会走偏。它更像把三条线合到一起：

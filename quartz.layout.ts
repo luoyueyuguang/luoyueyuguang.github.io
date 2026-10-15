@@ -19,6 +19,7 @@ export const defaultContentPageLayout: PageLayout = {
     Component.Breadcrumbs(),
     Component.ArticleTitle(),
     Component.ContentMeta(),
+    Component.AiNotice(),
     Component.TagList(),
     Component.DownloadPDF(),
   ],

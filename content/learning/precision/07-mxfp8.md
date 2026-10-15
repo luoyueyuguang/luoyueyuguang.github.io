@@ -1,3 +1,7 @@
+---
+aiGenerated: true
+---
+
 聊 FP8，大家第一反应是"每 8 bit 装一个数，误差百分之几"。但决定 FP8 **能不能用于训练**的，是**谁负责缩放**。[[learning/precision/05-fp8|FP8]] 用**一个** per-tensor 尺度去撑动态范围，可一旦权重/激活的量级在张量内部剧烈起伏，这个"单一尺度"就把小值压碎。**MXFP8（OCP 微缩放，Microscaling / MX）**给出了另一条路：**每 32 个 8 bit 元素共享一个 8 bit 块尺度**。它是 OCP（Open Compute Project）在 2023 年 9 月发布、AMD / Arm / Intel / Meta / Microsoft / NVIDIA / Qualcomm 联合制定的 MX 格式家族里"8 bit 元素"的那一个，在 [[learning/precision/01-overview|精度总览]] 的"低精度 AI 格式"谱系里，和 [[learning/precision/03-mxfp4|MXFP4]] 只差元素位宽。
 
 > MXFP8 是**每 32 个数配一个共享的 2 的幂指数**。这个共享指数（E8M0）本身不含精度、只给块"定位置"，于是 32 个元素的相对精度（E4M3 的 $u=2^{-4}$）由元素格式决定，而**块与块之间**的量级可以差上几十个数量级也不相互污染。它解决的是**标量 FP8 在权重幅值剧烈变化时的"表示真空"**：一个尺度管全张量，小权重块会被压成 0；MX 的块尺度让每一块"各取所需"，这才让 FP8 在训练里站得住。

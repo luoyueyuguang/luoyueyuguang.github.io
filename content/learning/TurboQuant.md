@@ -1,4 +1,6 @@
-> 与 codex 5.5 协作撰写。
+---
+aiGenerated: true
+---
 
 TurboQuant 按三个层次来讲：
 

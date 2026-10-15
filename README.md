@@ -53,6 +53,19 @@ content/learning/precision/
 （如 `/learning/precision/`）。文章底部有系列进度、上一篇和下一篇导航；
 左侧目录会把系列文件夹标记为"系列"节点，并按 `seriesOrder` 排列文章。
 
+## AI 生成标记
+
+正文由 AI 生成、还没经过人工复核的笔记，在 frontmatter 里写 `aiGenerated: true`：
+
+```yaml
+---
+aiGenerated: true
+---
+```
+
+构建时 `quartz/components/AiNotice.tsx` 会在标题下方渲染一条「AI 生成，需人工复核」的提示条。
+人工撰写的笔记不加这个字段。
+
 - 推送到非 `main` 分支或打开 PR 时，`.github/workflows/ci.yml` 会运行类型检查、格式检查和 Quartz 构建。
 - 推送到 `main` 时，`.github/workflows/deploy.yml` 会构建 `public/` 静态产物并发布到 GitHub Pages。
 - 仓库的 Pages 发布源应设置为 `GitHub Actions`。

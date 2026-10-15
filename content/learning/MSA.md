@@ -1,4 +1,6 @@
-> 与 codex 5.5 协作撰写。
+---
+aiGenerated: true
+---
 
 MiniMax Sparse Attention 在论文里简称 **MSA**。
 

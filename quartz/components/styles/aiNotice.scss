@@ -1,0 +1,24 @@
+/* AI 生成提示条：跟在标题信息后面，位于正文之前 */
+.ai-notice {
+  margin: 0.6rem 0 1.1rem 0;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid var(--secondary);
+  border-radius: 0 8px 8px 0;
+  background-color: var(--highlight);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--darkgray);
+
+  p {
+    margin: 0.2rem 0 0 0;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  .ai-notice-label {
+    font-weight: 600;
+    color: var(--dark);
+  }
+}

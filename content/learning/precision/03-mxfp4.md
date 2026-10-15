@@ -1,3 +1,7 @@
+---
+aiGenerated: true
+---
+
 # MXFP4：OCP 微缩放 FP4
 
 聊到 4 bit 精度，大家第一反应通常是"4 bit 能表示什么？"。但对 AI 来说，更关键的是**一整条权重向量怎么用一个共同的尺度去缩放**。MXFP4 就是这个思路的产物：它是 OCP（Open Compute Project）在 2023 年发布、由 AMD / Arm / Intel / Meta / Microsoft / NVIDIA / Qualcomm 联合制定的**微缩放（Microscaling，MX）**格式家族的一员：每 32 个 4 bit 元素共享一个 8 bit 的块尺度。

@@ -50,7 +50,7 @@ content/
 
 - **首页就是 `content/index.md`**：个人介绍写在正文里，最近文章由 `autoRecent: true` 触发的 `HomeRecentNotes` 渲染在正文之后（`afterBody`）。所以没有单独的「关于」页——介绍和文章列表在同一页上。
 
-- **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags. The one exception is `runCode: false`（见下方 Runnable Python Snippets），它只影响运行按钮，不参与标题/日期/标签。
+- **Articles carry no frontmatter** — the only exceptions are `runCode: false`（见下方 Runnable Python Snippets）和 `aiGenerated: true`（见下方 AI 生成标记）。Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags. `runCode` 只影响运行按钮，`aiGenerated` 只影响提示条，两者都不参与标题/日期/标签。
 - **A series is a folder.** Files named `NN-` order the series; the folder path is the series slug. `article-index.json` `series` entries only override the title/description. Do **not** add `series`/`seriesOrder` fields to article records — the build errors.
 - **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-overview.md`, `16-ozaki-scheme.md`); config/component files `kebab-case.ts`.
 - **Sections**: a new section is a directory under `content/` plus an `index.md` with `title`/`date` frontmatter.
@@ -141,6 +141,23 @@ KaTeX 只处理 Markdown，**不会进入 SVG**。所以 `content/learning/asset
 - 借来的图若是**原始图片裁剪**（如论文 Figure 的 PNG 导出），写 `> 图源：…Figure N`；转写的写 `按原论文 <源码文件> 转写`。两者不要混用同一句标注。版式与论文一致但坐标数据是摘要式转写的，写 `> 图源：…（按原论文源码重绘）`，不要冒充原图。
 - 图片统一放 `content/learning/assets/`，用站点路径引用（`/learning/assets/...`），不要留孤立图片。
 - 图片下方的说明文字遵循 KaTeX 约定，不要用反引号包 `$...$`。
+
+---
+
+## AI 生成标记（AiNotice）
+
+正文由 AI 生成、还没经过人工复核的笔记，在 frontmatter 里写 `aiGenerated: true`：
+
+```yaml
+---
+aiGenerated: true
+---
+```
+
+`Component.AiNotice()`（`quartz/components/AiNotice.tsx`，样式在 `quartz/components/styles/aiNotice.scss`）会在标题下方渲染一条提示条：AI 生成、需人工复核。提示条渲染在 `beforeBody`，不进正文树，所以 description、RSS 摘要和搜索索引都从正文第一句开始，不会带上提示语。
+
+- 只给 AI 生成的笔记加：`learning/{GDN,MSA,TurboQuant,roofline}.md` 和 `learning/precision/03`–`17`。人工撰写的笔记不加（`learning/precision/01-overview`、`02-nvfp4`、`pitfalls/cuda13onFedora`）。
+- 正文里不要再写"本文与 xxx 协作撰写"这类说明，一条提示条就够了。
 
 ---
 

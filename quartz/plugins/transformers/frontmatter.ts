@@ -94,6 +94,7 @@ declare module "vfile" {
         enableToc: string
         cssclasses: string[]
         article: boolean
+        aiGenerated: boolean
         articleIndex: boolean
         autoRecent: boolean
         series: string

@@ -4,6 +4,7 @@ import SeriesContent from "./pages/SeriesContent"
 import FolderContent from "./pages/FolderContent"
 import NotFound from "./pages/404"
 import ArticleTitle from "./ArticleTitle"
+import AiNotice from "./AiNotice"
 import Darkmode from "./Darkmode"
 import Head from "./Head"
 import PageTitle from "./PageTitle"
@@ -28,6 +29,7 @@ import DownloadPDF from "./DownloadPDF"
 
 export {
   ArticleTitle,
+  AiNotice,
   Content,
   TagContent,
   SeriesContent,
