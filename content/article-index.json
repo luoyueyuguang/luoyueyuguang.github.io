@@ -1,9 +1,5 @@
 {
   "series": {
-    "learning/flash-attention": {
-      "title": "FlashAttention",
-      "description": "从算法原理到 GPU 实现，系统整理 FlashAttention 的关键技术。"
-    },
     "learning/precision": {
       "title": "数值精度：从 fp4 到 fp128",
       "description": "从 4 位到 128 位，系统梳理 AI 与科学计算里的浮点精度谱系。"
@@ -24,91 +20,6 @@
       "title": "TurboQuant 算法",
       "date": "2026-06-11",
       "tags": ["learning", "quantization", "inference"]
-    },
-    "learning/flash-attention/01-flash-attention": {
-      "title": "FlashAttention 系列总览",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/02-online-softmax": {
-      "title": "online softmax 与分块",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "algorithm"]
-    },
-    "learning/flash-attention/04-forward-kernel": {
-      "title": "前向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/05-backward-kernel": {
-      "title": "反向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/06-flashattention2": {
-      "title": "FlashAttention-2",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/07-flashattention3": {
-      "title": "FlashAttention-3",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/08-flashattention3-kernel": {
-      "title": "FA3 前向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/09-flashattention3-bwd-kernel": {
-      "title": "FA3 反向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/13-mla": {
-      "title": "MLA：压缩 KV 的 Latent Attention",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda", "mla"]
-    },
-    "learning/flash-attention/14-launch-scheduling": {
-      "title": "调度与启动层",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda", "scheduling"]
-    },
-    "learning/flash-attention/15-mla-bwd-kernel": {
-      "title": "MLA 反向kernel",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda", "mla"]
-    },
-    "learning/flash-attention/16-block-sparse": {
-      "title": "Block-sparse FlashAttention",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda", "sparse"]
-    },
-    "learning/flash-attention/17-variants": {
-      "title": "变体与实例化",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/10-flashattention4": {
-      "title": "FlashAttention-4",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/11-flashattention4-kernel": {
-      "title": "FA4 前向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/12-flashattention4-bwd-kernel": {
-      "title": "FA4 反向kernel代码逐行读",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda"]
-    },
-    "learning/flash-attention/03-triton-reference": {
-      "title": "Triton 参考实现",
-      "date": "2026-09-02",
-      "tags": ["learning", "attention", "cuda", "triton"]
     },
     "learning/roofline": {
       "title": "Roofline 模型",

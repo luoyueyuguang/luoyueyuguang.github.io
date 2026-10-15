@@ -77,7 +77,7 @@ export const SeriesPage: QuartzEmitterPlugin<Partial<SeriesPageOptions>> = (user
       const emitted: FilePath[] = []
 
       for (const page of pages) {
-        // 系列详情页位于其文件夹 URL（如 learning/flash-attention/），总览页在 /series/
+        // 系列详情页位于其文件夹 URL（如 learning/precision/），总览页在 /series/
         const slug =
           page === "index"
             ? (joinSegments("series", "index") as FullSlug)

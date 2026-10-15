@@ -29,19 +29,19 @@ npm run serve
 文件名用 `NN-` 数字前缀标记顺序，该文件夹自动成为系列，无需任何额外配置：
 
 ```
-content/learning/flash-attention/
-├── 01-flash-attention.md
-└── 02-flash-attention-2.md
+content/learning/precision/
+├── 01-overview.md
+└── 02-nvfp4.md
 ```
 
-- 系列 slug 即文件夹路径（`learning/flash-attention`），顺序取文件名前缀数字。
+- 系列 slug 即文件夹路径（`learning/precision`），顺序取文件名前缀数字。
 - `content/article-index.json` 的 `series` 条目是可选的标题/描述覆盖：
 
 ```json
 "series": {
-  "learning/flash-attention": {
-    "title": "Flash Attention",
-    "description": "从算法原理到 GPU 实现。"
+  "learning/precision": {
+    "title": "数值精度：从 fp4 到 fp128",
+    "description": "从 4 位到 128 位，系统梳理 AI 与科学计算里的浮点精度谱系。"
   }
 }
 ```
@@ -50,7 +50,7 @@ content/learning/flash-attention/
 `series`/`seriesOrder` 字段（构建会报错提示）。
 
 构建会自动生成 `/series` 系列总览，以及每个系列文件夹自身的详情页
-（如 `/learning/flash-attention/`）。文章底部有系列进度、上一篇和下一篇导航；
+（如 `/learning/precision/`）。文章底部有系列进度、上一篇和下一篇导航；
 左侧目录会把系列文件夹标记为"系列"节点，并按 `seriesOrder` 排列文章。
 
 - 推送到非 `main` 分支或打开 PR 时，`.github/workflows/ci.yml` 会运行类型检查、格式检查和 Quartz 构建。

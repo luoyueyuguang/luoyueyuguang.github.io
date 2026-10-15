@@ -43,7 +43,7 @@ content/
 │   ├── index.md            # section landing page (has frontmatter)
 │   ├── assets/             # every image, referenced as /learning/assets/<name>
 │   ├── *.md                # standalone notes (camelCase.md)
-│   └── <series>/           # e.g. flash-attention/, precision/
+│   └── <series>/           # e.g. precision/
 │       └── NN-kebab-name.md
 └── pitfalls/
 ```
@@ -52,7 +52,7 @@ content/
 
 - **Articles carry no frontmatter.** Title, `date` and `tags` live in `content/article-index.json`, keyed by slug (path relative to `content/`, no `.md`). A missing entry means the article gets no title and no tags. The one exception is `runCode: false`（见下方 Runnable Python Snippets），它只影响运行按钮，不参与标题/日期/标签。
 - **A series is a folder.** Files named `NN-` order the series; the folder path is the series slug. `article-index.json` `series` entries only override the title/description. Do **not** add `series`/`seriesOrder` fields to article records — the build errors.
-- **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-flash-attention.md`, `16-block-sparse.md`); config/component files `kebab-case.ts`.
+- **File naming**: standalone notes `camelCase.md` (`TurboQuant.md`, `roofline.md`); series articles `NN-kebab-case.md` (`01-overview.md`, `16-ozaki-scheme.md`); config/component files `kebab-case.ts`.
 - **Sections**: a new section is a directory under `content/` plus an `index.md` with `title`/`date` frontmatter.
 - **One paragraph is one long line.** Do not hard-wrap Chinese prose.
 - **Code fences always declare a language** (`python`, `cpp`, `text`, `bash`, `ptx`, `pseudocode`). `text` is used for program output.
