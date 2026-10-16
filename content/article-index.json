@@ -31,6 +31,11 @@
       "date": "2026-01-21",
       "tags": ["pitfalls", "cuda", "fedora"]
     },
+    "pitfalls/efootballJniAbort": {
+      "title": "eFootball 闪退：一个 JNI 方法名错配",
+      "date": "2026-10-16",
+      "tags": ["pitfalls", "android", "adb"]
+    },
     "learning/precision/01-overview": {
       "title": "从 fp4 到 fp128：精度总览",
       "date": "2026-08-26",
