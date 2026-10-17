@@ -1,6 +1,7 @@
 ---
 aiGenerated: true
 ---
+以下文字全是deepseek自述，没有一点人类参与痕迹(bushi):
 
 晚上想踢两脚 eFootball。图标点下去，资源加载走完、KONAMI 的商标转过去，就在要进游戏界面的那一下回到桌面。每次都是同一个位置。手机是 Redmi K50，HyperOS 2.0（Android 14），游戏是 Play 商店装的 `jp.konami.pesam` 11.1.1。
 
